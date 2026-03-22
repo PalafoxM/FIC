@@ -13,23 +13,23 @@ import {
 import { useAuth } from '../hooks/useAuth';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [user, serUser] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const router = useRouter();
   const { login, error } = useAuth();
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!user || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      await login(email, password);
+      await login(user, password);
       // La navegación se maneja automáticamente en el hook
       // cuando se establece el usuario
     } catch (error) {
@@ -47,10 +47,10 @@ export default function LoginScreen() {
   // Datos de prueba para desarrollo
   const fillTestCredentials = (type) => {
     if (type === 'vendor') {
-      setEmail('proveedor@test.com');
+      serUser('proveedor@test.com');
       setPassword('123456');
     } else {
-      setEmail('cliente@test.com');
+      serUser('cliente@test.com');
       setPassword('123456');
     }
   };
@@ -65,9 +65,9 @@ export default function LoginScreen() {
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
+          placeholder="Usuario"
+          value={user}
+          onChangeText={serUser}
           autoCapitalize="none"
           keyboardType="email-address"
           placeholderTextColor="#999"
@@ -82,7 +82,7 @@ export default function LoginScreen() {
           placeholderTextColor="#999"
         />
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.loginButton, isLoading && styles.disabledButton]}
           onPress={handleLogin}
           disabled={isLoading}
@@ -94,7 +94,7 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.registerLink}
           onPress={handleRegisterRedirect}
         >
@@ -106,15 +106,15 @@ export default function LoginScreen() {
         {/* Botones de prueba para desarrollo */}
         <View style={styles.testSection}>
           <Text style={styles.testTitle}>Datos de prueba (Desarrollo):</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.testButton}
             onPress={() => fillTestCredentials('vendor')}
           >
             <Text style={styles.testButtonText}>Proveedor de Prueba</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.testButton}
             onPress={() => fillTestCredentials('client')}
           >

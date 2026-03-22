@@ -8,52 +8,52 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-const handleLogout = async () => {
-  Alert.alert(
-    'Cerrar Sesión',
-    '¿Estás seguro?',
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      { 
-        text: 'Cerrar Sesión', 
-        onPress: async () => {
-          console.log('🎯 Iniciando logout desde HomeScreen');
-          await logout();
-          console.log('🎯 Logout completado desde hook');
+  const handleLogout = async () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar Sesión',
+          onPress: async () => {
+            console.log('🎯 Iniciando logout desde HomeScreen');
+            await logout();
+            console.log('🎯 Logout completado desde hook');
+          }
         }
-      }
-    ]
-  );
-};
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcome}>Bienvenido, {user?.name}</Text>
+        <Text style={styles.welcome}>Bienvenido, {user?.nombre}</Text>
         <Text style={styles.userType}>
-          {user?.type === 'vendor' ? 'Vendedor' : 'Cliente'}
+          {user?.id_perfil === 2 ? 'Vendedor' : 'Cliente'}
         </Text>
       </View>
 
       <View style={styles.menu}>
-        {user?.type === 'vendor' ? (
+        {user?.id_perfil === 2 ? (
           // Vista del Vendedor
           <>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => router.push('./(modals)/scanner')}
             >
               <Text style={styles.menuItemText}>Escanear QR para Cobrar</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => router.push('./(modals)/historyStore')}
             >
               <Text style={styles.menuItemText}>Historial de Ventas</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => Alert.alert('Próximamente', 'Estadísticas en desarrollo')}
             >
@@ -64,15 +64,15 @@ const handleLogout = async () => {
           // Vista del Cliente
           <>
             <ClientQRGenerator />
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => router.push('./(modals)/historyPay')}
             >
               <Text style={styles.menuItemText}>Historial de Consumo</Text>
             </TouchableOpacity>
-          
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => Alert.alert('Próximamente', 'Soporte en desarrollo')}
             >
