@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
-const API_BASE_URL = 'http://3.85.244.1/api/';
+const API_BASE_URL = 'http://3.220.153.13/api/';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
@@ -39,9 +39,9 @@ export const useAuth = () => {
       // Hacemos una consulta ligera a getTabla solo para que el middleware `verifyStaticToken` valide el token.
       const response = await fetch(`${API_BASE_URL}getTabla`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           data: { tabla: 'usuario', limit: 1 } // Solo le pedimos 1 registro para validar
@@ -62,7 +62,7 @@ export const useAuth = () => {
 
       // Si pasa, no es necesario hacer un SetUser aquí a menos que tu backend devuelva el perfil
       // Pero si tu backend no tiene un 'auth/profile', solo usamos esto para comprobar que el Token no ha expirado.
-      
+
     } catch (error) {
       console.error('Token inválido:', error);
       await logout();

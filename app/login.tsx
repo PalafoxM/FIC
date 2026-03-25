@@ -3,6 +3,9 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,131 +59,150 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>FIC 2026</Text>
-        <Text style={styles.subtitle}>SECTURI</Text>
-      </View>
+    <ImageBackground
+      // Puedes cambiar esta URL por una imagen local ej: source={require('../assets/images/quijote-bg.jpg')}
+      source={{ uri: 'https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?q=80&w=1080' }}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.overlay}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
 
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Usuario"
-          value={user}
-          onChangeText={serUser}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor="#999"
-        />
+          <View style={styles.formModal}>
+            <View style={styles.header}>
+              <Text style={styles.title}>FIC 2026</Text>
+              <Text style={styles.subtitle}>En un lugar de la Mancha...</Text>
+            </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Contraseña"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholderTextColor="#999"
-        />
+            <TextInput
+              style={styles.input}
+              placeholder="Vuestro Usuario"
+              value={user}
+              onChangeText={serUser}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholderTextColor="#666"
+            />
 
-        <TouchableOpacity
-          style={[styles.loginButton, isLoading && styles.disabledButton]}
-          onPress={handleLogin}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
-          )}
-        </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Palabra Secreta"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor="#666"
+            />
 
-        <TouchableOpacity
-          style={styles.registerLink}
-          onPress={handleRegisterRedirect}
-        >
-          <Text style={styles.registerText}>
-            ¿No tienes cuenta? <Text style={styles.registerBold}>Regístrate</Text>
-          </Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.disabledButton]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#F4D03F" />
+              ) : (
+                <Text style={styles.loginButtonText}>Adentrarse</Text>
+              )}
+            </TouchableOpacity>
 
-        {/* Botones de prueba para desarrollo */}
-        <View style={styles.testSection}>
-          <Text style={styles.testTitle}>Datos de prueba (Desarrollo):</Text>
+            <TouchableOpacity
+              style={styles.registerLink}
+              onPress={handleRegisterRedirect}
+            >
+              <Text style={styles.registerText}>
+                ¿Aún no sois caballero? <Text style={styles.registerBold}>Unirse</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={() => fillTestCredentials('vendor')}
-          >
-            <Text style={styles.testButtonText}>Proveedor de Prueba</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={() => fillTestCredentials('client')}
-          >
-            <Text style={styles.testButtonText}>Cliente de Prueba</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)', // Oscurece el fondo para que resalte el modal
+  },
+  scrollContent: {
     flexGrow: 1,
-    backgroundColor: '#f5f5f5',
     padding: 20,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 50,
+    marginBottom: 30,
   },
   title: {
-    fontSize: 32,
+    fontSize: 45,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#D4AF37', // Oro viejo
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    color: '#E8DAB2', // Pergamino claro
     textAlign: 'center',
+    fontFamily: 'serif',
+    fontStyle: 'italic',
   },
-  form: {
-    backgroundColor: 'white',
-    padding: 25,
+  formModal: {
+    backgroundColor: 'rgba(88, 15, 28, 0.85)', // Vino transparente
+    padding: 30,
     borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#D4AF37', // Borde dorado medieval
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 10,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#D4AF37',
     borderRadius: 8,
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
-    backgroundColor: '#fafafa',
+    backgroundColor: 'rgba(244, 238, 224, 0.95)', // Tono papel avejentado
+    fontFamily: 'serif',
+    color: '#333',
   },
   loginButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4A0B17', // Vino muy oscuro
     padding: 18,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
     alignItems: 'center',
     marginTop: 10,
   },
   disabledButton: {
-    backgroundColor: '#95A5A6',
+    backgroundColor: '#30060e',
+    borderColor: '#7a641d',
   },
   loginButtonText: {
-    color: 'white',
+    color: '#D4AF37',
     fontSize: 18,
     fontWeight: 'bold',
+    fontFamily: 'serif',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   },
   registerLink: {
     alignItems: 'center',
@@ -188,12 +210,15 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   registerText: {
-    color: '#666',
+    color: '#E8DAB2',
     fontSize: 16,
+    fontFamily: 'serif',
   },
   registerBold: {
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#D4AF37',
+    fontFamily: 'serif',
+    textDecorationLine: 'underline',
   },
   testSection: {
     marginTop: 30,
