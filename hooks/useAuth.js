@@ -3,11 +3,12 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ENV } from '../constants/env';
 
-const API_BASE_URL = ENV.apiBaseUrl;
+const AUTH_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 
 const getHeaders = (token = null) => {
   const headers = {
     'Content-Type': 'application/json',
+    Accept: 'application/json',
   };
 
   if (ENV.tokenApi) {
@@ -21,58 +22,18 @@ const getHeaders = (token = null) => {
   return headers;
 };
 
-const extractUserRecords = (payload) => {
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (payload?.data && typeof payload.data === 'object') return [payload.data];
-  if (Array.isArray(payload?.respuesta)) return payload.respuesta;
-  if (payload?.respuesta && typeof payload.respuesta === 'object') return [payload.respuesta];
-  if (Array.isArray(payload?.user)) return payload.user;
-  if (payload?.user && typeof payload.user === 'object') return [payload.user];
-  return [];
-};
-
-const extractToken = (payload, userRecord) =>
-  userRecord?.token ??
-  payload?.token ??
-  payload?.accessToken ??
-  payload?.access_token ??
-  payload?.jwt ??
-  payload?.data?.token ??
-  payload?.data?.accessToken ??
-  payload?.data?.access_token ??
-  payload?.respuesta?.token ??
-  payload?.respuesta?.accessToken ??
-  payload?.respuesta?.access_token ??
+const extractUserRecord = (payload) =>
+  payload?.user ??
+  (Array.isArray(payload?.data) ? payload.data[0] : null) ??
+  (payload?.data && typeof payload.data === 'object' ? payload.data : null) ??
   null;
 
-const extractTokenFromHeaders = (response) => {
-  const authorizationHeader = response.headers.get('authorization');
-  if (authorizationHeader?.startsWith('Bearer ')) {
-    return authorizationHeader.slice('Bearer '.length);
-  }
-
-  return (
-    response.headers.get('x-access-token') ??
-    response.headers.get('x-auth-token') ??
-    null
-  );
-};
-
-const buildLoginPayload = (username, password) => {
-  const normalizedUsername = String(username ?? '').trim();
-  const normalizedPassword = String(password ?? '');
-
-  return {
-    data: {
-      tabla: 'usuario',
-      where: {
-        usuario: normalizedUsername,
-        contrasenia: normalizedPassword,
-        visible: 1,
-      },
-    },
-  };
-};
+const extractToken = (payload, userRecord) =>
+  payload?.token ??
+  userRecord?.token ??
+  payload?.accessToken ??
+  payload?.access_token ??
+  null;
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
@@ -104,23 +65,14 @@ export const useAuth = () => {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/validar-token`, {
+      const response = await fetch(`${AUTH_BASE_URL}/validar-token`, {
         method: 'POST',
         headers: getHeaders(token),
       });
 
-
-      if (response.status === 403 || response.status === 401) {
-        if (!authActionRef.current) {
-          await AsyncStorage.multiRemove(['user', 'token']);
-          setUser(null);
-        }
-        return false;
-      }
-
       const data = await response.json();
 
-      if (data.error && data.respuesta === 'Token invalido o expirado') {
+      if (!response.ok || data?.error) {
         if (!authActionRef.current) {
           await AsyncStorage.multiRemove(['user', 'token']);
           setUser(null);
@@ -130,10 +82,120 @@ export const useAuth = () => {
 
       return true;
     } catch (currentError) {
-      // Si el endpoint de validación falla por red o por un cambio de contrato,
-      // no derribamos la sesión local automáticamente.
       console.error('No se pudo validar el token en background:', currentError);
       return true;
+    }
+  };
+
+  const login = async (username, password) => {
+    try {
+      authActionRef.current = true;
+      setLoading(true);
+      setError(null);
+      await AsyncStorage.multiRemove(['user', 'token']);
+
+      const response = await fetch(`${AUTH_BASE_URL}/login`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          usuario: String(username ?? '').trim(),
+          contrasenia: String(password ?? ''),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data?.error) {
+        throw new Error(data?.respuesta || 'Error al iniciar sesión');
+      }
+
+      const userData = extractUserRecord(data);
+      const sessionToken = extractToken(data, userData);
+
+      if (!userData || !sessionToken) {
+        throw new Error('El backend no devolvió usuario/token');
+      }
+
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('token', sessionToken);
+
+      setUser(userData);
+      router.replace('/(tabs)');
+      return userData;
+    } catch (currentError) {
+      setError(currentError.message || 'Error al iniciar sesión');
+      throw currentError;
+    } finally {
+      authActionRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const register = async (name, email, password, type) => {
+    try {
+      authActionRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(`${AUTH_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ name, email, password: String(password ?? ''), type }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || 'Error en el registro');
+      }
+
+      const userData = Array.isArray(data.data) ? data.data[0] : data.data;
+      const sessionToken = extractToken(data, userData);
+
+      if (!userData || !sessionToken) {
+        throw new Error('El backend no devolvió usuario/token');
+      }
+
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('token', sessionToken);
+      setUser(userData);
+
+      router.replace('/(tabs)');
+      return userData;
+    } catch (currentError) {
+      setError(currentError.message || 'Error en el registro');
+      throw currentError;
+    } finally {
+      authActionRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      authActionRef.current = true;
+      const token = await AsyncStorage.getItem('token');
+
+      if (token) {
+        try {
+          await fetch(`${AUTH_BASE_URL}/logout`, {
+            method: 'POST',
+            headers: getHeaders(token),
+          });
+        } catch (logoutError) {
+          console.error('No se pudo cerrar sesión en backend:', logoutError);
+        }
+      }
+
+      await AsyncStorage.multiRemove(['user', 'token']);
+      setUser(null);
+      setError(null);
+      router.replace('/login');
+    } catch (currentError) {
+      console.error('Error logging out:', currentError);
+      setError('Error al cerrar sesión');
+    } finally {
+      authActionRef.current = false;
     }
   };
 
@@ -149,22 +211,17 @@ export const useAuth = () => {
       });
 
       const response = await fetch(
-        `${API_BASE_URL}/transactions/provider?${params}`,
+        `${AUTH_BASE_URL}/transactions/provider?${params}`,
         {
           method: 'GET',
           headers: getHeaders(token),
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al obtener ventas');
-      }
-
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.message || 'Error en la respuesta del servidor');
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || 'Error al obtener ventas');
       }
 
       return data.data;
@@ -186,150 +243,23 @@ export const useAuth = () => {
       });
 
       const response = await fetch(
-        `${API_BASE_URL}/transactions/client?${params}`,
+        `${AUTH_BASE_URL}/transactions/client?${params}`,
         {
           method: 'GET',
           headers: getHeaders(token),
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al obtener ventas');
-      }
-
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.message || 'Error en la respuesta del servidor');
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || 'Error al obtener ventas');
       }
 
       return data.data;
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
-    }
-  };
-
-  const login = async (username, password) => {
-    try {
-      authActionRef.current = true;
-      setLoading(true);
-      setError(null);
-      await AsyncStorage.multiRemove(['user', 'token']);
-
-      const payload = buildLoginPayload(username, password);
-      console.log('Intentando login con formato: legacy-query');
-
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      });
-
-      let data = null;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error('Respuesta no JSON en login (legacy-query)', parseError);
-      }
-
-      console.log('Login status:', response.status, 'formato: legacy-query');
-      console.log(
-        'Login respuesta:',
-        'legacy-query',
-        data?.message ?? data?.respuesta ?? data?.error ?? data
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-          data?.respuesta ||
-          'Error en la peticion de login'
-        );
-      }
-
-      if (data?.error) {
-        const errorInfo = data.respuesta ? String(data.respuesta).split('|') : ['Error en el login'];
-        throw new Error(errorInfo.length > 1 ? errorInfo[1] : errorInfo[0]);
-      }
-
-      const userRecords = extractUserRecords(data);
-      if (userRecords.length === 0) {
-        throw new Error('Usuario o contrasena incorrectos');
-      }
-
-      const userData = userRecords[0];
-      const sessionToken = extractToken(data, userData) ?? extractTokenFromHeaders(response);
-
-      if (!sessionToken) {
-        throw new Error('El backend autentico al usuario, pero no devolvio un token');
-      }
-
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      await AsyncStorage.setItem('token', sessionToken);
-
-      console.log('Login exitoso con formato: legacy-query');
-      setUser(userData);
-      router.replace('/(tabs)');
-      return userData;
-    } catch (currentError) {
-      setError(currentError.message);
-      throw currentError;
-    } finally {
-      authActionRef.current = false;
-      setLoading(false);
-    }
-  };
-
-  const register = async (name, email, password, type) => {
-    try {
-      authActionRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ name, email, password: String(password ?? ''), type }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.message || 'Error en el registro');
-      if (!data.success) throw new Error(data.message || 'Error en el registro');
-
-      const userData = Array.isArray(data.data) ? data.data[0] : data.data;
-      const sessionToken = extractToken(data, userData) ?? extractTokenFromHeaders(response);
-
-      if (!sessionToken) {
-        throw new Error('El backend registro al usuario, pero no devolvio un token');
-      }
-
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      await AsyncStorage.setItem('token', sessionToken);
-      setUser(userData);
-
-      router.replace('/(tabs)');
-      return userData;
-    } catch (currentError) {
-      setError(currentError.message);
-      throw currentError;
-    } finally {
-      authActionRef.current = false;
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await AsyncStorage.multiRemove(['user', 'token']);
-      setUser(null);
-      setError(null);
-      router.replace('/login');
-    } catch (currentError) {
-      console.error('Error logging out:', currentError);
-      setError('Error al cerrar sesion');
     }
   };
 
