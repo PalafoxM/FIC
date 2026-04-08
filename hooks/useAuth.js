@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
-const WEB_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
-const AUTH_BASE_URL = `${WEB_BASE_URL}/index.php/Login`;
+const AUTH_BASE_URL = API_BASE_URL;
 
 const getHeaders = (token = null) => {
   const headers = {
@@ -67,7 +66,7 @@ export const useAuth = () => {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch(`${AUTH_BASE_URL}/validarTokenApi`, {
+      const response = await fetch(`${AUTH_BASE_URL}/validar-token`, {
         method: 'POST',
         headers: getHeaders(token),
       });
@@ -117,11 +116,11 @@ export const useAuth = () => {
         },
       };
 
-      console.log('Login URL:', `${AUTH_BASE_URL}/loginApi`);
+      console.log('Login URL:', `${AUTH_BASE_URL}/login`);
       console.log('Login usuario:', normalizedUsername);
       console.log('Login password length:', normalizedPassword.length);
 
-      const response = await fetch(`${AUTH_BASE_URL}/loginApi`, {
+      const response = await fetch(`${AUTH_BASE_URL}/login`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(payload),
@@ -212,7 +211,7 @@ export const useAuth = () => {
 
       if (token) {
         try {
-          await fetch(`${AUTH_BASE_URL}/logoutApi`, {
+          await fetch(`${AUTH_BASE_URL}/logout`, {
             method: 'POST',
             headers: getHeaders(token),
           });
