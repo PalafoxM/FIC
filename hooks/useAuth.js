@@ -3,7 +3,9 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ENV } from '../constants/env';
 
-const AUTH_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
+const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
+const WEB_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+const AUTH_BASE_URL = `${WEB_BASE_URL}/index.php/Login`;
 
 const getHeaders = (token = null) => {
   const headers = {
@@ -65,12 +67,19 @@ export const useAuth = () => {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch(`${AUTH_BASE_URL}/validar-token`, {
+      const response = await fetch(`${AUTH_BASE_URL}/validarTokenApi`, {
         method: 'POST',
         headers: getHeaders(token),
       });
 
-      const data = await response.json();
+      const rawResponse = await response.text();
+      let data = null;
+      try {
+        data = rawResponse ? JSON.parse(rawResponse) : null;
+      } catch (parseError) {
+        console.error('ValidarToken raw response:', rawResponse);
+        return true;
+      }
 
       if (!response.ok || data?.error) {
         if (!authActionRef.current) {
@@ -108,17 +117,24 @@ export const useAuth = () => {
         },
       };
 
-      console.log('Login URL:', `${AUTH_BASE_URL}/login`);
+      console.log('Login URL:', `${AUTH_BASE_URL}/loginApi`);
       console.log('Login usuario:', normalizedUsername);
       console.log('Login password length:', normalizedPassword.length);
 
-      const response = await fetch(`${AUTH_BASE_URL}/login`, {
+      const response = await fetch(`${AUTH_BASE_URL}/loginApi`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const rawResponse = await response.text();
+      let data = null;
+      try {
+        data = rawResponse ? JSON.parse(rawResponse) : null;
+      } catch (parseError) {
+        console.error('Login raw response:', rawResponse);
+        throw new Error('La respuesta del servidor no es JSON valido');
+      }
       console.log('Login status:', response.status);
       console.log('Login respuesta:', data?.respuesta ?? data?.message ?? data);
 
@@ -160,7 +176,8 @@ export const useAuth = () => {
         body: JSON.stringify({ name, email, password: String(password ?? ''), type }),
       });
 
-      const data = await response.json();
+      const rawResponse = await response.text();
+      const data = rawResponse ? JSON.parse(rawResponse) : null;
 
       if (!response.ok || !data?.success) {
         throw new Error(data?.message || 'Error en el registro');
@@ -195,7 +212,7 @@ export const useAuth = () => {
 
       if (token) {
         try {
-          await fetch(`${AUTH_BASE_URL}/logout`, {
+          await fetch(`${AUTH_BASE_URL}/logoutApi`, {
             method: 'POST',
             headers: getHeaders(token),
           });
@@ -228,14 +245,15 @@ export const useAuth = () => {
       });
 
       const response = await fetch(
-        `${AUTH_BASE_URL}/transactions/provider?${params}`,
+        `${API_BASE_URL}/transactions/provider?${params}`,
         {
           method: 'GET',
           headers: getHeaders(token),
         }
       );
 
-      const data = await response.json();
+      const rawResponse = await response.text();
+      const data = rawResponse ? JSON.parse(rawResponse) : null;
 
       if (!response.ok || !data?.success) {
         throw new Error(data?.message || 'Error al obtener ventas');
@@ -260,14 +278,15 @@ export const useAuth = () => {
       });
 
       const response = await fetch(
-        `${AUTH_BASE_URL}/transactions/client?${params}`,
+        `${API_BASE_URL}/transactions/client?${params}`,
         {
           method: 'GET',
           headers: getHeaders(token),
         }
       );
 
-      const data = await response.json();
+      const rawResponse = await response.text();
+      const data = rawResponse ? JSON.parse(rawResponse) : null;
 
       if (!response.ok || !data?.success) {
         throw new Error(data?.message || 'Error al obtener ventas');
