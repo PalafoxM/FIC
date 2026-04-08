@@ -94,16 +94,33 @@ export const useAuth = () => {
       setError(null);
       await AsyncStorage.multiRemove(['user', 'token']);
 
+      const normalizedUsername = String(username ?? '').trim();
+      const normalizedPassword = String(password ?? '');
+      const payload = {
+        usuario: normalizedUsername,
+        contrasenia: normalizedPassword,
+        data: {
+          where: {
+            usuario: normalizedUsername,
+            contrasenia: normalizedPassword,
+            visible: 1,
+          },
+        },
+      };
+
+      console.log('Login URL:', `${AUTH_BASE_URL}/login`);
+      console.log('Login usuario:', normalizedUsername);
+      console.log('Login password length:', normalizedPassword.length);
+
       const response = await fetch(`${AUTH_BASE_URL}/login`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          usuario: String(username ?? '').trim(),
-          contrasenia: String(password ?? ''),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+      console.log('Login status:', response.status);
+      console.log('Login respuesta:', data?.respuesta ?? data?.message ?? data);
 
       if (!response.ok || data?.error) {
         throw new Error(data?.respuesta || 'Error al iniciar sesión');
