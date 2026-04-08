@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ENV } from '../../constants/env';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function NotificationsScreen() {
@@ -15,8 +16,9 @@ export default function NotificationsScreen() {
   const loadNotifications = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch('http://172.16.2.118:4000/api/notifications/my-notifications', {
+      const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
         headers: {
+          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
           'Authorization': `Bearer ${token}`,
         },
       });
@@ -40,9 +42,10 @@ export default function NotificationsScreen() {
       
       console.log('✅ Aprobando pago:', transactionId);
       
-      const response = await fetch('http://172.16.2.118:4000/api/transactions/approve', {
+      const response = await fetch(`${ENV.apiBaseUrl}/transactions/approve`, {
         method: 'POST',
         headers: {
+          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
@@ -78,9 +81,10 @@ export default function NotificationsScreen() {
       
       console.log('❌ Rechazando pago:', transactionId);
       
-      const response = await fetch('http://172.16.2.118:4000/api/transactions/reject', {
+      const response = await fetch(`${ENV.apiBaseUrl}/transactions/reject`, {
         method: 'POST',
         headers: {
+          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },

@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -19,7 +19,7 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [userType, setUserType] = useState('client');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const router = useRouter();
   const { register } = useAuth();
 
@@ -30,20 +30,19 @@ export default function RegisterScreen() {
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
+      Alert.alert('Error', 'Las contrasenas no coinciden');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
+    if (password.length < 12) {
+      Alert.alert('Error', 'La contrasena debe tener al menos 12 caracteres');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       await register(name, email, password, userType);
-      // La navegación se maneja automáticamente en el hook
     } catch (error) {
       Alert.alert('Error', error.message || 'Error al registrar usuario');
     } finally {
@@ -58,8 +57,8 @@ export default function RegisterScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>📝 Crear Cuenta</Text>
-        <Text style={styles.subtitle}>Regístrate para comenzar</Text>
+        <Text style={styles.title}>Crear Cuenta</Text>
+        <Text style={styles.subtitle}>Registrate para comenzar</Text>
       </View>
 
       <View style={styles.form}>
@@ -83,7 +82,7 @@ export default function RegisterScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Contraseña"
+          placeholder="Contrasena"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -92,7 +91,7 @@ export default function RegisterScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Confirmar contraseña"
+          placeholder="Confirmar contrasena"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
@@ -102,39 +101,43 @@ export default function RegisterScreen() {
         <View style={styles.typeSection}>
           <Text style={styles.typeLabel}>Tipo de usuario:</Text>
           <View style={styles.typeButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.typeButton, 
+                styles.typeButton,
                 userType === 'client' && styles.typeButtonActive
               ]}
               onPress={() => setUserType('client')}
             >
-              <Text style={[
-                styles.typeButtonText,
-                userType === 'client' && styles.typeButtonTextActive
-              ]}>
-                👤 Cliente
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  userType === 'client' && styles.typeButtonTextActive
+                ]}
+              >
+                Cliente
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.typeButton, 
+                styles.typeButton,
                 userType === 'vendor' && styles.typeButtonActive
               ]}
               onPress={() => setUserType('vendor')}
             >
-              <Text style={[
-                styles.typeButtonText,
-                userType === 'vendor' && styles.typeButtonTextActive
-              ]}>
-                🏪 Vendedor
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  userType === 'vendor' && styles.typeButtonTextActive
+                ]}
+              >
+                Vendedor
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.registerButton, isLoading && styles.disabledButton]}
           onPress={handleRegister}
           disabled={isLoading}
@@ -146,12 +149,12 @@ export default function RegisterScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.loginLink}
           onPress={handleLoginRedirect}
         >
           <Text style={styles.loginText}>
-            ¿Ya tienes cuenta? <Text style={styles.loginBold}>Inicia Sesión</Text>
+            Ya tienes cuenta? <Text style={styles.loginBold}>Inicia Sesion</Text>
           </Text>
         </TouchableOpacity>
       </View>

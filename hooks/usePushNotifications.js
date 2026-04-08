@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
+import { ENV } from '../constants/env';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -50,9 +51,10 @@ const registerTokenInBackend = async (pushToken) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) return;
 
-    await fetch('http://172.16.2.118:4000/api/auth/register-token', {
+    await fetch(`${ENV.apiBaseUrl}/auth/register-token`, {
       method: 'POST',
       headers: {
+        ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },

@@ -1,20 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ENV } from '../constants/env';
 
-const API_BASE_URL = 'http://172.16.2.118:4000/api';
+const API_BASE_URL = ENV.apiBaseUrl;
 
 export const useNotifications = () => {
-  // Obtener token de AsyncStorage
   const getAuthHeaders = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       return {
         'Content-Type': 'application/json',
+        ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
         ...(token && { 'Authorization': `Bearer ${token}` }),
       };
     } catch (error) {
       console.error('Error obteniendo token:', error);
       return {
         'Content-Type': 'application/json',
+        ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
       };
     }
   };
@@ -28,8 +30,6 @@ export const useNotifications = () => {
   // Enviar solicitud de pago al backend
   const sendPaymentRequest = async (vendorName, amount, transactionData) => {
     try {
-      console.log('📤 Enviando solicitud de pago al backend...', transactionData);
-      
       const headers = await getAuthHeaders();
       
       const response = await fetch(`${API_BASE_URL}/transactions/create`, {
@@ -49,7 +49,6 @@ export const useNotifications = () => {
         throw new Error(data.message || 'Error enviando solicitud de pago');
       }
 
-      console.log('✅ Solicitud de pago enviada correctamente:', data);
       return data;
 
     } catch (error) {
@@ -79,13 +78,11 @@ export const useNotifications = () => {
 
 // Exportaciones individuales para compatibilidad
 export const sendPaymentRequest = async (vendorName, amount, transactionData) => {
-  console.log('🔔 [LEGACY] sendPaymentRequest llamado:', { vendorName, amount });
-  
-  // Implementación legacy que también obtiene el token
   try {
     const token = await AsyncStorage.getItem('token');
     const headers = {
       'Content-Type': 'application/json',
+      ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
       ...(token && { 'Authorization': `Bearer ${token}` }),
     };
 

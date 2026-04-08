@@ -1,9 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   ImageBackground,
+  ImageSourcePropType,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,13 +17,72 @@ import {
 } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 
+const LOGIN_BACKGROUND_KEY = 'loginBackgroundIndex';
+const LOGIN_BACKGROUND_ROTATION_MS = 60000;
+const LOGIN_BACKGROUNDS: ImageSourcePropType[] = [
+  require('../images/Cervantes.jpg'),
+  require('../images/Quijote3.jpg'),
+  require('../images/Quijote4.jpg'),
+];
+
+const getNextBackgroundIndex = (lastIndex: number | null) => {
+  if (LOGIN_BACKGROUNDS.length <= 1) {
+    return 0;
+  }
+
+  const availableIndexes = LOGIN_BACKGROUNDS
+    .map((_, index) => index)
+    .filter((index) => index !== lastIndex);
+
+  return availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
+};
+
 export default function LoginScreen() {
   const [user, serUser] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<ImageSourcePropType>(LOGIN_BACKGROUNDS[0]);
 
   const router = useRouter();
-  const { login, error } = useAuth();
+  const { login } = useAuth();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRandomBackground = async () => {
+      try {
+        const storedIndex = await AsyncStorage.getItem(LOGIN_BACKGROUND_KEY);
+        const lastIndex = storedIndex !== null ? Number(storedIndex) : null;
+        const nextIndex = getNextBackgroundIndex(Number.isNaN(lastIndex) ? null : lastIndex);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setBackgroundImage(LOGIN_BACKGROUNDS[nextIndex]);
+        await AsyncStorage.setItem(LOGIN_BACKGROUND_KEY, String(nextIndex));
+      } catch (storageError) {
+        console.error('Error loading login background:', storageError);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setBackgroundImage(LOGIN_BACKGROUNDS[getNextBackgroundIndex(null)]);
+      }
+    };
+
+    loadRandomBackground();
+
+    const intervalId = setInterval(() => {
+      loadRandomBackground();
+    }, LOGIN_BACKGROUND_ROTATION_MS);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
 
   const handleLogin = async () => {
     if (!user || !password) {
@@ -47,21 +108,9 @@ export default function LoginScreen() {
     router.replace('/register');
   };
 
-  // Datos de prueba para desarrollo
-  const fillTestCredentials = (type) => {
-    if (type === 'vendor') {
-      serUser('proveedor@test.com');
-      setPassword('123456');
-    } else {
-      serUser('cliente@test.com');
-      setPassword('123456');
-    }
-  };
-
   return (
     <ImageBackground
-      // Puedes cambiar esta URL por una imagen local ej: source={require('../assets/images/quijote-bg.jpg')}
-      source={{ uri: 'https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?q=80&w=1080' }}
+      source={backgroundImage}
       style={styles.background}
       resizeMode="cover"
     >
@@ -161,7 +210,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   formModal: {
-    backgroundColor: 'rgba(88, 15, 28, 0.85)', // Vino transparente
+    backgroundColor: 'rgba(88, 15, 28, 0.25)', // Vino transparente
     padding: 30,
     borderRadius: 15,
     borderWidth: 2,

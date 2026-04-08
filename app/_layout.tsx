@@ -67,12 +67,6 @@ export default function RootLayout() {
   return (
     <Stack>
       <Stack.Screen 
-        name="index" 
-        options={{ 
-          headerShown: false 
-        }} 
-      />
-      <Stack.Screen 
         name="login" 
         options={{ 
           headerShown: false,
@@ -95,7 +89,7 @@ export default function RootLayout() {
         }} 
       />
       <Stack.Screen 
-        name="scanner" 
+        name="(modals)/scanner" 
         options={{ 
           title: 'Escanear QR',
           presentation: 'modal'
