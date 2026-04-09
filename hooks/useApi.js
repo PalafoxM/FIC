@@ -40,11 +40,32 @@ export const useApi = () => {
   const createTransaction = async (transactionData) => {
     try {
       const headers = await getAuthHeaders();
+      const payload = {
+        clientId: transactionData.clientId,
+        clientUserId: transactionData.clientUserId ?? transactionData.clientId,
+        id_usuario_cliente: transactionData.clientUserId ?? transactionData.clientId,
+        vendorId: transactionData.vendorId,
+        vendorUserId: transactionData.vendorUserId,
+        id_usuario_proveedor: transactionData.vendorUserId ?? transactionData.vendorId,
+        amount: transactionData.amount,
+        tip: transactionData.tip,
+        description: transactionData.description,
+      };
+
+      if (transactionData.idEstablecimiento) {
+        payload.idEstablecimiento = transactionData.idEstablecimiento;
+        payload.id_establecimiento = transactionData.idEstablecimiento;
+      }
+
+      if (transactionData.clientEstablecimientoId) {
+        payload.clientEstablecimientoId = transactionData.clientEstablecimientoId;
+        payload.id_establecimiento_cliente = transactionData.clientEstablecimientoId;
+      }
 
       const response = await fetch(`${API_BASE_URL}/transactions/create`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(transactionData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

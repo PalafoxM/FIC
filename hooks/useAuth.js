@@ -9,6 +9,7 @@ const LEGACY_AUTH_BASE_URL = API_BASE_URL.endsWith('/api')
   : `${API_BASE_URL}/index.php/Login`;
 
 const AuthContext = createContext(null);
+const ACTIVE_ESTABLECIMIENTO_KEY = 'activeEstablecimientoId';
 
 const getHeaders = (token = null) => {
   const headers = {
@@ -44,10 +45,91 @@ const extractToken = (payload, userRecord) =>
   payload?.access_token ??
   null;
 
+const normalizeEstablishments = (payload, userRecord) => {
+  const rawList =
+    userRecord?.establecimientos ??
+    userRecord?.proveedorEstablecimientos ??
+    payload?.establecimientos ??
+    payload?.proveedorEstablecimientos ??
+    payload?.assignedEstablishments ??
+    [];
+
+  if (!Array.isArray(rawList)) {
+    return [];
+  }
+
+  return rawList
+    .filter(Boolean)
+    .map((item) => ({
+      id_establecimiento:
+        item?.id_establecimiento ??
+        item?.idEstablecimiento ??
+        item?.id ??
+        null,
+      dsc_establecimiento:
+        item?.dsc_establecimiento ??
+        item?.establecimiento_nombre ??
+        item?.nombre ??
+        item?.name ??
+        'Establecimiento',
+      id_tipo: item?.id_tipo ?? item?.idTipo ?? null,
+    }))
+    .filter((item) => item.id_establecimiento !== null);
+};
+
+const normalizeAuthenticatedUser = (payload, userRecord) => {
+  if (!userRecord) {
+    return null;
+  }
+
+  const establecimientos = normalizeEstablishments(payload, userRecord);
+  const normalizedUser = {
+    ...userRecord,
+    saldo:
+      userRecord?.saldo ??
+      userRecord?.saldo_actual ??
+      userRecord?.saldoDisponible ??
+      payload?.saldo ??
+      payload?.saldo_actual ??
+      null,
+  };
+
+  if (establecimientos.length > 0) {
+    normalizedUser.establecimientos = establecimientos;
+  }
+
+  if (
+    normalizedUser.id_perfil === 5 &&
+    !normalizedUser.establecimientos &&
+    normalizedUser.id_establecimiento
+  ) {
+    normalizedUser.establecimientos = [
+      {
+        id_establecimiento: normalizedUser.id_establecimiento,
+        dsc_establecimiento: normalizedUser.establecimiento_nombre ?? 'Establecimiento asignado',
+        id_tipo: normalizedUser.id_tipo_establecimiento ?? null,
+      },
+    ];
+  }
+
+  return normalizedUser;
+};
+
+const resolveDefaultEstablecimientoId = (userData) => {
+  const normalizedList = Array.isArray(userData?.establecimientos) ? userData.establecimientos : [];
+
+  if (normalizedList.length > 0) {
+    return normalizedList[0]?.id_establecimiento ?? null;
+  }
+
+  return userData?.id_establecimiento ?? null;
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeEstablecimientoId, setActiveEstablecimientoIdState] = useState(null);
   const authActionRef = useRef(false);
 
   useEffect(() => {
@@ -62,6 +144,21 @@ export function AuthProvider({ children }) {
       if (userJson && token) {
         const userData = JSON.parse(userJson);
         setUser(userData);
+        const storedEstablecimientoId = await AsyncStorage.getItem(ACTIVE_ESTABLECIMIENTO_KEY);
+        const availableIds = (userData?.establecimientos ?? [])
+          .map((item) => String(item?.id_establecimiento ?? ''))
+          .filter(Boolean);
+        const fallbackId = resolveDefaultEstablecimientoId(userData);
+
+        if (storedEstablecimientoId && availableIds.includes(storedEstablecimientoId)) {
+          setActiveEstablecimientoIdState(storedEstablecimientoId);
+        } else if (fallbackId) {
+          setActiveEstablecimientoIdState(String(fallbackId));
+          await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, String(fallbackId));
+        } else {
+          setActiveEstablecimientoIdState(null);
+        }
+
         validateToken(token).catch(console.error);
       }
     } catch (currentError) {
@@ -182,7 +279,8 @@ export function AuthProvider({ children }) {
         throw new Error(data?.respuesta || 'Error al iniciar sesión');
       }
 
-      const userData = extractUserRecord(data);
+      const userRecord = extractUserRecord(data);
+      const userData = normalizeAuthenticatedUser(data, userRecord);
       const sessionToken = extractToken(data, userData);
       console.log('Login userData encontrado:', !!userData);
       console.log('Login token encontrado:', !!sessionToken);
@@ -193,6 +291,14 @@ export function AuthProvider({ children }) {
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       await AsyncStorage.setItem('token', sessionToken);
+      const defaultEstablecimientoId = resolveDefaultEstablecimientoId(userData);
+      if (defaultEstablecimientoId) {
+        await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, String(defaultEstablecimientoId));
+        setActiveEstablecimientoIdState(String(defaultEstablecimientoId));
+      } else {
+        await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
+        setActiveEstablecimientoIdState(null);
+      }
 
       setUser(userData);
       return userData;
@@ -224,7 +330,8 @@ export function AuthProvider({ children }) {
         throw new Error(data?.message || 'Error en el registro');
       }
 
-      const userData = Array.isArray(data.data) ? data.data[0] : data.data;
+      const userRecord = Array.isArray(data.data) ? data.data[0] : data.data;
+      const userData = normalizeAuthenticatedUser(data, userRecord);
       const sessionToken = extractToken(data, userData);
 
       if (!userData || !sessionToken) {
@@ -233,6 +340,14 @@ export function AuthProvider({ children }) {
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       await AsyncStorage.setItem('token', sessionToken);
+      const defaultEstablecimientoId = resolveDefaultEstablecimientoId(userData);
+      if (defaultEstablecimientoId) {
+        await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, String(defaultEstablecimientoId));
+        setActiveEstablecimientoIdState(String(defaultEstablecimientoId));
+      } else {
+        await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
+        setActiveEstablecimientoIdState(null);
+      }
       setUser(userData);
 
       return userData;
@@ -261,8 +376,9 @@ export function AuthProvider({ children }) {
         }
       }
 
-      await AsyncStorage.multiRemove(['user', 'token']);
+      await AsyncStorage.multiRemove(['user', 'token', ACTIVE_ESTABLECIMIENTO_KEY]);
       setUser(null);
+      setActiveEstablecimientoIdState(null);
       setError(null);
     } catch (currentError) {
       console.error('Error logging out:', currentError);
@@ -272,16 +388,37 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const getSalesByProvider = async (providerId = null) => {
+  const setActiveEstablecimiento = async (establecimientoId) => {
+    const nextValue = establecimientoId ? String(establecimientoId) : null;
+    setActiveEstablecimientoIdState(nextValue);
+
+    if (nextValue) {
+      await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, nextValue);
+    } else {
+      await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
+    }
+  };
+
+  const getSalesByProvider = async (providerId = null, filters = {}) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('No hay token de autenticacion');
 
-      const params = new URLSearchParams({
-        clientId: providerId,
-        limit: 50,
-        page: 1,
-      });
+      const params = new URLSearchParams();
+      if (providerId) {
+        params.set('clientId', providerId);
+      }
+      params.set('limit', String(filters.limit ?? 50));
+      params.set('page', String(filters.page ?? 1));
+      if (filters.startDate) {
+        params.set('startDate', filters.startDate);
+      }
+      if (filters.endDate) {
+        params.set('endDate', filters.endDate);
+      }
+      if (filters.id_establecimiento ?? activeEstablecimientoId) {
+        params.set('id_establecimiento', String(filters.id_establecimiento ?? activeEstablecimientoId));
+      }
 
       const response = await fetch(`${API_BASE_URL}/transactions/provider?${params}`, {
         method: 'GET',
@@ -302,16 +439,23 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const getSalesByClient = async (providerId = null) => {
+  const getSalesByClient = async (providerId = null, filters = {}) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('No hay token de autenticacion');
 
-      const params = new URLSearchParams({
-        clientId: providerId,
-        limit: 50,
-        page: 1,
-      });
+      const params = new URLSearchParams();
+      if (providerId) {
+        params.set('clientId', providerId);
+      }
+      params.set('limit', String(filters.limit ?? 50));
+      params.set('page', String(filters.page ?? 1));
+      if (filters.startDate) {
+        params.set('startDate', filters.startDate);
+      }
+      if (filters.endDate) {
+        params.set('endDate', filters.endDate);
+      }
 
       const response = await fetch(`${API_BASE_URL}/transactions/client?${params}`, {
         method: 'GET',
@@ -337,13 +481,15 @@ export function AuthProvider({ children }) {
       user,
       loading,
       error,
+      activeEstablecimientoId,
       login,
       register,
       logout,
+      setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,
     }),
-    [user, loading, error]
+    [user, loading, error, activeEstablecimientoId]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

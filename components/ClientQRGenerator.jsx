@@ -15,8 +15,15 @@ const ClientQRGenerator = () => {
     const clientPaymentInfo = {
       type: 'client_payment',
       clientId: user.id_usuario,
+      clientUserId: user.id_usuario,
+      id: user.id_usuario,
+      id_usuario_cliente: user.id_usuario,
       clientName: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
+      name: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
       clientEmail: user.correo,
+      email: user.correo,
+      clientEstablecimientoId: user.id_establecimiento ?? null,
+      id_establecimiento_cliente: user.id_establecimiento ?? null,
       timestamp: new Date().toISOString(),
       // Podrías agregar más datos como:
       // - Límite de pago
@@ -40,7 +47,7 @@ const ClientQRGenerator = () => {
         onPress={generateClientQR}
         disabled={!hasPermission(user?.id_perfil, 'clientQr')}
       >
-        <Text style={styles.menuItemText}>Generar QR para Pagar</Text>
+        <Text style={styles.menuItemText}>Generar QR para pagar</Text>
       </TouchableOpacity>
 
       <Modal

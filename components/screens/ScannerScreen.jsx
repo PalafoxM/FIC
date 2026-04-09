@@ -36,13 +36,21 @@ export default function ScannerScreen() {
       const clientData = JSON.parse(data);
       
       if (clientData.type === 'client_payment') {
+        const resolvedClientId = clientData.clientId ?? clientData.clientUserId ?? clientData.id;
+
+        if (!resolvedClientId) {
+          Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
+          setTimeout(() => setScanned(false), 2000);
+          return;
+        }
+
         // Navegar a la pantalla de ingreso de monto con los datos del cliente
         router.push({
           pathname: '/enter-amount',
           params: { 
             clientData: JSON.stringify(clientData),
-            clientId: clientData.clientId,
-            clientName: clientData.clientName 
+            clientId: resolvedClientId,
+            clientName: clientData.clientName ?? clientData.name,
           }
         });
       } else {

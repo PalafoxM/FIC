@@ -3,8 +3,53 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 
+const getAssignedEstablishments = (user) => {
+  const rawList =
+    user?.establecimientos ??
+    user?.assignedEstablishments ??
+    user?.proveedorEstablecimientos ??
+    user?.establishments ??
+    [];
+
+  if (Array.isArray(rawList) && rawList.length > 0) {
+    return rawList.map((item, index) => ({
+      id:
+        item?.id_establecimiento ??
+        item?.idEstablecimiento ??
+        item?.id ??
+        `establecimiento-${index}`,
+      name:
+        item?.dsc_establecimiento ??
+        item?.establecimiento_nombre ??
+        item?.nombre ??
+        item?.name ??
+        `Establecimiento ${index + 1}`,
+    }));
+  }
+
+  if (user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER && user?.id_establecimiento) {
+    return [
+      {
+        id: user.id_establecimiento,
+        name: user?.establecimiento_nombre ?? 'Establecimiento asignado',
+      },
+    ];
+  }
+
+  if (user?.id_perfil === ROLE_IDS.PROVIDER && user?.id_establecimiento) {
+    return [
+      {
+        id: user.id_establecimiento,
+        name: user?.establecimiento_nombre ?? 'Establecimiento principal',
+      },
+    ];
+  }
+
+  return [];
+};
+
 export default function ProfileScreen() {
-  const { user } = useAuth();
+  const { user, activeEstablecimientoId } = useAuth();
 
   const displayName = [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
     .filter(Boolean)
@@ -13,6 +58,9 @@ export default function ProfileScreen() {
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
   const isProviderOrClient =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.CLIENT;
+  const showsAssignedEstablishments =
+    user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const assignedEstablishments = getAssignedEstablishments(user);
 
   const handleResetPassword = () => {
     Alert.alert(
@@ -27,8 +75,10 @@ export default function ProfileScreen() {
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{avatarLetter}</Text>
         </View>
+
         <Text style={styles.name}>{displayName || user?.usuario}</Text>
         <Text style={styles.email}>{user?.correo || 'Sin correo registrado'}</Text>
+
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{getRoleLabel(user?.id_perfil)}</Text>
         </View>
@@ -49,6 +99,32 @@ export default function ProfileScreen() {
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>Establecimiento</Text>
             <Text style={styles.metaValue}>{user?.id_establecimiento ?? 'N/D'}</Text>
+          </View>
+        )}
+
+        {showsAssignedEstablishments && (
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaLabel}>
+              {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
+                ? 'Establecimiento asignado'
+                : 'Establecimientos asignados'}
+            </Text>
+
+            {assignedEstablishments.length > 0 ? (
+              assignedEstablishments.map((establecimiento) => (
+                <View key={String(establecimiento.id)} style={styles.establishmentItem}>
+                  <Text style={styles.metaValue}>{establecimiento.name}</Text>
+                  <Text style={styles.establishmentId}>ID {establecimiento.id}</Text>
+                  {String(activeEstablecimientoId ?? '') === String(establecimiento.id) && (
+                    <Text style={styles.establishmentActive}>Activo en app</Text>
+                  )}
+                </View>
+              ))
+            ) : (
+              <Text style={styles.metaHint}>
+                Aún no recibimos la lista completa de establecimientos desde backend.
+              </Text>
+            )}
           </View>
         )}
 
@@ -131,6 +207,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#222',
     fontWeight: '600',
+  },
+  metaHint: {
+    fontSize: 14,
+    color: '#777',
+    lineHeight: 20,
+  },
+  establishmentItem: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f1f1',
+  },
+  establishmentId: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#8a8a8a',
+    fontWeight: '500',
+  },
+  establishmentActive: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#8E6C17',
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   resetButton: {
     width: '100%',

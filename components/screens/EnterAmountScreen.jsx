@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 export default function EnterAmountScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, activeEstablecimientoId } = useAuth();
   const { createTransaction, getTransactionStatus } = useApi();
   
   const [amount, setAmount] = useState('');
@@ -24,7 +24,7 @@ export default function EnterAmountScreen() {
   // Parse client data from QR
   const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const clientName = params.clientName || 'Cliente';
-  const clientId = params.clientId || clientData?.clientId;
+  const clientId = params.clientId || clientData?.clientId || clientData?.clientUserId || clientData?.id;
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
@@ -212,9 +212,22 @@ export default function EnterAmountScreen() {
     try {
       const transactionData = {
         clientId: parseInt(clientId),
+        clientUserId: parseInt(clientId),
+        clientEstablecimientoId:
+          clientData?.clientEstablecimientoId ??
+          clientData?.id_establecimiento_cliente ??
+          clientData?.id_establecimiento ??
+          undefined,
+        vendorId: user?.id_usuario ? parseInt(user.id_usuario) : undefined,
+        vendorUserId: user?.id_usuario ? parseInt(user.id_usuario) : undefined,
         amount: parseFloat(amount),
         tip: parseFloat(tip) || 0,
         description: description || 'Pago por servicios',
+        idEstablecimiento: activeEstablecimientoId
+          ? parseInt(activeEstablecimientoId)
+          : user?.id_establecimiento
+            ? parseInt(user.id_establecimiento)
+            : undefined,
       };
 
       console.log('📤 Creando transacción REAL...', transactionData);
