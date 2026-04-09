@@ -1,41 +1,59 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, InteractionManager, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AccessDenied from '../AccessDenied';
-import { hasPermission } from '../../constants/roles';
+import { hasPermission, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
+
+const getStatusText = (status) => {
+  const statusMap = {
+    pending: 'Esperando respuesta',
+    approved: 'Aprobado',
+    rejected: 'Rechazado',
+    expired: 'Expirado',
+    created: 'Registrado',
+  };
+
+  return statusMap[status] || status;
+};
 
 export default function EnterAmountScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { user, activeEstablecimientoId } = useAuth();
   const { createTransaction, getTransactionStatus } = useApi();
-  
+
   const [amount, setAmount] = useState('');
   const [tip, setTip] = useState('');
   const [description, setDescription] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [transactionStatus, setTransactionStatus] = useState('pending');
-  
   const pollingIntervalRef = useRef(null);
 
-  // Parse client data from QR
   const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const clientName = params.clientName || 'Cliente';
   const clientId = params.clientId || clientData?.clientId || clientData?.clientUserId || clientData?.id;
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
+  const historyRoute =
+    user?.id_perfil === ROLE_IDS.CLIENT ? '/(modals)/historyPay' : '/(modals)/historyStore';
 
-  // ✅ Limpiar intervalo al desmontar el componente
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
+  const navigateToHistory = () => {
+    router.replace('/(tabs)');
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        router.push(historyRoute);
+      }, 150);
+    });
+  };
+
+  useEffect(() => () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
   }, []);
 
   if (!hasPermission(user?.id_perfil, 'scanner')) {
@@ -54,7 +72,7 @@ export default function EnterAmountScreen() {
   };
 
   const handleQuickAmount = (quickAmount) => {
-    setAmount(quickAmount.toString());
+    setAmount(String(quickAmount));
   };
 
   const handleQuickTip = (tipPercent) => {
@@ -63,141 +81,103 @@ export default function EnterAmountScreen() {
     setTip(tipAmount.toFixed(2));
   };
 
-  // ✅ IMPLEMENTADO: Verificar estado de la transacción
-  const checkTransactionStatus = async (transactionId) => {
-    try {
-      console.log('🔄 Verificando estado de transacción:', transactionId);
-      
-      const response = await getTransactionStatus(transactionId);
-      
-      if (response.success) {
-        const { status, transaction } = response.data;
-        setTransactionStatus(status);
-        
-        console.log('📊 Estado actual:', status);
-
-        if (status === 'approved') {
-          // ✅ Transacción aprobada - detener polling y mostrar éxito
-          stopPolling();
-          showPaymentApproved(transaction);
-        } else if (status === 'rejected') {
-          // ❌ Transacción rechazada - detener polling y mostrar error
-          stopPolling();
-          showPaymentRejected(transaction);
-        } else if (status === 'expired') {
-          // ⏰ Transacción expirada - detener polling
-          stopPolling();
-          showPaymentExpired();
-        }
-        // Si sigue pendiente, el polling continúa
-      }
-    } catch (error) {
-      console.error('❌ Error verificando estado:', error);
-    }
-  };
-
-  // ✅ Iniciar polling para verificar estado
-  const startPolling = (transactionId) => {
-    // Verificar inmediatamente
-    checkTransactionStatus(transactionId);
-    
-    // Configurar intervalo cada 5 segundos
-    pollingIntervalRef.current = setInterval(() => {
-      checkTransactionStatus(transactionId);
-    }, 5000);
-    
-    console.log('🔍 Iniciando monitoreo de transacción...');
-  };
-
-  // ✅ Detener polling
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
-      console.log('🛑 Monitoreo detenido');
     }
   };
 
-  // ✅ Mostrar pago aprobado
   const showPaymentApproved = (transaction) => {
     Alert.alert(
-      '✅ Pago Aprobado',
-      `El cliente ha aprobado el pago de $${transaction.total}\n\n¡Transacción completada exitosamente!`,
+      'Pago aprobado',
+      `El cliente aprobó el pago de $${transaction.total}.`,
       [
         {
-          text: 'Ver Detalles',
-          onPress: () => {
-            router.push({
-              pathname: '/payment-confirmation',
-              params: { 
-                paymentData: JSON.stringify({
-                  ...transaction,
-                  amount: parseFloat(transaction.amount) || 0,
-                  tip: parseFloat(transaction.tip) || 0,
-                  total: parseFloat(transaction.total) || 0,
-                  status: 'completed',
-                  approvedByClient: true,
-                  completedAt: new Date().toISOString()
-                })
-              }
-            });
-          }
+          text: 'Ir al historial',
+          onPress: navigateToHistory,
         },
-        {
-          text: 'Continuar',
-          onPress: () => router.back()
-        }
       ]
     );
   };
 
-  // ✅ Mostrar pago rechazado
   const showPaymentRejected = (transaction) => {
     Alert.alert(
-      '❌ Pago Rechazado',
-      `El cliente ha rechazado el pago de $${transaction.total}`,
+      'Pago rechazado',
+      `El cliente rechazó el pago de $${transaction.total}.`,
       [
         {
-          text: 'Intentar Nuevamente',
+          text: 'Intentar nuevamente',
           onPress: () => {
             setCurrentTransaction(null);
             setTransactionStatus('pending');
-          }
+          },
         },
         {
           text: 'Cancelar',
           style: 'destructive',
-          onPress: () => router.back()
-        }
+          onPress: () => router.back(),
+        },
       ]
     );
   };
 
-  // ✅ Mostrar pago expirado
   const showPaymentExpired = () => {
     Alert.alert(
-      '⏰ Tiempo Expirado',
-      'La solicitud de pago ha expirado. El cliente no respondió a tiempo.',
+      'Tiempo expirado',
+      'La solicitud de pago expiró.',
       [
         {
-          text: 'Intentar Nuevamente',
+          text: 'Intentar nuevamente',
           onPress: () => {
             setCurrentTransaction(null);
             setTransactionStatus('pending');
-          }
+          },
         },
         {
           text: 'Cancelar',
           style: 'destructive',
-          onPress: () => router.back()
-        }
+          onPress: () => router.back(),
+        },
       ]
     );
   };
 
-  // ✅ ACTUALIZADO: Solicitar pago REAL con monitoreo
+  const checkTransactionStatus = async (transactionId) => {
+    try {
+      const response = await getTransactionStatus(transactionId);
+
+      if (!response?.success) {
+        return;
+      }
+
+      const { status, transaction } = response.data;
+      setTransactionStatus(status);
+
+      if (status === 'approved') {
+        stopPolling();
+        showPaymentApproved(transaction);
+      } else if (status === 'rejected') {
+        stopPolling();
+        showPaymentRejected(transaction);
+      } else if (status === 'expired') {
+        stopPolling();
+        showPaymentExpired();
+      }
+    } catch (error) {
+      console.error('Error verificando estado:', error);
+    }
+  };
+
+  const startPolling = (transactionId) => {
+    checkTransactionStatus(transactionId);
+    pollingIntervalRef.current = setInterval(() => {
+      checkTransactionStatus(transactionId);
+    }, 5000);
+  };
+
   const requestPaymentApproval = async () => {
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       Alert.alert('Error', 'Por favor ingresa un monto válido');
       return;
     }
@@ -211,61 +191,65 @@ export default function EnterAmountScreen() {
 
     try {
       const transactionData = {
-        clientId: parseInt(clientId),
-        clientUserId: parseInt(clientId),
+        clientId: parseInt(clientId, 10),
+        clientUserId: parseInt(clientId, 10),
         clientEstablecimientoId:
           clientData?.clientEstablecimientoId ??
           clientData?.id_establecimiento_cliente ??
           clientData?.id_establecimiento ??
           undefined,
-        vendorId: user?.id_usuario ? parseInt(user.id_usuario) : undefined,
-        vendorUserId: user?.id_usuario ? parseInt(user.id_usuario) : undefined,
+        vendorId: user?.id_usuario ? parseInt(user.id_usuario, 10) : undefined,
+        vendorUserId: user?.id_usuario ? parseInt(user.id_usuario, 10) : undefined,
         amount: parseFloat(amount),
         tip: parseFloat(tip) || 0,
         description: description || 'Pago por servicios',
         idEstablecimiento: activeEstablecimientoId
-          ? parseInt(activeEstablecimientoId)
+          ? parseInt(activeEstablecimientoId, 10)
           : user?.id_establecimiento
-            ? parseInt(user.id_establecimiento)
+            ? parseInt(user.id_establecimiento, 10)
             : undefined,
       };
 
-      console.log('📤 Creando transacción REAL...', transactionData);
+      console.log('Creando transaccion REAL...', transactionData);
 
-      // 1. Crear transacción en el backend
       const response = await createTransaction(transactionData);
-      
-      if (response.success) {
-        const transaction = response.data;
-        setCurrentTransaction(transaction);
-        setTransactionStatus('pending');
-        
-        console.log('✅ Transacción REAL creada:', transaction);
 
-        // 2. Iniciar monitoreo del estado
-        startPolling(transaction.id);
-
-        // 3. Mostrar confirmación inicial
-        Alert.alert(
-          '✅ Solicitud Enviada',
-          `Se ha enviado una solicitud de pago de $${transaction.total} a ${clientName}.\n\nEstado: Esperando respuesta del cliente...`,
-          [
-            {
-              text: 'Continuar',
-              onPress: () => {
-                // El monitoreo continúa en segundo plano
-                console.log('Monitoreo continuando en segundo plano...');
-              }
-            }
-          ]
-        );
-
-      } else {
-        throw new Error(response.message || 'Error creando transacción');
+      if (!response.success) {
+        throw new Error(response.message || 'Error creando transaccion');
       }
 
+      const transaction = response.data;
+      setCurrentTransaction(transaction);
+      setTransactionStatus(transaction.status || 'created');
+
+      if (transaction.supportsStatusPolling && transaction.id) {
+        startPolling(transaction.id);
+        Alert.alert(
+          'Solicitud enviada',
+          `Se envió una solicitud de pago de $${transaction.total} a ${clientName}.`,
+          [
+            {
+              text: 'Ir al historial',
+              onPress: navigateToHistory,
+            },
+          ]
+        );
+      } else {
+        setIsProcessing(false);
+        Alert.alert(
+          'Pago registrado',
+          response.message || `Se registró el pago de $${transaction.total} para ${clientName}.`,
+          [
+            {
+              text: 'Ir al historial',
+              onPress: navigateToHistory,
+            },
+          ]
+        );
+        return;
+      }
     } catch (error) {
-      console.error('❌ Error enviando solicitud REAL:', error);
+      console.error('Error enviando solicitud REAL:', error);
       Alert.alert('Error', error.message || 'No se pudo enviar la solicitud de pago');
       setIsProcessing(false);
     }
@@ -279,14 +263,9 @@ export default function EnterAmountScreen() {
         <Text style={styles.title}>Cobrar a</Text>
         <Text style={styles.clientName}>{clientName}</Text>
         <Text style={styles.clientId}>ID: {clientId}</Text>
-        
+
         {currentTransaction && (
-          <View style={[
-            styles.transactionInfo, 
-            transactionStatus === 'approved' && styles.transactionApproved,
-            transactionStatus === 'rejected' && styles.transactionRejected,
-            transactionStatus === 'expired' && styles.transactionExpired
-          ]}>
+          <View style={styles.transactionInfo}>
             <Text style={styles.transactionText}>
               Transacción: {currentTransaction.transaction_id}
             </Text>
@@ -300,9 +279,8 @@ export default function EnterAmountScreen() {
         )}
       </View>
 
-      {/* Monto Principal */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Monto a Cobrar</Text>
+        <Text style={styles.sectionTitle}>Monto a cobrar</Text>
         <View style={styles.amountInputContainer}>
           <Text style={styles.currencySymbol}>$</Text>
           <TextInput
@@ -315,7 +293,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Montos Rápidos</Text>
+        <Text style={styles.quickAmountsTitle}>Montos rápidos</Text>
         <View style={styles.quickButtons}>
           {quickAmounts.map((quickAmount) => (
             <TouchableOpacity
@@ -329,7 +307,6 @@ export default function EnterAmountScreen() {
         </View>
       </View>
 
-      {/* Propina */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Propina</Text>
         <View style={styles.amountInputContainer}>
@@ -344,7 +321,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Propina Rápida</Text>
+        <Text style={styles.quickAmountsTitle}>Propina rápida</Text>
         <View style={styles.quickButtons}>
           {quickTips.map((tipPercent) => (
             <TouchableOpacity
@@ -360,9 +337,8 @@ export default function EnterAmountScreen() {
         </View>
       </View>
 
-      {/* Descripción */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Descripción (Opcional)</Text>
+        <Text style={styles.sectionTitle}>Descripción</Text>
         <TextInput
           style={styles.descriptionInput}
           placeholder="Ej: Producto X, Servicio Y..."
@@ -371,39 +347,41 @@ export default function EnterAmountScreen() {
           multiline
         />
       </View>
-      {/* Resumen */}
+
       <View style={styles.summary}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal:</Text>
-            <Text style={styles.summaryValue}>${parseFloat(amount || 0).toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Propina:</Text>
-            <Text style={styles.summaryValue}>${parseFloat(tip || 0).toFixed(2)}</Text>
-          </View>
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>TOTAL:</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
-          </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Subtotal:</Text>
+          <Text style={styles.summaryValue}>${parseFloat(amount || 0).toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Propina:</Text>
+          <Text style={styles.summaryValue}>${parseFloat(tip || 0).toFixed(2)}</Text>
+        </View>
+        <View style={[styles.summaryRow, styles.totalRow]}>
+          <Text style={styles.totalLabel}>TOTAL:</Text>
+          <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+        </View>
       </View>
-          {/* Botones de acción */}
+
       <View style={styles.actions}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.processButton, isProcessing && styles.processButtonDisabled]}
           onPress={requestPaymentApproval}
-          disabled={isProcessing || currentTransaction}
+          disabled={isProcessing || Boolean(currentTransaction)}
         >
           <Text style={styles.processButtonText}>
-            {isProcessing ? 'Enviando Solicitud...' : 
-             currentTransaction ? 'Esperando Respuesta...' : 
-             `Solicitar Pago $${total.toFixed(2)}`}
+            {isProcessing
+              ? 'Registrando pago...'
+              : currentTransaction
+                ? 'Pago registrado'
+                : `Registrar pago $${total.toFixed(2)}`}
           </Text>
           <Text style={styles.processButtonSubtext}>
-            (El cliente debe aprobar el pago)
+            (Se registrara el pago con el establecimiento activo)
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.cancelButton}
           onPress={() => {
             stopPolling();
@@ -420,18 +398,8 @@ export default function EnterAmountScreen() {
   );
 }
 
-const getStatusText = (status) => {
-  const statusMap = {
-    'pending': '⏳ Esperando respuesta',
-    'approved': '✅ Aprobado',
-    'rejected': '❌ Rechazado',
-    'expired': '⏰ Expirado'
-  };
-  return statusMap[status] || status;
-};
-
 const styles = StyleSheet.create({
- container: {
+  container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
     padding: 20,
@@ -464,18 +432,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BBDEFB',
     width: '100%',
-  },
-  transactionApproved: {
-    backgroundColor: '#E8F5E8',
-    borderColor: '#C8E6C9',
-  },
-  transactionRejected: {
-    backgroundColor: '#FFEBEE',
-    borderColor: '#FFCDD2',
-  },
-  transactionExpired: {
-    backgroundColor: '#FFF3E0',
-    borderColor: '#FFE0B2',
   },
   transactionText: {
     color: '#1976D2',

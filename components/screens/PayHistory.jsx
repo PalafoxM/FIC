@@ -98,17 +98,19 @@ const PayHistory = () => {
       onPress={() =>
         Alert.alert(
           'Detalle de consumo',
-          `Operacion #${item.id || item._id}\nCliente: ${item.customerName || 'N/A'}\nMonto: ${formatCurrency(item.totalAmount || item.amount)}\nFecha: ${formatDate(item.createdAt || item.date)}\nEstado: ${item.status || 'Completada'}`
+          `Pago #${item.id_pagos || item.id || item._id}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}`
         )
       }
     >
       <View style={styles.saleHeader}>
-        <Text style={styles.saleId}>Operacion #{item.id || item._id}</Text>
-        <Text style={styles.saleAmount}>{formatCurrency(item.totalAmount || item.amount)}</Text>
+        <Text style={styles.saleId}>Pago #{item.id_pagos || item.id || item._id}</Text>
+        <Text style={styles.saleAmount}>{formatCurrency(item.total || item.totalAmount || item.amount)}</Text>
       </View>
       <View style={styles.saleDetails}>
-        <Text style={styles.saleCustomer}>{item.customerName || item.customer || 'Comercio no especificado'}</Text>
-        <Text style={styles.saleDate}>{formatDate(item.createdAt || item.date)}</Text>
+        <Text style={styles.saleCustomer}>
+          Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
+        </Text>
+        <Text style={styles.saleDate}>{formatDate(item.fec_reg || item.createdAt || item.date)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -149,7 +151,9 @@ const PayHistory = () => {
       <FlatList
         data={sales}
         renderItem={renderSaleItem}
-        keyExtractor={(item) => String(item.id || item._id)}
+        keyExtractor={(item, index) =>
+          String(item.id_pagos ?? item.id_detalle_movimiento ?? item.id ?? item._id ?? `pay-${index}`)
+        }
         contentContainerStyle={styles.listContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} />}
         ListEmptyComponent={

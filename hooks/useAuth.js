@@ -115,6 +115,22 @@ const normalizeAuthenticatedUser = (payload, userRecord) => {
   return normalizedUser;
 };
 
+const normalizeTableRows = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.respuesta)) {
+    return payload.respuesta;
+  }
+
+  return [];
+};
+
 const resolveDefaultEstablecimientoId = (userData) => {
   const normalizedList = Array.isArray(userData?.establecimientos) ? userData.establecimientos : [];
 
@@ -210,6 +226,37 @@ export function AuthProvider({ children }) {
       console.error('No se pudo validar el token en background:', currentError);
       return true;
     }
+  };
+
+  const getTable = async (queryConfig) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/getTabla`, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: JSON.stringify({
+        data: queryConfig,
+      }),
+    });
+
+    const rawResponse = await response.text();
+    let data = null;
+
+    try {
+      data = rawResponse ? JSON.parse(rawResponse) : null;
+    } catch (parseError) {
+      console.error('getTabla raw response:', rawResponse);
+      throw new Error('El backend devolvio una respuesta no valida al consultar datos');
+    }
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'Error consultando datos');
+    }
+
+    return normalizeTableRows(data);
   };
 
   const login = async (username, password) => {
@@ -401,38 +448,22 @@ export function AuthProvider({ children }) {
 
   const getSalesByProvider = async (providerId = null, filters = {}) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('No hay token de autenticacion');
+      const where = {
+        visible: 1,
+      };
 
-      const params = new URLSearchParams();
-      if (providerId) {
-        params.set('clientId', providerId);
-      }
-      params.set('limit', String(filters.limit ?? 50));
-      params.set('page', String(filters.page ?? 1));
-      if (filters.startDate) {
-        params.set('startDate', filters.startDate);
-      }
-      if (filters.endDate) {
-        params.set('endDate', filters.endDate);
-      }
-      if (filters.id_establecimiento ?? activeEstablecimientoId) {
-        params.set('id_establecimiento', String(filters.id_establecimiento ?? activeEstablecimientoId));
+      const establecimientoId = Number(filters.id_establecimiento ?? activeEstablecimientoId ?? user?.id_establecimiento ?? 0);
+      if (establecimientoId > 0) {
+        where.id_establecimiento = establecimientoId;
       }
 
-      const response = await fetch(`${API_BASE_URL}/transactions/provider?${params}`, {
-        method: 'GET',
-        headers: getHeaders(token),
+      const rows = await getTable({
+        tabla: 'pagos',
+        where,
+        order: 'fec_reg DESC',
       });
 
-      const rawResponse = await response.text();
-      const data = rawResponse ? JSON.parse(rawResponse) : null;
-
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.message || 'Error al obtener ventas');
-      }
-
-      return data.data;
+      return rows;
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
@@ -441,35 +472,16 @@ export function AuthProvider({ children }) {
 
   const getSalesByClient = async (providerId = null, filters = {}) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('No hay token de autenticacion');
-
-      const params = new URLSearchParams();
-      if (providerId) {
-        params.set('clientId', providerId);
-      }
-      params.set('limit', String(filters.limit ?? 50));
-      params.set('page', String(filters.page ?? 1));
-      if (filters.startDate) {
-        params.set('startDate', filters.startDate);
-      }
-      if (filters.endDate) {
-        params.set('endDate', filters.endDate);
-      }
-
-      const response = await fetch(`${API_BASE_URL}/transactions/client?${params}`, {
-        method: 'GET',
-        headers: getHeaders(token),
+      const rows = await getTable({
+        tabla: 'pagos',
+        where: {
+          id_usuario: providerId,
+          visible: 1,
+        },
+        order: 'fec_reg DESC',
       });
 
-      const rawResponse = await response.text();
-      const data = rawResponse ? JSON.parse(rawResponse) : null;
-
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.message || 'Error al obtener ventas');
-      }
-
-      return data.data;
+      return rows;
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
@@ -485,6 +497,7 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
+      getTable,
       setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,

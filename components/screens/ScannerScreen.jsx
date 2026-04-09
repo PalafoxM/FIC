@@ -16,7 +16,7 @@ export default function ScannerScreen() {
     if (!permission?.granted) {
       requestPermission();
     }
-  }, [permission]);
+  }, [permission, requestPermission]);
 
   if (!hasPermission(user?.id_perfil, 'scanner')) {
     return (
@@ -27,38 +27,40 @@ export default function ScannerScreen() {
     );
   }
 
-  const handleBarCodeScanned = ({ type, data }) => {
-    if (scanned) return;
-    
+  const handleBarCodeScanned = ({ data }) => {
+    if (scanned) {
+      return;
+    }
+
     setScanned(true);
-    
+
     try {
       const clientData = JSON.parse(data);
-      
-      if (clientData.type === 'client_payment') {
-        const resolvedClientId = clientData.clientId ?? clientData.clientUserId ?? clientData.id;
 
-        if (!resolvedClientId) {
-          Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
-          setTimeout(() => setScanned(false), 2000);
-          return;
-        }
-
-        // Navegar a la pantalla de ingreso de monto con los datos del cliente
-        router.push({
-          pathname: '/enter-amount',
-          params: { 
-            clientData: JSON.stringify(clientData),
-            clientId: resolvedClientId,
-            clientName: clientData.clientName ?? clientData.name,
-          }
-        });
-      } else {
-        Alert.alert('QR Inválido', 'Este no es un código de pago válido');
+      if (clientData.type !== 'client_payment') {
+        Alert.alert('QR invalido', 'Este no es un codigo de pago valido');
         setTimeout(() => setScanned(false), 2000);
+        return;
       }
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo leer el código QR');
+
+      const resolvedClientId = clientData.clientId ?? clientData.clientUserId ?? clientData.id;
+
+      if (!resolvedClientId) {
+        Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
+        setTimeout(() => setScanned(false), 2000);
+        return;
+      }
+
+      router.push({
+        pathname: '/enter-amount',
+        params: {
+          clientData: JSON.stringify(clientData),
+          clientId: resolvedClientId,
+          clientName: clientData.clientName ?? clientData.name,
+        },
+      });
+    } catch (_error) {
+      Alert.alert('Error', 'No se pudo leer el codigo QR');
       setTimeout(() => setScanned(false), 2000);
     }
   };
@@ -69,10 +71,10 @@ export default function ScannerScreen() {
 
   if (!permission.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.message}>Necesitamos permiso para usar la cámara</Text>
+      <View style={styles.permissionContainer}>
+        <Text style={styles.message}>Necesitamos permiso para usar la camara</Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Conceder Permiso</Text>
+          <Text style={styles.buttonText}>Conceder permiso</Text>
         </TouchableOpacity>
       </View>
     );
@@ -87,22 +89,17 @@ export default function ScannerScreen() {
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.scanFrame}>
-            <Text style={styles.instructions}>
-              Escanea el código QR del cliente
-            </Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.cancelButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </TouchableOpacity>
+      />
+
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.scanFrame}>
+          <Text style={styles.instructions}>Escanea el codigo QR del cliente</Text>
         </View>
-      </CameraView>
+
+        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+          <Text style={styles.cancelButtonText}>Cancelar</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -112,12 +109,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#f5f5f5',
+  },
   camera: {
     flex: 1,
   },
   overlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -126,10 +129,10 @@ const styles = StyleSheet.create({
     height: 250,
     borderWidth: 2,
     borderColor: 'white',
-    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: 20,
+    backgroundColor: 'transparent',
   },
   instructions: {
     color: 'white',

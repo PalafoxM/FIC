@@ -64,7 +64,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>{getRoleLabel(user?.id_perfil)}</Text>
-        <Text style={styles.welcome}>Bienvenido, {user?.nombre}</Text>
+        <Text style={styles.welcome}>Te damos la bienvenida, {user?.nombre}</Text>
         <Text style={styles.subtitle}>{roleConfig.homeSubtitle}</Text>
       </View>
 

@@ -31,7 +31,10 @@ const getAssignedEstablishments = (user) => {
     return [
       {
         id: user.id_establecimiento,
-        name: user?.establecimiento_nombre ?? 'Establecimiento asignado',
+        name:
+          user?.dsc_establecimiento ??
+          user?.establecimiento_nombre ??
+          'Establecimiento asignado',
       },
     ];
   }
@@ -40,7 +43,10 @@ const getAssignedEstablishments = (user) => {
     return [
       {
         id: user.id_establecimiento,
-        name: user?.establecimiento_nombre ?? 'Establecimiento principal',
+        name:
+          user?.dsc_establecimiento ??
+          user?.establecimiento_nombre ??
+          'Establecimiento principal',
       },
     ];
   }
@@ -114,7 +120,6 @@ export default function ProfileScreen() {
               assignedEstablishments.map((establecimiento) => (
                 <View key={String(establecimiento.id)} style={styles.establishmentItem}>
                   <Text style={styles.metaValue}>{establecimiento.name}</Text>
-                  <Text style={styles.establishmentId}>ID {establecimiento.id}</Text>
                   {String(activeEstablecimientoId ?? '') === String(establecimiento.id) && (
                     <Text style={styles.establishmentActive}>Activo en app</Text>
                   )}
@@ -217,12 +222,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f1f1',
-  },
-  establishmentId: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#8a8a8a',
-    fontWeight: '500',
   },
   establishmentActive: {
     marginTop: 4,
