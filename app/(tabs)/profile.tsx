@@ -2,6 +2,8 @@ import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
+import PayHistory from '../../components/screens/PayHistory';
+import SalesHistory from '../../components/screens/SalesHistory ';
 
 const getAssignedEstablishments = (user) => {
   const rawList =
@@ -56,6 +58,14 @@ const getAssignedEstablishments = (user) => {
 
 export default function ProfileScreen() {
   const { user, activeEstablecimientoId } = useAuth();
+
+  if (user?.id_perfil === ROLE_IDS.CLIENT) {
+    return <PayHistory />;
+  }
+
+  if (user?.id_perfil === ROLE_IDS.PROVIDER) {
+    return <SalesHistory />;
+  }
 
   const displayName = [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
     .filter(Boolean)

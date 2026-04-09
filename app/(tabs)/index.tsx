@@ -109,16 +109,6 @@ export default function HomeScreen() {
             <Text style={styles.cardTitle}>Escanear QR para cobrar</Text>
             <Text style={styles.cardDescription}>Inicia una solicitud de pago para un cliente.</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/(modals)/historyStore')}>
-            <Text style={styles.cardTitle}>Historial de ventas</Text>
-            <Text style={styles.cardDescription}>Consulta pagos y movimientos registrados.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/notifications')}>
-            <Text style={styles.cardTitle}>Notificaciones</Text>
-            <Text style={styles.cardDescription}>Revisa alertas y seguimiento de operaciones.</Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -136,16 +126,6 @@ export default function HomeScreen() {
           </View>
 
           <ClientQRGenerator />
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/(modals)/historyPay')}>
-            <Text style={styles.cardTitle}>Historial de consumo</Text>
-            <Text style={styles.cardDescription}>Consulta tus pagos y consumos anteriores.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/notifications')}>
-            <Text style={styles.cardTitle}>Notificaciones</Text>
-            <Text style={styles.cardDescription}>Aprueba o rechaza solicitudes pendientes.</Text>
-          </TouchableOpacity>
         </View>
       )}
 

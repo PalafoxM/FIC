@@ -1,7 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { ROLE_IDS } from '../../constants/roles';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function TabLayout() {
+  const { user } = useAuth();
+  const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
+  const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
+
   return (
     <Tabs
       screenOptions={{
@@ -24,9 +30,23 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Perfil',
+          title: isClient ? 'Consumo' : isProvider ? 'Ventas' : 'Perfil',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <Ionicons
+              name={isClient || isProvider ? 'receipt-outline' : 'person-outline'}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: isClient || isProvider ? '/explore' : null,
+          title: 'Participantes',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="compass-outline" size={size} color={color} />
           ),
         }}
       />
