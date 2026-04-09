@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 const AUTH_BASE_URL = API_BASE_URL;
+const LEGACY_AUTH_BASE_URL = API_BASE_URL.endsWith('/api')
+  ? `${API_BASE_URL.slice(0, -4)}/index.php/Login`
+  : `${API_BASE_URL}/index.php/Login`;
+
+const AuthContext = createContext(null);
 
 const getHeaders = (token = null) => {
   const headers = {
@@ -31,16 +35,19 @@ const extractUserRecord = (payload) =>
 
 const extractToken = (payload, userRecord) =>
   payload?.token ??
+  payload?.api_token ??
   userRecord?.token ??
+  userRecord?.api_token ??
+  (Array.isArray(payload?.data) ? payload.data[0]?.token : null) ??
+  (Array.isArray(payload?.data) ? payload.data[0]?.api_token : null) ??
   payload?.accessToken ??
   payload?.access_token ??
   null;
 
-export const useAuth = () => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const router = useRouter();
   const authActionRef = useRef(false);
 
   useEffect(() => {
@@ -66,26 +73,39 @@ export const useAuth = () => {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch(`${AUTH_BASE_URL}/validar-token`, {
-        method: 'POST',
-        headers: getHeaders(token),
-      });
+      const candidateUrls = [
+        `${AUTH_BASE_URL}/validar-token`,
+        `${LEGACY_AUTH_BASE_URL}/validarTokenApi`,
+      ];
 
-      const rawResponse = await response.text();
-      let data = null;
-      try {
-        data = rawResponse ? JSON.parse(rawResponse) : null;
-      } catch (parseError) {
-        console.error('ValidarToken raw response:', rawResponse);
-        return true;
-      }
+      for (const url of candidateUrls) {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: getHeaders(token),
+        });
 
-      if (!response.ok || data?.error) {
-        if (!authActionRef.current) {
-          await AsyncStorage.multiRemove(['user', 'token']);
-          setUser(null);
+        const rawResponse = await response.text();
+        let data = null;
+
+        try {
+          data = rawResponse ? JSON.parse(rawResponse) : null;
+        } catch (parseError) {
+          if (rawResponse?.includes('Cannot POST')) {
+            continue;
+          }
+          console.error('ValidarToken raw response:', rawResponse);
+          return true;
         }
-        return false;
+
+        if (!response.ok || data?.error) {
+          if (!authActionRef.current) {
+            await AsyncStorage.multiRemove(['user', 'token']);
+            setUser(null);
+          }
+          return false;
+        }
+
+        return true;
       }
 
       return true;
@@ -103,39 +123,60 @@ export const useAuth = () => {
       await AsyncStorage.multiRemove(['user', 'token']);
 
       const normalizedUsername = String(username ?? '').trim();
-      const normalizedPassword = String(password ?? '');
-      const payload = {
+      const normalizedPassword = String(password ?? '').toLowerCase();
+      const trimmedPassword = normalizedPassword.trim();
+
+      const buildPayload = (passwordValue) => ({
         usuario: normalizedUsername,
-        contrasenia: normalizedPassword,
+        contrasenia: passwordValue,
         data: {
           where: {
             usuario: normalizedUsername,
-            contrasenia: normalizedPassword,
+            contrasenia: passwordValue,
             visible: 1,
           },
         },
-      };
-
-      console.log('Login URL:', `${AUTH_BASE_URL}/login`);
-      console.log('Login usuario:', normalizedUsername);
-      console.log('Login password length:', normalizedPassword.length);
-
-      const response = await fetch(`${AUTH_BASE_URL}/login`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
       });
 
-      const rawResponse = await response.text();
-      let data = null;
-      try {
-        data = rawResponse ? JSON.parse(rawResponse) : null;
-      } catch (parseError) {
-        console.error('Login raw response:', rawResponse);
-        throw new Error('La respuesta del servidor no es JSON valido');
+      const performLoginRequest = async (passwordValue, attemptLabel) => {
+        console.log('Login intento:', attemptLabel);
+        console.log('Login URL:', `${AUTH_BASE_URL}/login`);
+        console.log('Login usuario:', normalizedUsername);
+        console.log('Login password length:', passwordValue.length);
+
+        const response = await fetch(`${AUTH_BASE_URL}/login`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify(buildPayload(passwordValue)),
+        });
+
+        const rawResponse = await response.text();
+        let data = null;
+
+        try {
+          data = rawResponse ? JSON.parse(rawResponse) : null;
+          console.log(data);
+        } catch (parseError) {
+          console.error('Login raw response:', rawResponse);
+          throw new Error('La respuesta del servidor no es JSON valido');
+        }
+
+        console.log('Login status:', response.status);
+        console.log('Login respuesta:', data?.respuesta ?? data?.message ?? data);
+
+        return { response, data };
+      };
+
+      let { response, data } = await performLoginRequest(normalizedPassword, 'original');
+
+      const shouldRetryTrimmedPassword =
+        normalizedPassword !== trimmedPassword &&
+        (data?.respuesta === 'Usuario o contraseña incorrectos' || data?.error === true);
+
+      if (shouldRetryTrimmedPassword) {
+        console.log('Reintentando login con password trimmed');
+        ({ response, data } = await performLoginRequest(trimmedPassword, 'trimmed'));
       }
-      console.log('Login status:', response.status);
-      console.log('Login respuesta:', data?.respuesta ?? data?.message ?? data);
 
       if (!response.ok || data?.error) {
         throw new Error(data?.respuesta || 'Error al iniciar sesión');
@@ -143,6 +184,8 @@ export const useAuth = () => {
 
       const userData = extractUserRecord(data);
       const sessionToken = extractToken(data, userData);
+      console.log('Login userData encontrado:', !!userData);
+      console.log('Login token encontrado:', !!sessionToken);
 
       if (!userData || !sessionToken) {
         throw new Error('El backend no devolvió usuario/token');
@@ -152,7 +195,6 @@ export const useAuth = () => {
       await AsyncStorage.setItem('token', sessionToken);
 
       setUser(userData);
-      router.replace('/(tabs)');
       return userData;
     } catch (currentError) {
       setError(currentError.message || 'Error al iniciar sesión');
@@ -193,7 +235,6 @@ export const useAuth = () => {
       await AsyncStorage.setItem('token', sessionToken);
       setUser(userData);
 
-      router.replace('/(tabs)');
       return userData;
     } catch (currentError) {
       setError(currentError.message || 'Error en el registro');
@@ -223,7 +264,6 @@ export const useAuth = () => {
       await AsyncStorage.multiRemove(['user', 'token']);
       setUser(null);
       setError(null);
-      router.replace('/login');
     } catch (currentError) {
       console.error('Error logging out:', currentError);
       setError('Error al cerrar sesión');
@@ -243,13 +283,10 @@ export const useAuth = () => {
         page: 1,
       });
 
-      const response = await fetch(
-        `${API_BASE_URL}/transactions/provider?${params}`,
-        {
-          method: 'GET',
-          headers: getHeaders(token),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/transactions/provider?${params}`, {
+        method: 'GET',
+        headers: getHeaders(token),
+      });
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : null;
@@ -276,13 +313,10 @@ export const useAuth = () => {
         page: 1,
       });
 
-      const response = await fetch(
-        `${API_BASE_URL}/transactions/client?${params}`,
-        {
-          method: 'GET',
-          headers: getHeaders(token),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/transactions/client?${params}`, {
+        method: 'GET',
+        headers: getHeaders(token),
+      });
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : null;
@@ -298,14 +332,29 @@ export const useAuth = () => {
     }
   };
 
-  return {
-    user,
-    loading,
-    error,
-    login,
-    register,
-    logout,
-    getSalesByProvider,
-    getSalesByClient,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      login,
+      register,
+      logout,
+      getSalesByProvider,
+      getSalesByClient,
+    }),
+    [user, loading, error]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth debe usarse dentro de AuthProvider');
+  }
+
+  return context;
 };

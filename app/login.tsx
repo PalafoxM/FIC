@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 
@@ -38,12 +38,12 @@ const getNextBackgroundIndex = (lastIndex: number | null) => {
 };
 
 export default function LoginScreen() {
-  const [user, serUser] = useState('');
+  const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<ImageSourcePropType>(LOGIN_BACKGROUNDS[0]);
 
-  const router = useRouter();
   const { login } = useAuth();
 
   useEffect(() => {
@@ -93,19 +93,12 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      await login(user, password);
-      // La navegación se maneja automáticamente en el hook
-      // cuando se establece el usuario
+      await login(user, password.toLowerCase());
     } catch (error) {
       Alert.alert('Error', error.message || 'Error al iniciar sesión');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleRegisterRedirect = () => {
-    console.log('entro al register');
-    router.replace('/register');
   };
 
   return (
@@ -119,7 +112,6 @@ export default function LoginScreen() {
         style={styles.overlay}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-
           <View style={styles.formModal}>
             <View style={styles.header}>
               <Text style={styles.title}>FIC 2026</Text>
@@ -130,20 +122,34 @@ export default function LoginScreen() {
               style={styles.input}
               placeholder="Vuestro Usuario"
               value={user}
-              onChangeText={serUser}
+              onChangeText={setUser}
               autoCapitalize="none"
               keyboardType="email-address"
               placeholderTextColor="#666"
             />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Palabra Secreta"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor="#666"
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Palabra Secreta"
+                value={password}
+                onChangeText={(value) => setPassword(value.toLowerCase())}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholderTextColor="#666"
+              />
+              <TouchableOpacity
+                style={styles.passwordToggle}
+                onPress={() => setShowPassword((currentValue) => !currentValue)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color="#4A0B17"
+                />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.disabledButton]}
@@ -156,17 +162,7 @@ export default function LoginScreen() {
                 <Text style={styles.loginButtonText}>Adentrarse</Text>
               )}
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.registerLink}
-              onPress={handleRegisterRedirect}
-            >
-              <Text style={styles.registerText}>
-                ¿Aún no sois caballero? <Text style={styles.registerBold}>Unirse</Text>
-              </Text>
-            </TouchableOpacity>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
@@ -181,7 +177,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)', // Oscurece el fondo para que resalte el modal
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   scrollContent: {
     flexGrow: 1,
@@ -195,7 +191,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 45,
     fontWeight: 'bold',
-    color: '#D4AF37', // Oro viejo
+    color: '#D4AF37',
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     marginBottom: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
@@ -204,17 +200,17 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    color: '#E8DAB2', // Pergamino claro
+    color: '#E8DAB2',
     textAlign: 'center',
     fontFamily: 'serif',
     fontStyle: 'italic',
   },
   formModal: {
-    backgroundColor: 'rgba(88, 15, 28, 0.25)', // Vino transparente
+    backgroundColor: 'rgba(88, 15, 28, 0.25)',
     padding: 30,
     borderRadius: 15,
     borderWidth: 2,
-    borderColor: '#D4AF37', // Borde dorado medieval
+    borderColor: '#D4AF37',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.8,
@@ -228,12 +224,32 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
-    backgroundColor: 'rgba(244, 238, 224, 0.95)', // Tono papel avejentado
+    backgroundColor: 'rgba(244, 238, 224, 0.95)',
     fontFamily: 'serif',
     color: '#333',
   },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: 'rgba(244, 238, 224, 0.95)',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 15,
+    fontSize: 16,
+    fontFamily: 'serif',
+    color: '#333',
+  },
+  passwordToggle: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   loginButton: {
-    backgroundColor: '#4A0B17', // Vino muy oscuro
+    backgroundColor: '#4A0B17',
     padding: 18,
     borderRadius: 8,
     borderWidth: 1,
@@ -252,45 +268,5 @@ const styles = StyleSheet.create({
     fontFamily: 'serif',
     textTransform: 'uppercase',
     letterSpacing: 2,
-  },
-  registerLink: {
-    alignItems: 'center',
-    marginTop: 20,
-    padding: 10,
-  },
-  registerText: {
-    color: '#E8DAB2',
-    fontSize: 16,
-    fontFamily: 'serif',
-  },
-  registerBold: {
-    fontWeight: 'bold',
-    color: '#D4AF37',
-    fontFamily: 'serif',
-    textDecorationLine: 'underline',
-  },
-  testSection: {
-    marginTop: 30,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  testTitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  testButton: {
-    backgroundColor: '#E3F2FD',
-    padding: 12,
-    borderRadius: 6,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  testButtonText: {
-    color: '#1976D2',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

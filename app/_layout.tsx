@@ -2,10 +2,9 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import { useAuth } from '../hooks/useAuth';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
-// Configurar manejo de notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -14,36 +13,33 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export default function RootLayout() {
+function RootLayoutContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
-  
-  // Registrar notificaciones push
+
   usePushNotifications();
 
-  // Redirección automática basada en autenticación
- /*  useEffect(() => {
+  useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === 'login';
-    
-    if (!user && !inAuthGroup) {
-      // Redirigir al login si no está autenticado
+    const inLoginScreen = segments[0] === 'login';
+
+    if (!user && !inLoginScreen) {
       router.replace('/login');
-    } else if (user && inAuthGroup) {
-      // Redirigir al home si ya está autenticado
+      return;
+    }
+
+    if (user && inLoginScreen) {
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments]); */
+  }, [user, loading, segments, router]);
 
-  // Manejar cuando se toca una notificación
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data;
-      console.log('📲 Notificación tocada:', data);
-      
-      // Navegar según el tipo de notificación
+      console.log('Notificacion tocada:', data);
+
       if (data.type === 'PAYMENT_REQUEST') {
         router.push('/notifications');
       } else if (data.type === 'PAYMENT_APPROVED') {
@@ -52,9 +48,8 @@ export default function RootLayout() {
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [router]);
 
-  // Mostrar loading mientras verifica autenticación
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
@@ -66,56 +61,56 @@ export default function RootLayout() {
 
   return (
     <Stack>
-      <Stack.Screen 
-        name="login" 
-        options={{ 
-          headerShown: false,
-          gestureEnabled: false
-        }} 
-      />
-      <Stack.Screen 
-        name="register" 
-        options={{ 
+      <Stack.Screen
+        name="login"
+        options={{
           headerShown: false,
           gestureEnabled: false,
-          presentation: 'modal'
-        }} 
+        }}
       />
-      <Stack.Screen 
-        name="(tabs)" 
-        options={{ 
+      <Stack.Screen
+        name="(tabs)"
+        options={{
           headerShown: false,
-          gestureEnabled: false
-        }} 
+          gestureEnabled: false,
+        }}
       />
-      <Stack.Screen 
-        name="(modals)/scanner" 
-        options={{ 
+      <Stack.Screen
+        name="(modals)/scanner"
+        options={{
           title: 'Escanear QR',
-          presentation: 'modal'
-        }} 
+          presentation: 'modal',
+        }}
       />
-      <Stack.Screen 
-        name="enter-amount" 
-        options={{ 
+      <Stack.Screen
+        name="enter-amount"
+        options={{
           title: 'Ingresar Monto',
-          presentation: 'modal'
-        }} 
+          presentation: 'modal',
+        }}
       />
-      <Stack.Screen 
-        name="payment-confirmation" 
-        options={{ 
-          title: 'Confirmación de Pago',
-          presentation: 'modal'
-        }} 
+      <Stack.Screen
+        name="payment-confirmation"
+        options={{
+          title: 'Confirmacion de Pago',
+          presentation: 'modal',
+        }}
       />
-      <Stack.Screen 
-        name="notifications" 
-        options={{ 
+      <Stack.Screen
+        name="notifications"
+        options={{
           title: 'Notificaciones',
-          presentation: 'modal'
-        }} 
+          presentation: 'modal',
+        }}
       />
     </Stack>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutContent />
+    </AuthProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
 const ClientQRGenerator = () => {
@@ -9,13 +10,13 @@ const ClientQRGenerator = () => {
   const [qrData, setQrData] = useState(null);
 
   const generateClientQR = () => {
-    if (!user) return;
+    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) return;
 
     const clientPaymentInfo = {
       type: 'client_payment',
-      clientId: user.id,
-      clientName: user.name,
-      clientEmail: user.email,
+      clientId: user.id_usuario,
+      clientName: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
+      clientEmail: user.correo,
       timestamp: new Date().toISOString(),
       // Podrías agregar más datos como:
       // - Límite de pago
@@ -37,6 +38,7 @@ const ClientQRGenerator = () => {
       <TouchableOpacity 
         style={styles.menuItem}
         onPress={generateClientQR}
+        disabled={!hasPermission(user?.id_perfil, 'clientQr')}
       >
         <Text style={styles.menuItemText}>Generar QR para Pagar</Text>
       </TouchableOpacity>
@@ -54,8 +56,10 @@ const ClientQRGenerator = () => {
             {qrData && (
               <>
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{user?.name}</Text>
-                  <Text style={styles.userEmail}>{user?.email}</Text>
+                  <Text style={styles.userName}>
+                    {[user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' ')}
+                  </Text>
+                  <Text style={styles.userEmail}>{user?.correo}</Text>
                   <Text style={styles.infoText}>
                     Muestra este código al vendedor
                   </Text>

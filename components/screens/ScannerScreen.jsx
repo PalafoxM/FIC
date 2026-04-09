@@ -2,6 +2,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AccessDenied from '../../components/AccessDenied';
+import { hasPermission } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function ScannerScreen() {
@@ -15,6 +17,15 @@ export default function ScannerScreen() {
       requestPermission();
     }
   }, [permission]);
+
+  if (!hasPermission(user?.id_perfil, 'scanner')) {
+    return (
+      <AccessDenied
+        title="Escaneo restringido"
+        message="Solo el perfil de proveedor puede escanear QR para cobrar."
+      />
+    );
+  }
 
   const handleBarCodeScanned = ({ type, data }) => {
     if (scanned) return;

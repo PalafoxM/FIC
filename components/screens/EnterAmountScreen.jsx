@@ -1,6 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AccessDenied from '../AccessDenied';
+import { hasPermission } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -35,6 +37,15 @@ export default function EnterAmountScreen() {
       }
     };
   }, []);
+
+  if (!hasPermission(user?.id_perfil, 'scanner')) {
+    return (
+      <AccessDenied
+        title="Cobro restringido"
+        message="Solo el perfil de proveedor puede generar solicitudes de cobro."
+      />
+    );
+  }
 
   const calculateTotal = () => {
     const baseAmount = parseFloat(amount) || 0;

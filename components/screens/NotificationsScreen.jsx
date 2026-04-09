@@ -2,16 +2,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
+import { hasPermission } from '../../constants/roles';
+import AccessDenied from '../AccessDenied';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  if (!hasPermission(user?.id_perfil, 'notifications')) {
+    return (
+      <AccessDenied
+        title="Notificaciones restringidas"
+        message="Tu perfil no tiene acceso a las notificaciones operativas."
+      />
+    );
+  }
 
   const loadNotifications = async () => {
     try {
@@ -30,8 +40,6 @@ export default function NotificationsScreen() {
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
