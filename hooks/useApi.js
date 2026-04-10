@@ -82,6 +82,16 @@ export const useApi = () => {
     return await parseJsonResponse(response, fallbackMessage);
   };
 
+  const getJson = async (path, fallbackMessage) => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'GET',
+      headers,
+    });
+
+    return await parseJsonResponse(response, fallbackMessage);
+  };
+
   const buildRequestPayload = (transactionData = {}) => ({
     codigo_qr:
       transactionData.qrCode ??
@@ -217,10 +227,45 @@ export const useApi = () => {
     );
   };
 
+  const getUserTransactions = async (scope = 'client') => {
+    try {
+      const data = await getJson(
+        `/transactions?scope=${encodeURIComponent(scope)}`,
+        'Error consultando transacciones'
+      );
+
+      const rows = Array.isArray(data?.data) ? data.data : [];
+
+      return {
+        success: true,
+        data: rows.map((row, index) =>
+          normalizeTransactionRecord(row, {
+            id: row?.id ?? index,
+            transaction_id: row?.transaction_id ?? row?.id ?? `TX-${index}`,
+          })
+        ),
+      };
+    } catch (error) {
+      console.error('Error getting user transactions:', error);
+      throw error;
+    }
+  };
+
+  const approveTransaction = async (transactionId) => {
+    return await approvePaymentRequest(transactionId);
+  };
+
+  const rejectTransaction = async (transactionId) => {
+    return await rejectPaymentRequest(transactionId);
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
     getTransactionStatus,
+    getUserTransactions,
+    approveTransaction,
+    rejectTransaction,
     approvePaymentRequest,
     rejectPaymentRequest,
     authorizePaymentWithNip,
