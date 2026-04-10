@@ -56,6 +56,10 @@ export const useApi = () => {
   const parseJsonResponse = async (response, fallbackMessage) => {
     const rawResponse = await response.text();
     let data = null;
+    const contentType = response.headers.get('content-type') || 'unknown';
+
+    console.log(`${fallbackMessage} status:`, response.status);
+    console.log(`${fallbackMessage} content-type:`, contentType);
 
     try {
       data = rawResponse ? JSON.parse(rawResponse) : null;
@@ -73,7 +77,11 @@ export const useApi = () => {
 
   const postJson = async (path, body, fallbackMessage) => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const url = `${API_BASE_URL}${path}`;
+
+    console.log(`${fallbackMessage} URL:`, url);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -84,7 +92,11 @@ export const useApi = () => {
 
   const getJson = async (path, fallbackMessage) => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const url = `${API_BASE_URL}${path}`;
+
+    console.log(`${fallbackMessage} URL:`, url);
+
+    const response = await fetch(url, {
       method: 'GET',
       headers,
     });
