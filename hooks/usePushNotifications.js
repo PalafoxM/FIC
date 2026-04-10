@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { ENV } from '../constants/env';
 
 Notifications.setNotificationHandler({
@@ -14,9 +16,16 @@ Notifications.setNotificationHandler({
 export const usePushNotifications = () => {
   useEffect(() => {
     let isMounted = true;
+    const isAndroidExpoGo =
+      Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient';
 
     const setupNotifications = async () => {
       try {
+        if (isAndroidExpoGo) {
+          console.log('Notificaciones push remotas omitidas en Expo Go para Android');
+          return;
+        }
+
         // Solicitar permisos
         const { status } = await Notifications.requestPermissionsAsync();
         if (status !== 'granted') {

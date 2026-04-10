@@ -22,11 +22,13 @@ export default function EnterAmountScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { user, activeEstablecimientoId } = useAuth();
-  const { createTransaction, getTransactionStatus } = useApi();
+  const { createPaymentRequest, createTransaction, getTransactionStatus } = useApi();
 
   const [amount, setAmount] = useState('');
   const [tip, setTip] = useState('');
   const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('app');
+  const [nip, setNip] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [transactionStatus, setTransactionStatus] = useState('pending');
@@ -34,7 +36,18 @@ export default function EnterAmountScreen() {
 
   const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const clientName = params.clientName || 'Cliente';
-  const clientId = params.clientId || clientData?.clientId || clientData?.clientUserId || clientData?.id;
+  const clientId =
+    params.clientId ||
+    clientData?.clientId ||
+    clientData?.clientUserId ||
+    clientData?.id ||
+    null;
+  const qrCode =
+    params.qrCode ||
+    clientData?.codigo_qr ||
+    clientData?.qr_code ||
+    clientData?.clientQrCode ||
+    null;
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
@@ -182,17 +195,26 @@ export default function EnterAmountScreen() {
       return;
     }
 
-    if (!clientId) {
+    if (!clientId && !qrCode) {
       Alert.alert('Error', 'No se pudo identificar al cliente');
+      return;
+    }
+
+    if (paymentMethod === 'nip' && String(nip || '').trim().length < 4) {
+      Alert.alert('Error', 'Captura un NIP valido para continuar con el cobro sin app.');
       return;
     }
 
     setIsProcessing(true);
 
     try {
+      const resolvedClientId = clientId ? parseInt(clientId, 10) : null;
+
       const transactionData = {
-        clientId: parseInt(clientId, 10),
-        clientUserId: parseInt(clientId, 10),
+        clientId: resolvedClientId,
+        clientUserId: resolvedClientId,
+        qrCode,
+        codigo_qr: qrCode,
         clientEstablecimientoId:
           clientData?.clientEstablecimientoId ??
           clientData?.id_establecimiento_cliente ??
@@ -203,6 +225,8 @@ export default function EnterAmountScreen() {
         amount: parseFloat(amount),
         tip: parseFloat(tip) || 0,
         description: description || 'Pago por servicios',
+        paymentMethod,
+        nip: String(nip || '').trim(),
         idEstablecimiento: activeEstablecimientoId
           ? parseInt(activeEstablecimientoId, 10)
           : user?.id_establecimiento
@@ -212,7 +236,9 @@ export default function EnterAmountScreen() {
 
       console.log('Creando transaccion REAL...', transactionData);
 
-      const response = await createTransaction(transactionData);
+      const response = paymentMethod === 'app'
+        ? await createPaymentRequest(transactionData)
+        : await createTransaction(transactionData);
 
       if (!response.success) {
         throw new Error(response.message || 'Error creando transaccion');
@@ -220,7 +246,7 @@ export default function EnterAmountScreen() {
 
       const transaction = response.data;
       setCurrentTransaction(transaction);
-      setTransactionStatus(transaction.status || 'created');
+      setTransactionStatus(transaction.status || (paymentMethod === 'app' ? 'pending' : 'created'));
 
       if (transaction.supportsStatusPolling && transaction.id) {
         startPolling(transaction.id);
@@ -262,7 +288,9 @@ export default function EnterAmountScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Cobrar a</Text>
         <Text style={styles.clientName}>{clientName}</Text>
-        <Text style={styles.clientId}>ID: {clientId}</Text>
+        <Text style={styles.clientId}>
+          {clientId ? `ID: ${clientId}` : `QR: ${String(qrCode ?? '').slice(0, 16)}`}
+        </Text>
 
         {currentTransaction && (
           <View style={styles.transactionInfo}>
@@ -278,6 +306,53 @@ export default function EnterAmountScreen() {
           </View>
         )}
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Metodo de cobro</Text>
+        <View style={styles.methodSelector}>
+          <TouchableOpacity
+            style={[styles.methodButton, paymentMethod === 'app' && styles.methodButtonActive]}
+            onPress={() => setPaymentMethod('app')}
+          >
+            <Text
+              style={[styles.methodButtonText, paymentMethod === 'app' && styles.methodButtonTextActive]}
+            >
+              Cobro por app
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.methodButton, paymentMethod === 'nip' && styles.methodButtonActive]}
+            onPress={() => setPaymentMethod('nip')}
+          >
+            <Text
+              style={[styles.methodButtonText, paymentMethod === 'nip' && styles.methodButtonTextActive]}
+            >
+              Cobro con NIP
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.methodHelpText}>
+          {paymentMethod === 'app'
+            ? 'El cliente recibira una solicitud para aceptar o declinar el pago.'
+            : 'Usa esta opcion cuando el cliente no tenga datos, wifi o celular disponible.'}
+        </Text>
+      </View>
+
+      {paymentMethod === 'nip' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NIP del cliente</Text>
+          <TextInput
+            style={styles.nipInput}
+            placeholder="Captura el NIP"
+            value={nip}
+            onChangeText={setNip}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={6}
+            placeholderTextColor="#999"
+          />
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Monto a cobrar</Text>
@@ -371,13 +446,19 @@ export default function EnterAmountScreen() {
         >
           <Text style={styles.processButtonText}>
             {isProcessing
-              ? 'Registrando pago...'
+              ? paymentMethod === 'app'
+                ? 'Enviando solicitud...'
+                : 'Registrando pago...'
               : currentTransaction
                 ? 'Pago registrado'
-                : `Registrar pago $${total.toFixed(2)}`}
+                : paymentMethod === 'app'
+                  ? `Solicitar pago $${total.toFixed(2)}`
+                  : `Registrar pago $${total.toFixed(2)}`}
           </Text>
           <Text style={styles.processButtonSubtext}>
-            (Se registrara el pago con el establecimiento activo)
+            {paymentMethod === 'app'
+              ? '(El cliente debera aceptar o declinar el cobro)'
+              : '(El proveedor registrara el pago usando el NIP del cliente)'}
           </Text>
         </TouchableOpacity>
 
@@ -449,6 +530,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  methodSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  methodButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D0D7DE',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+  },
+  methodButtonActive: {
+    backgroundColor: '#4A0B17',
+    borderColor: '#4A0B17',
+  },
+  methodButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  methodButtonTextActive: {
+    color: '#F6E7B0',
+  },
+  methodHelpText: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#666',
+  },
+  nipInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 18,
+    letterSpacing: 6,
+    color: '#2C3E50',
+    backgroundColor: '#fff',
   },
   sectionTitle: {
     fontSize: 16,

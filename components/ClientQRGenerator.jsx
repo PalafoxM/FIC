@@ -10,26 +10,39 @@ const ClientQRGenerator = () => {
   const [qrData, setQrData] = useState(null);
 
   const generateClientQR = () => {
-    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) return;
+    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
+      return;
+    }
 
-    const clientPaymentInfo = {
-      type: 'client_payment',
-      clientId: user.id_usuario,
-      clientUserId: user.id_usuario,
-      id: user.id_usuario,
-      id_usuario_cliente: user.id_usuario,
-      clientName: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
-      name: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
-      clientEmail: user.correo,
-      email: user.correo,
-      clientEstablecimientoId: user.id_establecimiento ?? null,
-      id_establecimiento_cliente: user.id_establecimiento ?? null,
-      timestamp: new Date().toISOString(),
-      // Podrías agregar más datos como:
-      // - Límite de pago
-      // - Métodos de pago aceptados
-      // - Información de cuenta
-    };
+    const qrCode =
+      user.codigo_qr ??
+      user.qr_code ??
+      user.clientQrCode ??
+      user.qrCliente ??
+      null;
+
+    const clientPaymentInfo = qrCode
+      ? {
+          type: 'client_payment',
+          codigo_qr: qrCode,
+          qr_code: qrCode,
+          clientQrCode: qrCode,
+          timestamp: new Date().toISOString(),
+        }
+      : {
+          type: 'client_payment',
+          clientId: user.id_usuario,
+          clientUserId: user.id_usuario,
+          id: user.id_usuario,
+          id_usuario_cliente: user.id_usuario,
+          clientName: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
+          name: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
+          clientEmail: user.correo,
+          email: user.correo,
+          clientEstablecimientoId: user.id_establecimiento ?? null,
+          id_establecimiento_cliente: user.id_establecimiento ?? null,
+          timestamp: new Date().toISOString(),
+        };
 
     setQrData(clientPaymentInfo);
     setShowQR(true);
@@ -42,7 +55,7 @@ const ClientQRGenerator = () => {
 
   return (
     <>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.menuItem}
         onPress={generateClientQR}
         disabled={!hasPermission(user?.id_perfil, 'clientQr')}
@@ -53,13 +66,13 @@ const ClientQRGenerator = () => {
       <Modal
         visible={showQR}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={handleCloseQR}
       >
         <View style={styles.modalContainer}>
           <View style={styles.qrContainer}>
-            <Text style={styles.modalTitle}>📱 QR de Pago</Text>
-            
+            <Text style={styles.modalTitle}>QR de pago</Text>
+
             {qrData && (
               <>
                 <View style={styles.userInfo}>
@@ -67,9 +80,7 @@ const ClientQRGenerator = () => {
                     {[user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={styles.userEmail}>{user?.correo}</Text>
-                  <Text style={styles.infoText}>
-                    Muestra este código al vendedor
-                  </Text>
+                  <Text style={styles.infoText}>Muestra este codigo al vendedor</Text>
                 </View>
 
                 <View style={styles.qrWrapper}>
@@ -82,22 +93,13 @@ const ClientQRGenerator = () => {
                 </View>
 
                 <View style={styles.instructions}>
-                  <Text style={styles.instructionTitle}>Cómo usar:</Text>
-                  <Text style={styles.instructionText}>
-                    1. Muestra este QR al vendedor
-                  </Text>
-                  <Text style={styles.instructionText}>
-                    2. El vendedor escaneará el código
-                  </Text>
-                  <Text style={styles.instructionText}>
-                    3. Confirma el pago en tu dispositivo
-                  </Text>
+                  <Text style={styles.instructionTitle}>Como usar:</Text>
+                  <Text style={styles.instructionText}>1. Muestra este QR al vendedor</Text>
+                  <Text style={styles.instructionText}>2. El vendedor escaneara el codigo</Text>
+                  <Text style={styles.instructionText}>3. Confirma el pago en tu dispositivo</Text>
                 </View>
 
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={handleCloseQR}
-                >
+                <TouchableOpacity style={styles.closeButton} onPress={handleCloseQR}>
                   <Text style={styles.closeButtonText}>Cerrar</Text>
                 </TouchableOpacity>
               </>

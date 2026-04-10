@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission } from '../../constants/roles';
-import AccessDenied from '../AccessDenied';
+import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
+import AccessDenied from '../AccessDenied';
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
   const { user } = useAuth();
+  const { approvePaymentRequest, rejectPaymentRequest } = useApi();
 
   useEffect(() => {
     loadNotifications();
@@ -29,146 +31,103 @@ export default function NotificationsScreen() {
       const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
         headers: {
           ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
-          'Authorization': `Bearer ${token}`,
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
       });
 
-      const data = await response.json();
-      
-      if (data.success) {
-        setNotifications(data.data);
+      const rawResponse = await response.text();
+      const data = rawResponse ? JSON.parse(rawResponse) : null;
+
+      if (data?.success) {
+        setNotifications(Array.isArray(data.data) ? data.data : []);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
   };
 
-  // ✅ NUEVO: Función para aprobar pago
   const approvePayment = async (transactionId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      
-      console.log('✅ Aprobando pago:', transactionId);
-      
-      const response = await fetch(`${ENV.apiBaseUrl}/transactions/approve`, {
-        method: 'POST',
-        headers: {
-          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transactionId: transactionId,
-          status: 'approved'
-        }),
-      });
+      const data = await approvePaymentRequest(transactionId);
 
-      const data = await response.json();
-      
-      if (data.success) {
-        Alert.alert('✅ Pago Aprobado', 'El pago ha sido aprobado exitosamente');
-        
-        // Recargar notificaciones para actualizar la lista
+      if (data?.success) {
+        Alert.alert('Pago aprobado', 'El pago ha sido aprobado exitosamente');
         loadNotifications();
-        
-        // Aquí podrías navegar a una pantalla de confirmación si lo deseas
-        // router.push('/payment-success');
-      } else {
-        Alert.alert('Error', data.message || 'No se pudo aprobar el pago');
+        return;
       }
+
+      Alert.alert('Error', data?.respuesta || 'No se pudo aprobar el pago');
     } catch (error) {
       console.error('Error aprobando pago:', error);
-      Alert.alert('Error', 'No se pudo completar la aprobación');
+      Alert.alert('Error', error.message || 'No se pudo completar la aprobacion');
     }
   };
 
-  // ✅ NUEVO: Función para rechazar pago
   const rejectPayment = async (transactionId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      
-      console.log('❌ Rechazando pago:', transactionId);
-      
-      const response = await fetch(`${ENV.apiBaseUrl}/transactions/reject`, {
-        method: 'POST',
-        headers: {
-          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transactionId: transactionId,
-          status: 'rejected'
-        }),
-      });
+      const data = await rejectPaymentRequest(transactionId);
 
-      const data = await response.json();
-      
-      if (data.success) {
-        Alert.alert('❌ Pago Rechazado', 'El pago ha sido rechazado');
-        
-        // Recargar notificaciones para actualizar la lista
+      if (data?.success) {
+        Alert.alert('Pago rechazado', 'El pago ha sido rechazado');
         loadNotifications();
-      } else {
-        Alert.alert('Error', data.message || 'No se pudo rechazar el pago');
+        return;
       }
+
+      Alert.alert('Error', data?.respuesta || 'No se pudo rechazar el pago');
     } catch (error) {
       console.error('Error rechazando pago:', error);
-      Alert.alert('Error', 'No se pudo completar el rechazo');
+      Alert.alert('Error', error.message || 'No se pudo completar el rechazo');
     }
   };
 
   const handleNotificationPress = async (notification) => {
     try {
-      // Parsear el data si viene como string
-      const notificationData = typeof notification.data === 'string' 
-        ? JSON.parse(notification.data) 
-        : notification.data;
-
-      console.log('Datos parseados:', notificationData);
-      console.log('Tipo:', notificationData?.type);
+      const notificationData =
+        typeof notification.data === 'string' ? JSON.parse(notification.data) : notification.data;
 
       if (notificationData?.type === 'PAYMENT_REQUEST') {
         Alert.alert(
-          'Solicitud de Pago',
-          `Monto: $${notificationData.amount}\nDe: ${notificationData.vendorName}`,
+          'Solicitud de pago',
+          `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
           [
             {
               text: 'Aprobar',
-              onPress: () => approvePayment(notificationData.transactionId)
+              onPress: () => approvePayment(notificationData.transactionId),
             },
             {
               text: 'Rechazar',
               style: 'destructive',
-              onPress: () => rejectPayment(notificationData.transactionId)
-            }
+              onPress: () => rejectPayment(notificationData.transactionId),
+            },
           ]
         );
       }
     } catch (error) {
-      console.error('Error procesando notificación:', error);
+      console.error('Error procesando notificacion:', error);
     }
   };
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Notificaciones</Text>
-      
+
       {notifications.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No hay notificaciones pendientes</Text>
         </View>
       ) : (
-        notifications.map((notification) => (
+        notifications.map((notification, index) => (
           <TouchableOpacity
-            key={notification.id}
+            key={notification.id ?? `notification-${index}`}
             style={styles.notificationCard}
             onPress={() => handleNotificationPress(notification)}
           >
             <Text style={styles.notificationTitle}>{notification.title}</Text>
             <Text style={styles.notificationBody}>{notification.body}</Text>
             <Text style={styles.notificationDate}>
-              {new Date(notification.created_at).toLocaleString()}
+              {notification.created_at
+                ? new Date(notification.created_at).toLocaleString()
+                : 'Sin fecha'}
             </Text>
           </TouchableOpacity>
         ))

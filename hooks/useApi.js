@@ -1,13 +1,38 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENV } from '../constants/env';
 
-const API_BASE_URL = ENV.apiBaseUrl;
+const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 
-const formatLegacyTimestamp = () => {
-  const now = new Date();
-  const pad = (value) => String(value).padStart(2, '0');
+const normalizeTransactionRecord = (payload, fallback = {}) => {
+  const transaction =
+    payload?.transaction ??
+    (Array.isArray(payload?.data) ? payload.data[0] : payload?.data) ??
+    payload ??
+    {};
 
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  return {
+    ...transaction,
+    id:
+      transaction?.id ??
+      transaction?.transactionId ??
+      transaction?.transaction_id ??
+      fallback.id ??
+      null,
+    transaction_id:
+      transaction?.transaction_id ??
+      transaction?.transactionId ??
+      transaction?.id ??
+      fallback.transaction_id ??
+      'PENDING',
+    amount: Number(transaction?.amount ?? fallback.amount ?? 0),
+    tip: Number(transaction?.tip ?? fallback.tip ?? 0),
+    total: Number(transaction?.total ?? fallback.total ?? 0),
+    status: transaction?.status ?? fallback.status ?? 'pending',
+    supportsStatusPolling:
+      typeof transaction?.supportsStatusPolling === 'boolean'
+        ? transaction.supportsStatusPolling
+        : Boolean(fallback.supportsStatusPolling),
+  };
 };
 
 export const useApi = () => {
@@ -34,7 +59,7 @@ export const useApi = () => {
 
     try {
       data = rawResponse ? JSON.parse(rawResponse) : null;
-    } catch (parseError) {
+    } catch (_parseError) {
       console.error(`${fallbackMessage} raw response:`, rawResponse);
       throw new Error(`${fallbackMessage} devolvio una respuesta no valida`);
     }
@@ -46,16 +71,35 @@ export const useApi = () => {
     return data;
   };
 
-  const saveTable = async (payload, fallbackMessage) => {
+  const postJson = async (path, body, fallbackMessage) => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/saveTabla`, {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
     return await parseJsonResponse(response, fallbackMessage);
   };
+
+  const buildRequestPayload = (transactionData = {}) => ({
+    codigo_qr:
+      transactionData.qrCode ??
+      transactionData.codigo_qr ??
+      transactionData.clientQrCode ??
+      null,
+    clientId: transactionData.clientUserId ?? transactionData.clientId ?? null,
+    clientUserId: transactionData.clientUserId ?? transactionData.clientId ?? null,
+    vendorId: transactionData.vendorUserId ?? transactionData.vendorId ?? null,
+    vendorUserId: transactionData.vendorUserId ?? transactionData.vendorId ?? null,
+    idEstablecimiento: transactionData.idEstablecimiento,
+    amount: Number(transactionData.amount || 0),
+    tip: Number(transactionData.tip || 0),
+    description: transactionData.description || 'Pago por servicios',
+    paymentMethod: transactionData.paymentMethod || 'app',
+    metodo_autorizacion: transactionData.paymentMethod || 'app',
+    ...(transactionData.nip ? { nip: String(transactionData.nip).trim() } : {}),
+  });
 
   const getTransactionStatus = async (transactionId) => {
     try {
@@ -65,174 +109,80 @@ export const useApi = () => {
         headers,
       });
 
-      return await parseJsonResponse(response, 'Error consultando transaccion');
+      const data = await parseJsonResponse(response, 'Error consultando transaccion');
+      const transaction = normalizeTransactionRecord(data?.data, {
+        id: transactionId,
+        status: data?.data?.status ?? 'pending',
+      });
+
+      return {
+        success: true,
+        data: {
+          status: transaction.status,
+          transaction,
+        },
+      };
     } catch (error) {
       console.error('Error getting transaction status:', error);
       throw error;
     }
   };
 
-  const createTransaction = async (transactionData) => {
+  const createPaymentRequest = async (transactionData) => {
     try {
-      const baseAmount = Number(transactionData.amount || 0);
-      const tipAmount = Number(transactionData.tip || 0);
-      const totalAmount = baseAmount + tipAmount;
-      const now = formatLegacyTimestamp();
-      const vendorUserId = Number(transactionData.vendorUserId ?? transactionData.vendorId);
-      const clientUserId = Number(transactionData.clientUserId ?? transactionData.clientId);
-      const establecimientoId = Number(transactionData.idEstablecimiento);
-
-      const pagoData = await saveTable(
-        {
-          data: {
-            id_tipo_pago: 2,
-            id_usuario: String(clientUserId),
-            id_establecimiento: establecimientoId,
-            usu_reg: vendorUserId,
-            monto: String(baseAmount),
-            propina: String(tipAmount),
-            total: String(totalAmount),
-            fec_reg: now,
-          },
-          config: {
-            tabla: 'pagos',
-            editar: false,
-          },
-          bitacora: {
-            id_user: vendorUserId,
-            script: 'FICApp/createPago',
-          },
-        },
-        'Error creando pago'
+      const payload = buildRequestPayload({
+        ...transactionData,
+        paymentMethod: 'app',
+      });
+      const data = await postJson(
+        '/transactions/create',
+        payload,
+        'Error creando solicitud de pago'
       );
 
-      const idPago =
-        pagoData?.idRegistro ??
-        pagoData?.data?.id_pagos ??
-        pagoData?.data?.id ??
-        pagoData?.id_pagos ??
-        null;
-
-      const buildDetallePayload = ({
-        idUsuario,
-        tipoMovimiento,
-        creditos,
-        descripcion,
-        saldoAnterior,
-        saldoNuevo,
-        script,
-      }) => ({
-        data: {
-          id_pagos: idPago,
-          id_usuario: idUsuario,
-          id_establecimiento: establecimientoId,
-          tipo_movimiento: tipoMovimiento,
-          tipo_origen: 'consumo_qr',
-          creditos: creditos.toFixed(2),
-          saldo_anterior: saldoAnterior ?? null,
-          saldo_nuevo: saldoNuevo ?? null,
-          descripcion,
-          fec_reg: now,
-          usu_reg: vendorUserId,
-          visible: 1,
-        },
-        config: {
-          tabla: 'detalle_movimiento',
-          editar: false,
-        },
-        bitacora: {
-          id_user: vendorUserId,
-          script,
-        },
+      const transaction = normalizeTransactionRecord(data, {
+        amount: payload.amount,
+        tip: payload.tip,
+        total: payload.amount + payload.tip,
+        status: 'pending',
+        supportsStatusPolling: true,
       });
-
-      const detalleRequests = [
-        saveTable(
-          buildDetallePayload({
-            idUsuario: clientUserId,
-            tipoMovimiento: 'cargo',
-            creditos: baseAmount,
-            descripcion: transactionData.description || 'Cargo por consumo QR',
-            saldoAnterior: transactionData.clientPreviousBalance,
-            saldoNuevo: transactionData.clientNewBalance,
-            script: 'FICApp/createDetalleMovimientoCargoMonto',
-          }),
-          'Error creando movimiento de cargo'
-        ),
-        saveTable(
-          buildDetallePayload({
-            idUsuario: vendorUserId,
-            tipoMovimiento: 'abono',
-            creditos: baseAmount,
-            descripcion: transactionData.description || 'Abono por cobro QR',
-            saldoAnterior: transactionData.vendorPreviousBalance,
-            saldoNuevo: transactionData.vendorNewBalance,
-            script: 'FICApp/createDetalleMovimientoAbonoMonto',
-          }),
-          'Error creando movimiento de abono'
-        ),
-      ];
-
-      if (tipAmount > 0) {
-        detalleRequests.push(
-          saveTable(
-            buildDetallePayload({
-              idUsuario: clientUserId,
-              tipoMovimiento: 'cargo',
-              creditos: tipAmount,
-              descripcion: `Propina - ${transactionData.description || 'Consumo QR'}`,
-              saldoAnterior: transactionData.clientPreviousBalance,
-              saldoNuevo: transactionData.clientNewBalance,
-              script: 'FICApp/createDetalleMovimientoCargoPropina',
-            }),
-            'Error creando movimiento de cargo por propina'
-          ),
-          saveTable(
-            buildDetallePayload({
-              idUsuario: vendorUserId,
-              tipoMovimiento: 'abono',
-              creditos: tipAmount,
-              descripcion: `Propina - ${transactionData.description || 'Cobro QR'}`,
-              saldoAnterior: transactionData.vendorPreviousBalance,
-              saldoNuevo: transactionData.vendorNewBalance,
-              script: 'FICApp/createDetalleMovimientoAbonoPropina',
-            }),
-            'Error creando movimiento de abono por propina'
-          )
-        );
-      }
-
-      const detalleResults = await Promise.all(detalleRequests);
-      const [cargoData, abonoData] = detalleResults;
 
       return {
         success: true,
-        message:
-          abonoData?.respuesta ||
-          cargoData?.respuesta ||
-          pagoData?.respuesta ||
-          'Pago registrado correctamente',
-        data: {
-          id: idPago,
-          transaction_id: idPago ? `PAGO-${idPago}` : 'PAGO',
-          amount: baseAmount,
-          tip: tipAmount,
-          total: totalAmount,
-          description: transactionData.description || 'Pago por servicios',
-          status: 'created',
-          supportsStatusPolling: false,
-          createdAt: now,
-          idDetalleCargo:
-            cargoData?.idRegistro ??
-            cargoData?.data?.id_detalle_movimiento ??
-            cargoData?.id_detalle_movimiento ??
-            null,
-          idDetalleAbono:
-            abonoData?.idRegistro ??
-            abonoData?.data?.id_detalle_movimiento ??
-            abonoData?.id_detalle_movimiento ??
-            null,
-        },
+        message: data?.message || data?.respuesta || 'Solicitud enviada correctamente',
+        data: transaction,
+      };
+    } catch (error) {
+      console.error('API Error - createPaymentRequest:', error);
+      throw error;
+    }
+  };
+
+  const createTransaction = async (transactionData) => {
+    try {
+      const payload = buildRequestPayload({
+        ...transactionData,
+        paymentMethod: 'nip',
+      });
+      const data = await postJson(
+        '/transactions/create',
+        payload,
+        'Error creando cobro con NIP'
+      );
+
+      const transaction = normalizeTransactionRecord(data, {
+        amount: payload.amount,
+        tip: payload.tip,
+        total: payload.amount + payload.tip,
+        status: payload.nip ? 'approved' : 'pending',
+        supportsStatusPolling: false,
+      });
+
+      return {
+        success: true,
+        message: data?.message || data?.respuesta || 'Pago registrado correctamente',
+        data: transaction,
       };
     } catch (error) {
       console.error('API Error - createTransaction:', error);
@@ -240,8 +190,39 @@ export const useApi = () => {
     }
   };
 
+  const approvePaymentRequest = async (transactionId) => {
+    return await postJson(
+      '/transactions/approve',
+      { transactionId },
+      'Error aprobando pago'
+    );
+  };
+
+  const rejectPaymentRequest = async (transactionId) => {
+    return await postJson(
+      '/transactions/reject',
+      { transactionId },
+      'Error rechazando pago'
+    );
+  };
+
+  const authorizePaymentWithNip = async (transactionId, nip) => {
+    return await postJson(
+      '/transactions/authorize-nip',
+      {
+        transactionId,
+        nip: String(nip ?? '').trim(),
+      },
+      'Error autorizando pago con NIP'
+    );
+  };
+
   return {
+    createPaymentRequest,
     createTransaction,
     getTransactionStatus,
+    approvePaymentRequest,
+    rejectPaymentRequest,
+    authorizePaymentWithNip,
   };
 };

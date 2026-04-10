@@ -44,8 +44,10 @@ export default function ScannerScreen() {
       }
 
       const resolvedClientId = clientData.clientId ?? clientData.clientUserId ?? clientData.id;
+      const resolvedQrCode =
+        clientData.codigo_qr ?? clientData.qr_code ?? clientData.clientQrCode ?? null;
 
-      if (!resolvedClientId) {
+      if (!resolvedClientId && !resolvedQrCode) {
         Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
         setTimeout(() => setScanned(false), 2000);
         return;
@@ -56,6 +58,7 @@ export default function ScannerScreen() {
         params: {
           clientData: JSON.stringify(clientData),
           clientId: resolvedClientId,
+          qrCode: resolvedQrCode,
           clientName: clientData.clientName ?? clientData.name,
         },
       });
