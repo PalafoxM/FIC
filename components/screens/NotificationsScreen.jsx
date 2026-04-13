@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import * as Notifications from 'expo-notifications';
+import { useFocusEffect } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission } from '../../constants/roles';
@@ -9,11 +11,26 @@ import AccessDenied from '../AccessDenied';
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { approvePaymentRequest, rejectPaymentRequest } = useApi();
 
   useEffect(() => {
     loadNotifications();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadNotifications();
+    }, [])
+  );
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(() => {
+      loadNotifications();
+    });
+
+    return () => subscription.remove();
   }, []);
 
   if (!hasPermission(user?.id_perfil, 'notifications')) {
@@ -27,6 +44,7 @@ export default function NotificationsScreen() {
 
   const loadNotifications = async () => {
     try {
+      setLoading(true);
       const token = await AsyncStorage.getItem('token');
       const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
         headers: {
@@ -43,6 +61,8 @@ export default function NotificationsScreen() {
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -111,6 +131,12 @@ export default function NotificationsScreen() {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Notificaciones</Text>
 
+      <TouchableOpacity style={styles.refreshButton} onPress={loadNotifications}>
+        <Text style={styles.refreshButtonText}>
+          {loading ? 'Actualizando...' : 'Actualizar'}
+        </Text>
+      </TouchableOpacity>
+
       {notifications.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No hay notificaciones pendientes</Text>
@@ -146,6 +172,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+  },
+  refreshButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#E8F1FB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  refreshButtonText: {
+    color: '#1C5D99',
+    fontWeight: '600',
   },
   empty: {
     alignItems: 'center',

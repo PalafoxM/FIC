@@ -75,34 +75,49 @@ export const useApi = () => {
     return data;
   };
 
-  const postJson = async (path, body, fallbackMessage) => {
+  const getApiJsonResponse = async ({
+    path,
+    method = 'GET',
+    body,
+    fallbackMessage,
+  }) => {
     const headers = await getAuthHeaders();
     const url = `${API_BASE_URL}${path}`;
 
     console.log(`${fallbackMessage} URL:`, url);
 
     const response = await fetch(url, {
-      method: 'POST',
+      method,
       headers,
-      body: JSON.stringify(body),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
     return await parseJsonResponse(response, fallbackMessage);
   };
+
+  const postJson = async (path, body, fallbackMessage) =>
+    await getApiJsonResponse({
+      path,
+      method: 'POST',
+      body,
+      fallbackMessage,
+    });
 
   const getJson = async (path, fallbackMessage) => {
-    const headers = await getAuthHeaders();
-    const url = `${API_BASE_URL}${path}`;
-
-    console.log(`${fallbackMessage} URL:`, url);
-
-    const response = await fetch(url, {
+    return await getApiJsonResponse({
+      path,
       method: 'GET',
-      headers,
+      fallbackMessage,
     });
-
-    return await parseJsonResponse(response, fallbackMessage);
   };
+
+  const getTransactionsResponse = async (path, method = 'GET', body, fallbackMessage) =>
+    await getApiJsonResponse({
+      path: `/transactions${path}`,
+      method,
+      body,
+      fallbackMessage,
+    });
 
   const buildRequestPayload = (transactionData = {}) => ({
     codigo_qr:
@@ -125,13 +140,12 @@ export const useApi = () => {
 
   const getTransactionStatus = async (transactionId) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/transactions/${transactionId}/status`, {
-        method: 'GET',
-        headers,
-      });
-
-      const data = await parseJsonResponse(response, 'Error consultando transaccion');
+      const data = await getTransactionsResponse(
+        `/${transactionId}/status`,
+        'GET',
+        undefined,
+        'Error consultando transaccion'
+      );
       const transaction = normalizeTransactionRecord(data?.data, {
         id: transactionId,
         status: data?.data?.status ?? 'pending',
@@ -156,8 +170,9 @@ export const useApi = () => {
         ...transactionData,
         paymentMethod: 'app',
       });
-      const data = await postJson(
-        '/transactions/create',
+      const data = await getTransactionsResponse(
+        '/create',
+        'POST',
         payload,
         'Error creando solicitud de pago'
       );
@@ -187,8 +202,9 @@ export const useApi = () => {
         ...transactionData,
         paymentMethod: 'nip',
       });
-      const data = await postJson(
-        '/transactions/create',
+      const data = await getTransactionsResponse(
+        '/create',
+        'POST',
         payload,
         'Error creando cobro con NIP'
       );
@@ -213,24 +229,27 @@ export const useApi = () => {
   };
 
   const approvePaymentRequest = async (transactionId) => {
-    return await postJson(
-      '/transactions/approve',
+    return await getTransactionsResponse(
+      '/approve',
+      'POST',
       { transactionId },
       'Error aprobando pago'
     );
   };
 
   const rejectPaymentRequest = async (transactionId) => {
-    return await postJson(
-      '/transactions/reject',
+    return await getTransactionsResponse(
+      '/reject',
+      'POST',
       { transactionId },
       'Error rechazando pago'
     );
   };
 
   const authorizePaymentWithNip = async (transactionId, nip) => {
-    return await postJson(
-      '/transactions/authorize-nip',
+    return await getTransactionsResponse(
+      '/authorize-nip',
+      'POST',
       {
         transactionId,
         nip: String(nip ?? '').trim(),
@@ -241,8 +260,10 @@ export const useApi = () => {
 
   const getUserTransactions = async (scope = 'client') => {
     try {
-      const data = await getJson(
-        `/transactions?scope=${encodeURIComponent(scope)}`,
+      const data = await getTransactionsResponse(
+        `?scope=${encodeURIComponent(scope)}`,
+        'GET',
+        undefined,
         'Error consultando transacciones'
       );
 

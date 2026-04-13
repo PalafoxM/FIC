@@ -152,6 +152,81 @@ export function AuthProvider({ children }) {
     checkAuthStatus();
   }, []);
 
+  const getApiJsonResponse = async ({
+    url,
+    method = 'POST',
+    token = null,
+    body,
+    rawLabel = 'API',
+    allowCannotPostFallback = false,
+  }) => {
+    const response = await fetch(url, {
+      method,
+      headers: getHeaders(token),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    const rawResponse = await response.text();
+    let data = null;
+
+    try {
+      data = rawResponse ? JSON.parse(rawResponse) : null;
+    } catch (_parseError) {
+      if (allowCannotPostFallback && rawResponse?.includes('Cannot POST')) {
+        return { response, data: null, rawResponse, shouldContinue: true };
+      }
+
+      console.error(`${rawLabel} raw response:`, rawResponse);
+      throw new Error(`El backend devolvio una respuesta no valida en ${rawLabel}`);
+    }
+
+    return { response, data, rawResponse, shouldContinue: false };
+  };
+
+  const getLoginResponse = async (payload, attemptLabel) => {
+    console.log('Login intento:', attemptLabel);
+    console.log('Login URL:', `${AUTH_BASE_URL}/login`);
+    console.log('Login usuario:', payload?.usuario ?? '');
+    console.log('Login password length:', String(payload?.contrasenia ?? '').length);
+
+    const result = await getApiJsonResponse({
+      url: `${AUTH_BASE_URL}/login`,
+      body: payload,
+      rawLabel: 'Login',
+    });
+
+    console.log(result.data);
+    console.log('Login status:', result.response.status);
+    console.log('Login respuesta:', result.data?.respuesta ?? result.data?.message ?? result.data);
+
+    return result;
+  };
+
+  const getValidateTokenResponse = async (url, token) =>
+    await getApiJsonResponse({
+      url,
+      token,
+      rawLabel: 'ValidarToken',
+      allowCannotPostFallback: true,
+    });
+
+  const getLogoutResponse = async (token) =>
+    await getApiJsonResponse({
+      url: `${AUTH_BASE_URL}/logout`,
+      token,
+      rawLabel: 'Logout',
+    });
+
+  const getTableResponse = async (queryConfig, token) =>
+    await getApiJsonResponse({
+      url: `${API_BASE_URL}/getTabla`,
+      token,
+      body: {
+        data: queryConfig,
+      },
+      rawLabel: 'getTabla',
+    });
+
   const checkAuthStatus = async () => {
     try {
       const userJson = await AsyncStorage.getItem('user');
@@ -186,33 +261,20 @@ export function AuthProvider({ children }) {
 
   const validateToken = async (token) => {
     try {
-      const candidateUrls = [
-        `${AUTH_BASE_URL}/validar-token`,
-        `${LEGACY_AUTH_BASE_URL}/validarTokenApi`,
-      ];
+        const candidateUrls = [
+          `${AUTH_BASE_URL}/validar-token`,
+          `${LEGACY_AUTH_BASE_URL}/validarTokenApi`,
+        ];
 
-      for (const url of candidateUrls) {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: getHeaders(token),
-        });
-
-        const rawResponse = await response.text();
-        let data = null;
-
-        try {
-          data = rawResponse ? JSON.parse(rawResponse) : null;
-        } catch (parseError) {
-          if (rawResponse?.includes('Cannot POST')) {
+        for (const url of candidateUrls) {
+          const { response, data, shouldContinue } = await getValidateTokenResponse(url, token);
+          if (shouldContinue) {
             continue;
           }
-          console.error('ValidarToken raw response:', rawResponse);
-          return true;
-        }
 
-        if (!response.ok || data?.error) {
-          if (!authActionRef.current) {
-            await AsyncStorage.multiRemove(['user', 'token']);
+          if (!response.ok || data?.error) {
+            if (!authActionRef.current) {
+              await AsyncStorage.multiRemove(['user', 'token']);
             setUser(null);
           }
           return false;
@@ -234,23 +296,7 @@ export function AuthProvider({ children }) {
       throw new Error('No hay token de autenticacion');
     }
 
-    const response = await fetch(`${API_BASE_URL}/getTabla`, {
-      method: 'POST',
-      headers: getHeaders(token),
-      body: JSON.stringify({
-        data: queryConfig,
-      }),
-    });
-
-    const rawResponse = await response.text();
-    let data = null;
-
-    try {
-      data = rawResponse ? JSON.parse(rawResponse) : null;
-    } catch (parseError) {
-      console.error('getTabla raw response:', rawResponse);
-      throw new Error('El backend devolvio una respuesta no valida al consultar datos');
-    }
+    const { response, data } = await getTableResponse(queryConfig, token);
 
     if (!response.ok || data?.error) {
       throw new Error(data?.respuesta || data?.message || 'Error consultando datos');
@@ -282,34 +328,8 @@ export function AuthProvider({ children }) {
         },
       });
 
-      const performLoginRequest = async (passwordValue, attemptLabel) => {
-        console.log('Login intento:', attemptLabel);
-        console.log('Login URL:', `${AUTH_BASE_URL}/login`);
-        console.log('Login usuario:', normalizedUsername);
-        console.log('Login password length:', passwordValue.length);
-
-        const response = await fetch(`${AUTH_BASE_URL}/login`, {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify(buildPayload(passwordValue)),
-        });
-
-        const rawResponse = await response.text();
-        let data = null;
-
-        try {
-          data = rawResponse ? JSON.parse(rawResponse) : null;
-          console.log(data);
-        } catch (parseError) {
-          console.error('Login raw response:', rawResponse);
-          throw new Error('La respuesta del servidor no es JSON valido');
-        }
-
-        console.log('Login status:', response.status);
-        console.log('Login respuesta:', data?.respuesta ?? data?.message ?? data);
-
-        return { response, data };
-      };
+      const performLoginRequest = async (passwordValue, attemptLabel) =>
+        await getLoginResponse(buildPayload(passwordValue), attemptLabel);
 
       let { response, data } = await performLoginRequest(normalizedPassword, 'original');
 
@@ -414,10 +434,7 @@ export function AuthProvider({ children }) {
 
       if (token) {
         try {
-          await fetch(`${AUTH_BASE_URL}/logout`, {
-            method: 'POST',
-            headers: getHeaders(token),
-          });
+          await getLogoutResponse(token);
         } catch (logoutError) {
           console.error('No se pudo cerrar sesión en backend:', logoutError);
         }

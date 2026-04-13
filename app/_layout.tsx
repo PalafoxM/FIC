@@ -41,7 +41,7 @@ function RootLayoutContent() {
       console.log('Notificacion tocada:', data);
 
       if (data.type === 'PAYMENT_REQUEST') {
-        router.push('/notifications');
+        router.push('/alerts');
       } else if (data.type === 'PAYMENT_APPROVED') {
         router.push('/(tabs)');
       }

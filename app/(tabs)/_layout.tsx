@@ -6,7 +6,9 @@ import { useAuth } from '../../hooks/useAuth';
 export default function TabLayout() {
   const { user } = useAuth();
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
-  const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
+  const isProvider =
+    user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const showNotificationsTab = isClient || isProvider;
 
   return (
     <Tabs
@@ -47,6 +49,16 @@ export default function TabLayout() {
           title: 'Participantes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="compass-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="alerts"
+        options={{
+          href: showNotificationsTab ? '/alerts' : null,
+          title: 'Notificaciones',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications-outline" size={size} color={color} />
           ),
         }}
       />
