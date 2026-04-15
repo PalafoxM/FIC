@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 import { ENV } from '../constants/env';
+import { useAuth } from './useAuth';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -82,6 +83,8 @@ const registerTokenInBackend = async (pushToken) => {
 };
 
 export const usePushNotifications = () => {
+  const { user } = useAuth();
+
   useEffect(() => {
     let isMounted = true;
     const isAndroidExpoGo =
@@ -115,6 +118,15 @@ export const usePushNotifications = () => {
         if (isAndroidExpoGo) {
           console.log('Notificaciones push remotas omitidas en Expo Go para Android');
           return;
+        }
+
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#8E6C17',
+          });
         }
 
         if (!projectId) {
@@ -176,5 +188,5 @@ export const usePushNotifications = () => {
         clearInterval(refreshInterval);
       }
     };
-  }, []);
+  }, [user?.id_usuario]);
 };

@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AccessDenied from '../../components/AccessDenied';
 import { hasPermission } from '../../constants/roles';
@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const navigatingRef = useRef(false);
   const router = useRouter();
   const { user } = useAuth();
 
@@ -28,18 +29,22 @@ export default function ScannerScreen() {
   }
 
   const handleBarCodeScanned = ({ data }) => {
-    if (scanned) {
+    if (scanned || navigatingRef.current) {
       return;
     }
 
     setScanned(true);
+    navigatingRef.current = true;
 
     try {
       const clientData = JSON.parse(data);
 
       if (clientData.type !== 'client_payment') {
         Alert.alert('QR invalido', 'Este no es un codigo de pago valido');
-        setTimeout(() => setScanned(false), 2000);
+        setTimeout(() => {
+          setScanned(false);
+          navigatingRef.current = false;
+        }, 2000);
         return;
       }
 
@@ -49,11 +54,14 @@ export default function ScannerScreen() {
 
       if (!resolvedClientId && !resolvedQrCode) {
         Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
-        setTimeout(() => setScanned(false), 2000);
+        setTimeout(() => {
+          setScanned(false);
+          navigatingRef.current = false;
+        }, 2000);
         return;
       }
 
-      router.push({
+      router.replace({
         pathname: '/enter-amount',
         params: {
           clientData: JSON.stringify(clientData),
@@ -64,7 +72,10 @@ export default function ScannerScreen() {
       });
     } catch (_error) {
       Alert.alert('Error', 'No se pudo leer el codigo QR');
-      setTimeout(() => setScanned(false), 2000);
+      setTimeout(() => {
+        setScanned(false);
+        navigatingRef.current = false;
+      }, 2000);
     }
   };
 

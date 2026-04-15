@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ClientQRGenerator from '../../components/ClientQRGenerator';
@@ -82,6 +82,39 @@ export default function HomeScreen() {
       isMounted = false;
     };
   }, [getClientAvailableBalance, isClient, user?.id_nivel_cliente, user?.id_usuario]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+
+      const refreshBalanceOnFocus = async () => {
+        if (!isClient || !user?.id_usuario) {
+          return;
+        }
+
+        try {
+          setLoadingClientBalance(true);
+          const balance = await getClientAvailableBalance(user.id_usuario);
+
+          if (isMounted) {
+            setClientBalance(balance);
+          }
+        } catch (balanceError) {
+          console.error('Error refreshing client balance on focus:', balanceError);
+        } finally {
+          if (isMounted) {
+            setLoadingClientBalance(false);
+          }
+        }
+      };
+
+      refreshBalanceOnFocus();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [getClientAvailableBalance, isClient, user?.id_usuario])
+  );
 
   const handleLogout = async () => {
     Alert.alert('Cerrar sesión', '¿Estás seguro?', [

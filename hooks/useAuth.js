@@ -143,6 +143,10 @@ const resolveDefaultEstablecimientoId = (userData) => {
   return userData?.id_establecimiento ?? null;
 };
 
+const persistUserSession = async (userData) => {
+  await AsyncStorage.setItem('user', JSON.stringify(userData));
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -514,6 +518,17 @@ export function AuthProvider({ children }) {
         return null;
       }
 
+      const sessionToken = await AsyncStorage.getItem('token');
+      if (!sessionToken) {
+        return Number(
+          user?.monto_deposito ??
+            user?.saldo ??
+            user?.saldo_actual ??
+            user?.saldoDisponible ??
+            0
+        );
+      }
+
       const userRows = await getTable({
         tabla: 'usuario',
         where: {
@@ -525,6 +540,16 @@ export function AuthProvider({ children }) {
 
       const balance = userRows?.[0]?.monto_deposito;
       if (balance !== null && balance !== undefined && balance !== '') {
+        if (user && Number(user?.id_usuario ?? 0) === normalizedClientId) {
+          const nextUser = {
+            ...user,
+            monto_deposito: Number(balance),
+            saldo: Number(balance),
+          };
+          setUser(nextUser);
+          await persistUserSession(nextUser);
+        }
+
         return Number(balance);
       }
 
