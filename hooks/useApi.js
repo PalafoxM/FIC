@@ -53,23 +53,23 @@ export const useApi = () => {
     }
   };
 
-  const parseJsonResponse = async (response, fallbackMessage) => {
+  const parseJsonResponse = async (response, actionLabel) => {
     const rawResponse = await response.text();
     let data = null;
     const contentType = response.headers.get('content-type') || 'unknown';
 
-    console.log(`${fallbackMessage} status:`, response.status);
-    console.log(`${fallbackMessage} content-type:`, contentType);
+    console.log(`${actionLabel} status:`, response.status);
+    console.log(`${actionLabel} content-type:`, contentType);
 
     try {
       data = rawResponse ? JSON.parse(rawResponse) : null;
     } catch (_parseError) {
-      console.error(`${fallbackMessage} raw response:`, rawResponse);
-      throw new Error(`${fallbackMessage} devolvio una respuesta no valida`);
+      console.error(`${actionLabel} raw response:`, rawResponse);
+      throw new Error(`${actionLabel} devolvio una respuesta no valida`);
     }
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || fallbackMessage);
+      throw new Error(data?.respuesta || data?.message || actionLabel);
     }
 
     return data;
@@ -79,12 +79,12 @@ export const useApi = () => {
     path,
     method = 'GET',
     body,
-    fallbackMessage,
+    fallbackMessage: actionLabel,
   }) => {
     const headers = await getAuthHeaders();
     const url = `${API_BASE_URL}${path}`;
 
-    console.log(`${fallbackMessage} URL:`, url);
+    console.log(`${actionLabel} URL:`, url);
 
     const response = await fetch(url, {
       method,
@@ -92,7 +92,7 @@ export const useApi = () => {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-    return await parseJsonResponse(response, fallbackMessage);
+    return await parseJsonResponse(response, actionLabel);
   };
 
   const postJson = async (path, body, fallbackMessage) =>
@@ -144,7 +144,7 @@ export const useApi = () => {
         `/${transactionId}/status`,
         'GET',
         undefined,
-        'Error consultando transaccion'
+        'Consultando transaccion'
       );
       const transaction = normalizeTransactionRecord(data?.data, {
         id: transactionId,
@@ -174,7 +174,7 @@ export const useApi = () => {
         '/create',
         'POST',
         payload,
-        'Error creando solicitud de pago'
+        'Creando solicitud de pago'
       );
 
       const transaction = normalizeTransactionRecord(data, {
@@ -206,7 +206,7 @@ export const useApi = () => {
         '/create',
         'POST',
         payload,
-        'Error creando cobro con NIP'
+        'Creando cobro con NIP'
       );
 
       const transaction = normalizeTransactionRecord(data, {
@@ -233,7 +233,7 @@ export const useApi = () => {
       '/approve',
       'POST',
       { transactionId },
-      'Error aprobando pago'
+      'Aprobando pago'
     );
   };
 
@@ -242,7 +242,7 @@ export const useApi = () => {
       '/reject',
       'POST',
       { transactionId },
-      'Error rechazando pago'
+      'Rechazando pago'
     );
   };
 
@@ -254,7 +254,7 @@ export const useApi = () => {
         transactionId,
         nip: String(nip ?? '').trim(),
       },
-      'Error autorizando pago con NIP'
+      'Autorizando pago con NIP'
     );
   };
 
@@ -264,7 +264,7 @@ export const useApi = () => {
         `?scope=${encodeURIComponent(scope)}`,
         'GET',
         undefined,
-        'Error consultando transacciones'
+        'Consultando transacciones'
       );
 
       const rows = Array.isArray(data?.data) ? data.data : [];

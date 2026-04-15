@@ -86,9 +86,11 @@ const normalizeAuthenticatedUser = (payload, userRecord) => {
   const normalizedUser = {
     ...userRecord,
     saldo:
+      userRecord?.monto_deposito ??
       userRecord?.saldo ??
       userRecord?.saldo_actual ??
       userRecord?.saldoDisponible ??
+      payload?.monto_deposito ??
       payload?.saldo ??
       payload?.saldo_actual ??
       null,
@@ -505,6 +507,34 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const getClientAvailableBalance = async (clientId = user?.id_usuario) => {
+    try {
+      const normalizedClientId = Number(clientId ?? 0);
+      if (normalizedClientId <= 0) {
+        return null;
+      }
+
+      const userRows = await getTable({
+        tabla: 'usuario',
+        where: {
+          id_usuario: normalizedClientId,
+          visible: 1,
+        },
+        limit: 1,
+      });
+
+      const balance = userRows?.[0]?.monto_deposito;
+      if (balance !== null && balance !== undefined && balance !== '') {
+        return Number(balance);
+      }
+
+      return 0;
+    } catch (currentError) {
+      console.error('Error fetching client balance:', currentError);
+      throw currentError;
+    }
+  };
+
   const value = useMemo(
     () => ({
       user,
@@ -518,6 +548,7 @@ export function AuthProvider({ children }) {
       setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,
+      getClientAvailableBalance,
     }),
     [user, loading, error, activeEstablecimientoId]
   );

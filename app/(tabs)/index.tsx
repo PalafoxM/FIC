@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ClientQRGenerator from '../../components/ClientQRGenerator';
 import { getRoleConfig, getRoleLabel, hasPermission, ROLE_IDS } from '../../constants/roles';
@@ -32,20 +32,56 @@ const buildAdminCards = (user) => [
 ];
 
 export default function HomeScreen() {
-  const { user, logout, activeEstablecimientoId, setActiveEstablecimiento } = useAuth();
+  const {
+    user,
+    logout,
+    activeEstablecimientoId,
+    setActiveEstablecimiento,
+    getClientAvailableBalance,
+  } = useAuth();
   const router = useRouter();
+  const [clientBalance, setClientBalance] = useState(
+    user?.saldo ?? user?.saldo_actual ?? user?.saldoDisponible ?? null
+  );
+  const [loadingClientBalance, setLoadingClientBalance] = useState(false);
 
   const roleConfig = getRoleConfig(user?.id_perfil);
   const isProvider =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isAdminOrManager = hasPermission(user?.id_perfil, 'dashboard');
-  const clientBalance =
-    user?.saldo ??
-    user?.saldo_actual ??
-    user?.saldoDisponible ??
-    null;
   const providerEstablishments = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadClientBalance = async () => {
+      if (!isClient || !user?.id_usuario) {
+        return;
+      }
+
+      try {
+        setLoadingClientBalance(true);
+        const balance = await getClientAvailableBalance(user.id_usuario);
+
+        if (isMounted) {
+          setClientBalance(balance);
+        }
+      } catch (balanceError) {
+        console.error('Error loading client balance on home:', balanceError);
+      } finally {
+        if (isMounted) {
+          setLoadingClientBalance(false);
+        }
+      }
+    };
+
+    loadClientBalance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getClientAvailableBalance, isClient, user?.id_nivel_cliente, user?.id_usuario]);
 
   const handleLogout = async () => {
     Alert.alert('Cerrar sesión', '¿Estás seguro?', [
@@ -119,7 +155,7 @@ export default function HomeScreen() {
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Saldo disponible</Text>
             <Text style={styles.balanceValue}>
-              {clientBalance !== null && clientBalance !== undefined
+              {!loadingClientBalance && clientBalance !== null && clientBalance !== undefined
                 ? `$${Number(clientBalance).toFixed(2)}`
                 : 'Pendiente de sincronizar'}
             </Text>
