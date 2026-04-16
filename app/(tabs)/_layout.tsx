@@ -6,10 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 export default function TabLayout() {
   const { user } = useAuth();
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
-  const isProviderOrBusinessManager =
-    user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
+  const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const isProviderOrBusinessManager = isProvider || isBusinessManager;
   const showNotificationsTab = isClient || isProviderOrBusinessManager;
-  const showParticipantsTab = !isProviderOrBusinessManager;
+  const showParticipantsTab = !isBusinessManager;
 
   return (
     <Tabs
@@ -47,7 +48,7 @@ export default function TabLayout() {
         name="explore"
         options={{
           href: showParticipantsTab ? '/explore' : null,
-          title: 'Participantes',
+          title: isProvider ? 'Establecimientos' : 'Participantes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="compass-outline" size={size} color={color} />
           ),

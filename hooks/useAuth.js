@@ -225,6 +225,14 @@ export function AuthProvider({ children }) {
       rawLabel: 'getTabla',
     }), [getApiJsonResponse]);
 
+  const getSaveTableResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${API_BASE_URL}/saveTabla`,
+      token,
+      body: payload,
+      rawLabel: 'saveTabla',
+    }), [getApiJsonResponse]);
+
   const validateToken = useCallback(async (token) => {
     try {
       const candidateUrls = [
@@ -307,6 +315,31 @@ export function AuthProvider({ children }) {
 
     return normalizeTableRows(data);
   }, [getTableResponse]);
+
+  const saveTable = useCallback(async ({ data, config, bitacora = {} }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      data,
+      config,
+      bitacora: {
+        id_user: user?.id_usuario ?? 0,
+        script: bitacora.script ?? 'App.saveTable',
+        ...bitacora,
+      },
+    };
+
+    const { response, data: responseData } = await getSaveTableResponse(payload, token);
+
+    if (!response.ok || responseData?.error) {
+      throw new Error(responseData?.respuesta || responseData?.message || 'Error guardando datos');
+    }
+
+    return responseData;
+  }, [getSaveTableResponse, user?.id_usuario]);
 
   const login = useCallback(async (username, password) => {
     try {
@@ -559,6 +592,7 @@ export function AuthProvider({ children }) {
       register,
       logout,
       getTable,
+      saveTable,
       setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,
@@ -571,6 +605,7 @@ export function AuthProvider({ children }) {
       getSalesByClient,
       getSalesByProvider,
       getTable,
+      saveTable,
       loading,
       login,
       logout,
