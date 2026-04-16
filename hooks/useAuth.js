@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
@@ -143,10 +143,6 @@ const resolveDefaultEstablecimientoId = (userData) => {
   return userData?.id_establecimiento ?? null;
 };
 
-const persistUserSession = async (userData) => {
-  await AsyncStorage.setItem('user', JSON.stringify(userData));
-};
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -154,11 +150,7 @@ export function AuthProvider({ children }) {
   const [activeEstablecimientoId, setActiveEstablecimientoIdState] = useState(null);
   const authActionRef = useRef(false);
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const getApiJsonResponse = async ({
+  const getApiJsonResponse = useCallback(async ({
     url,
     method = 'POST',
     token = null,
@@ -187,9 +179,9 @@ export function AuthProvider({ children }) {
     }
 
     return { response, data, rawResponse, shouldContinue: false };
-  };
+  }, []);
 
-  const getLoginResponse = async (payload, attemptLabel) => {
+  const getLoginResponse = useCallback(async (payload, attemptLabel) => {
     console.log('Login intento:', attemptLabel);
     console.log('Login URL:', `${AUTH_BASE_URL}/login`);
     console.log('Login usuario:', payload?.usuario ?? '');
@@ -206,24 +198,24 @@ export function AuthProvider({ children }) {
     console.log('Login respuesta:', result.data?.respuesta ?? result.data?.message ?? result.data);
 
     return result;
-  };
+  }, [getApiJsonResponse]);
 
-  const getValidateTokenResponse = async (url, token) =>
+  const getValidateTokenResponse = useCallback(async (url, token) =>
     await getApiJsonResponse({
       url,
       token,
       rawLabel: 'ValidarToken',
       allowCannotPostFallback: true,
-    });
+    }), [getApiJsonResponse]);
 
-  const getLogoutResponse = async (token) =>
+  const getLogoutResponse = useCallback(async (token) =>
     await getApiJsonResponse({
       url: `${AUTH_BASE_URL}/logout`,
       token,
       rawLabel: 'Logout',
-    });
+    }), [getApiJsonResponse]);
 
-  const getTableResponse = async (queryConfig, token) =>
+  const getTableResponse = useCallback(async (queryConfig, token) =>
     await getApiJsonResponse({
       url: `${API_BASE_URL}/getTabla`,
       token,
@@ -231,9 +223,40 @@ export function AuthProvider({ children }) {
         data: queryConfig,
       },
       rawLabel: 'getTabla',
-    });
+    }), [getApiJsonResponse]);
 
-  const checkAuthStatus = async () => {
+  const validateToken = useCallback(async (token) => {
+    try {
+      const candidateUrls = [
+        `${AUTH_BASE_URL}/validar-token`,
+        `${LEGACY_AUTH_BASE_URL}/validarTokenApi`,
+      ];
+
+      for (const url of candidateUrls) {
+        const { response, data, shouldContinue } = await getValidateTokenResponse(url, token);
+        if (shouldContinue) {
+          continue;
+        }
+
+        if (!response.ok || data?.error) {
+          if (!authActionRef.current) {
+            await AsyncStorage.multiRemove(['user', 'token']);
+            setUser(null);
+          }
+          return false;
+        }
+
+        return true;
+      }
+
+      return true;
+    } catch (currentError) {
+      console.error('No se pudo validar el token en background:', currentError);
+      return true;
+    }
+  }, [getValidateTokenResponse]);
+
+  const checkAuthStatus = useCallback(async () => {
     try {
       const userJson = await AsyncStorage.getItem('user');
       const token = await AsyncStorage.getItem('token');
@@ -241,6 +264,7 @@ export function AuthProvider({ children }) {
       if (userJson && token) {
         const userData = JSON.parse(userJson);
         setUser(userData);
+
         const storedEstablecimientoId = await AsyncStorage.getItem(ACTIVE_ESTABLECIMIENTO_KEY);
         const availableIds = (userData?.establecimientos ?? [])
           .map((item) => String(item?.id_establecimiento ?? ''))
@@ -256,47 +280,20 @@ export function AuthProvider({ children }) {
           setActiveEstablecimientoIdState(null);
         }
 
-        validateToken(token).catch(console.error);
+        await validateToken(token);
       }
     } catch (currentError) {
       console.error('Error checking auth:', currentError);
     } finally {
       setLoading(false);
     }
-  };
+  }, [validateToken]);
 
-  const validateToken = async (token) => {
-    try {
-        const candidateUrls = [
-          `${AUTH_BASE_URL}/validar-token`,
-          `${LEGACY_AUTH_BASE_URL}/validarTokenApi`,
-        ];
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
 
-        for (const url of candidateUrls) {
-          const { response, data, shouldContinue } = await getValidateTokenResponse(url, token);
-          if (shouldContinue) {
-            continue;
-          }
-
-          if (!response.ok || data?.error) {
-            if (!authActionRef.current) {
-              await AsyncStorage.multiRemove(['user', 'token']);
-            setUser(null);
-          }
-          return false;
-        }
-
-        return true;
-      }
-
-      return true;
-    } catch (currentError) {
-      console.error('No se pudo validar el token en background:', currentError);
-      return true;
-    }
-  };
-
-  const getTable = async (queryConfig) => {
+  const getTable = useCallback(async (queryConfig) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
       throw new Error('No hay token de autenticacion');
@@ -309,9 +306,9 @@ export function AuthProvider({ children }) {
     }
 
     return normalizeTableRows(data);
-  };
+  }, [getTableResponse]);
 
-  const login = async (username, password) => {
+  const login = useCallback(async (username, password) => {
     try {
       authActionRef.current = true;
       setLoading(true);
@@ -341,7 +338,7 @@ export function AuthProvider({ children }) {
 
       const shouldRetryTrimmedPassword =
         normalizedPassword !== trimmedPassword &&
-        (data?.respuesta === 'Usuario o contraseña incorrectos' || data?.error === true);
+        (data?.respuesta === 'Usuario o contraseÃ±a incorrectos' || data?.error === true);
 
       if (shouldRetryTrimmedPassword) {
         console.log('Reintentando login con password trimmed');
@@ -349,21 +346,23 @@ export function AuthProvider({ children }) {
       }
 
       if (!response.ok || data?.error) {
-        throw new Error(data?.respuesta || 'Error al iniciar sesión');
+        throw new Error(data?.respuesta || 'Error al iniciar sesiÃ³n');
       }
 
       const userRecord = extractUserRecord(data);
       const userData = normalizeAuthenticatedUser(data, userRecord);
       const sessionToken = extractToken(data, userData);
+
       console.log('Login userData encontrado:', !!userData);
       console.log('Login token encontrado:', !!sessionToken);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolvió usuario/token');
+        throw new Error('El backend no devolviÃ³ usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       await AsyncStorage.setItem('token', sessionToken);
+
       const defaultEstablecimientoId = resolveDefaultEstablecimientoId(userData);
       if (defaultEstablecimientoId) {
         await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, String(defaultEstablecimientoId));
@@ -376,15 +375,15 @@ export function AuthProvider({ children }) {
       setUser(userData);
       return userData;
     } catch (currentError) {
-      setError(currentError.message || 'Error al iniciar sesión');
+      setError(currentError.message || 'Error al iniciar sesiÃ³n');
       throw currentError;
     } finally {
       authActionRef.current = false;
       setLoading(false);
     }
-  };
+  }, [getLoginResponse]);
 
-  const register = async (name, email, password, type) => {
+  const register = useCallback(async (name, email, password, type) => {
     try {
       authActionRef.current = true;
       setLoading(true);
@@ -408,11 +407,12 @@ export function AuthProvider({ children }) {
       const sessionToken = extractToken(data, userData);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolvió usuario/token');
+        throw new Error('El backend no devolviÃ³ usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       await AsyncStorage.setItem('token', sessionToken);
+
       const defaultEstablecimientoId = resolveDefaultEstablecimientoId(userData);
       if (defaultEstablecimientoId) {
         await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, String(defaultEstablecimientoId));
@@ -421,8 +421,8 @@ export function AuthProvider({ children }) {
         await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
         setActiveEstablecimientoIdState(null);
       }
-      setUser(userData);
 
+      setUser(userData);
       return userData;
     } catch (currentError) {
       setError(currentError.message || 'Error en el registro');
@@ -431,9 +431,9 @@ export function AuthProvider({ children }) {
       authActionRef.current = false;
       setLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       authActionRef.current = true;
       const token = await AsyncStorage.getItem('token');
@@ -442,7 +442,7 @@ export function AuthProvider({ children }) {
         try {
           await getLogoutResponse(token);
         } catch (logoutError) {
-          console.error('No se pudo cerrar sesión en backend:', logoutError);
+          console.error('No se pudo cerrar sesiÃ³n en backend:', logoutError);
         }
       }
 
@@ -452,13 +452,13 @@ export function AuthProvider({ children }) {
       setError(null);
     } catch (currentError) {
       console.error('Error logging out:', currentError);
-      setError('Error al cerrar sesión');
+      setError('Error al cerrar sesiÃ³n');
     } finally {
       authActionRef.current = false;
     }
-  };
+  }, [getLogoutResponse]);
 
-  const setActiveEstablecimiento = async (establecimientoId) => {
+  const setActiveEstablecimiento = useCallback(async (establecimientoId) => {
     const nextValue = establecimientoId ? String(establecimientoId) : null;
     setActiveEstablecimientoIdState(nextValue);
 
@@ -467,51 +467,50 @@ export function AuthProvider({ children }) {
     } else {
       await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
     }
-  };
+  }, []);
 
-  const getSalesByProvider = async (providerId = null, filters = {}) => {
+  const getSalesByProvider = useCallback(async (_providerId = null, filters = {}) => {
     try {
       const where = {
         visible: 1,
       };
 
-      const establecimientoId = Number(filters.id_establecimiento ?? activeEstablecimientoId ?? user?.id_establecimiento ?? 0);
+      const establecimientoId = Number(
+        filters.id_establecimiento ?? activeEstablecimientoId ?? user?.id_establecimiento ?? 0
+      );
+
       if (establecimientoId > 0) {
         where.id_establecimiento = establecimientoId;
       }
 
-      const rows = await getTable({
+      return await getTable({
         tabla: 'pagos',
         where,
         order: 'fec_reg DESC',
       });
-
-      return rows;
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
     }
-  };
+  }, [activeEstablecimientoId, getTable, user?.id_establecimiento]);
 
-  const getSalesByClient = async (providerId = null, filters = {}) => {
+  const getSalesByClient = useCallback(async (clientId = null, _filters = {}) => {
     try {
-      const rows = await getTable({
+      return await getTable({
         tabla: 'pagos',
         where: {
-          id_usuario: providerId,
+          id_usuario: clientId,
           visible: 1,
         },
         order: 'fec_reg DESC',
       });
-
-      return rows;
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
     }
-  };
+  }, [getTable]);
 
-  const getClientAvailableBalance = async (clientId = user?.id_usuario) => {
+  const getClientAvailableBalance = useCallback(async (clientId = user?.id_usuario) => {
     try {
       const normalizedClientId = Number(clientId ?? 0);
       if (normalizedClientId <= 0) {
@@ -540,16 +539,6 @@ export function AuthProvider({ children }) {
 
       const balance = userRows?.[0]?.monto_deposito;
       if (balance !== null && balance !== undefined && balance !== '') {
-        if (user && Number(user?.id_usuario ?? 0) === normalizedClientId) {
-          const nextUser = {
-            ...user,
-            monto_deposito: Number(balance),
-            saldo: Number(balance),
-          };
-          setUser(nextUser);
-          await persistUserSession(nextUser);
-        }
-
         return Number(balance);
       }
 
@@ -558,7 +547,7 @@ export function AuthProvider({ children }) {
       console.error('Error fetching client balance:', currentError);
       throw currentError;
     }
-  };
+  }, [getTable, user?.id_usuario, user?.monto_deposito, user?.saldo, user?.saldoDisponible, user?.saldo_actual]);
 
   const value = useMemo(
     () => ({
@@ -575,7 +564,20 @@ export function AuthProvider({ children }) {
       getSalesByClient,
       getClientAvailableBalance,
     }),
-    [user, loading, error, activeEstablecimientoId]
+    [
+      activeEstablecimientoId,
+      error,
+      getClientAvailableBalance,
+      getSalesByClient,
+      getSalesByProvider,
+      getTable,
+      loading,
+      login,
+      logout,
+      register,
+      setActiveEstablecimiento,
+      user,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

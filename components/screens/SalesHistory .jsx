@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,15 +20,11 @@ const SalesHistory = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (user && hasPermission(user?.id_perfil, 'salesHistory')) {
-      loadSales();
-    }
-  }, [user]);
-
-  const loadSales = async (filters = {}) => {
+  const loadSales = useCallback(async (filters = {}, showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
       const salesData = await getSalesByProvider(user.id_usuario, filters);
       setSales(salesData);
     } catch (error) {
@@ -36,7 +33,17 @@ const SalesHistory = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [getSalesByProvider, user?.id_usuario]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user && hasPermission(user?.id_perfil, 'salesHistory')) {
+        loadSales({}, sales.length === 0);
+      } else {
+        setLoading(false);
+      }
+    }, [loadSales, sales.length, user])
+  );
 
   if (!hasPermission(user?.id_perfil, 'salesHistory')) {
     return (

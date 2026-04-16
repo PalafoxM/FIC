@@ -53,35 +53,8 @@ export default function HomeScreen() {
   const providerEstablishments = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadClientBalance = async () => {
-      if (!isClient || !user?.id_usuario) {
-        return;
-      }
-
-      try {
-        setLoadingClientBalance(true);
-        const balance = await getClientAvailableBalance(user.id_usuario);
-
-        if (isMounted) {
-          setClientBalance(balance);
-        }
-      } catch (balanceError) {
-        console.error('Error loading client balance on home:', balanceError);
-      } finally {
-        if (isMounted) {
-          setLoadingClientBalance(false);
-        }
-      }
-    };
-
-    loadClientBalance();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [getClientAvailableBalance, isClient, user?.id_nivel_cliente, user?.id_usuario]);
+    setClientBalance(user?.saldo ?? user?.saldo_actual ?? user?.saldoDisponible ?? null);
+  }, [user?.saldo, user?.saldo_actual, user?.saldoDisponible]);
 
   useFocusEffect(
     React.useCallback(() => {

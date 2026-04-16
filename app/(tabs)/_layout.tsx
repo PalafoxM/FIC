@@ -6,9 +6,10 @@ import { useAuth } from '../../hooks/useAuth';
 export default function TabLayout() {
   const { user } = useAuth();
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
-  const isProvider =
+  const isProviderOrBusinessManager =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
-  const showNotificationsTab = isClient || isProvider;
+  const showNotificationsTab = isClient || isProviderOrBusinessManager;
+  const showParticipantsTab = !isProviderOrBusinessManager;
 
   return (
     <Tabs
@@ -32,10 +33,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: isClient ? 'Consumo' : isProvider ? 'Ventas' : 'Perfil',
+          title: isClient ? 'Consumo' : isProviderOrBusinessManager ? 'Ventas' : 'Perfil',
           tabBarIcon: ({ color, size }) => (
             <Ionicons
-              name={isClient || isProvider ? 'receipt-outline' : 'person-outline'}
+              name={isClient || isProviderOrBusinessManager ? 'receipt-outline' : 'person-outline'}
               size={size}
               color={color}
             />
@@ -45,7 +46,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          href: isClient || isProvider ? '/explore' : null,
+          href: showParticipantsTab ? '/explore' : null,
           title: 'Participantes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="compass-outline" size={size} color={color} />

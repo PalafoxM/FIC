@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission } from '../../constants/roles';
@@ -15,34 +15,7 @@ export default function NotificationsScreen() {
   const { user } = useAuth();
   const { approvePaymentRequest, rejectPaymentRequest } = useApi();
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      loadNotifications();
-    }, [])
-  );
-
-  useEffect(() => {
-    const subscription = Notifications.addNotificationReceivedListener(() => {
-      loadNotifications();
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  if (!hasPermission(user?.id_perfil, 'notifications')) {
-    return (
-      <AccessDenied
-        title="Notificaciones restringidas"
-        message="Tu perfil no tiene acceso a las notificaciones operativas."
-      />
-    );
-  }
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('token');
@@ -64,7 +37,30 @@ export default function NotificationsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+    }, [loadNotifications])
+  );
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(() => {
+      loadNotifications();
+    });
+
+    return () => subscription.remove();
+  }, [loadNotifications]);
+
+  if (!hasPermission(user?.id_perfil, 'notifications')) {
+    return (
+      <AccessDenied
+        title="Notificaciones restringidas"
+        message="Tu perfil no tiene acceso a las notificaciones operativas."
+      />
+    );
+  }
 
   const approvePayment = async (transactionId) => {
     try {
