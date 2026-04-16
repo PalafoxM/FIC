@@ -85,6 +85,13 @@ export default function ExploreScreen() {
   };
 
   const loadData = useCallback(async () => {
+    if (!user?.id_usuario) {
+      setItems([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     if (isBusinessManager) {
       setItems([]);
       setLoading(false);

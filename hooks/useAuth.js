@@ -208,11 +208,12 @@ export function AuthProvider({ children }) {
       allowCannotPostFallback: true,
     }), [getApiJsonResponse]);
 
-  const getLogoutResponse = useCallback(async (token) =>
+  const getLogoutResponse = useCallback(async (url, token) =>
     await getApiJsonResponse({
-      url: `${AUTH_BASE_URL}/logout`,
+      url,
       token,
       rawLabel: 'Logout',
+      allowCannotPostFallback: true,
     }), [getApiJsonResponse]);
 
   const getTableResponse = useCallback(async (queryConfig, token) =>
@@ -371,7 +372,7 @@ export function AuthProvider({ children }) {
 
       const shouldRetryTrimmedPassword =
         normalizedPassword !== trimmedPassword &&
-        (data?.respuesta === 'Usuario o contraseÃ±a incorrectos' || data?.error === true);
+        (data?.respuesta === 'Usuario o contraseÃƒÂ±a incorrectos' || data?.error === true);
 
       if (shouldRetryTrimmedPassword) {
         console.log('Reintentando login con password trimmed');
@@ -379,7 +380,7 @@ export function AuthProvider({ children }) {
       }
 
       if (!response.ok || data?.error) {
-        throw new Error(data?.respuesta || 'Error al iniciar sesiÃ³n');
+        throw new Error(data?.respuesta || 'Error al iniciar sesion');
       }
 
       const userRecord = extractUserRecord(data);
@@ -390,7 +391,7 @@ export function AuthProvider({ children }) {
       console.log('Login token encontrado:', !!sessionToken);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolviÃ³ usuario/token');
+        throw new Error('El backend no devolvio usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -408,7 +409,7 @@ export function AuthProvider({ children }) {
       setUser(userData);
       return userData;
     } catch (currentError) {
-      setError(currentError.message || 'Error al iniciar sesiÃ³n');
+      setError(currentError.message || 'Error al iniciar sesion');
       throw currentError;
     } finally {
       authActionRef.current = false;
@@ -440,7 +441,7 @@ export function AuthProvider({ children }) {
       const sessionToken = extractToken(data, userData);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolviÃ³ usuario/token');
+        throw new Error('El backend no devolvio usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -473,9 +474,23 @@ export function AuthProvider({ children }) {
 
       if (token) {
         try {
-          await getLogoutResponse(token);
+          const candidateUrls = [
+            `${AUTH_BASE_URL}/logout`,
+            `${LEGACY_AUTH_BASE_URL}/logoutApi`,
+          ];
+
+          for (const url of candidateUrls) {
+            const { response, data, shouldContinue } = await getLogoutResponse(url, token);
+            if (shouldContinue) {
+              continue;
+            }
+
+            if (response.ok && !data?.error) {
+              break;
+            }
+          }
         } catch (logoutError) {
-          console.error('No se pudo cerrar sesiÃ³n en backend:', logoutError);
+          console.error('No se pudo cerrar sesion en backend:', logoutError);
         }
       }
 
@@ -485,7 +500,7 @@ export function AuthProvider({ children }) {
       setError(null);
     } catch (currentError) {
       console.error('Error logging out:', currentError);
-      setError('Error al cerrar sesiÃ³n');
+      setError('Error al cerrar sesion');
     } finally {
       authActionRef.current = false;
     }
