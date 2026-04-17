@@ -143,6 +143,64 @@ const resolveDefaultEstablecimientoId = (userData) => {
   return userData?.id_establecimiento ?? null;
 };
 
+const parseSqlDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = String(value).replace(' ', 'T');
+  const parsedDate = new Date(normalizedValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const isQrCurrentlyValid = (qrRow) => {
+  if (!qrRow || Number(qrRow?.activo ?? 0) !== 1 || Number(qrRow?.visible ?? 0) !== 1) {
+    return false;
+  }
+
+  const now = new Date();
+  const vigenteDesde = parseSqlDate(qrRow?.vigente_desde);
+  const vigenteHasta = parseSqlDate(qrRow?.vigente_hasta);
+
+  if (vigenteDesde && vigenteDesde > now) {
+    return false;
+  }
+
+  if (vigenteHasta && vigenteHasta < now) {
+    return false;
+  }
+
+  return true;
+};
+
+const getTipoPagoLabel = (paymentRow, tipoPagoMap) =>
+  paymentRow?.tipo_pago ??
+  paymentRow?.dsc_tipo_pago ??
+  tipoPagoMap?.[Number(paymentRow?.id_tipo_pago ?? 0)] ??
+  'Tipo de pago no disponible';
+
+const enrichPaymentsWithCatalog = (payments, catalogRows) => {
+  const tipoPagoMap = (Array.isArray(catalogRows) ? catalogRows : []).reduce((accumulator, row) => {
+    const paymentTypeId = Number(row?.id_tipo_pago ?? 0);
+    if (paymentTypeId > 0 && row?.dsc_tipo_pago) {
+      accumulator[paymentTypeId] = row.dsc_tipo_pago;
+    }
+    return accumulator;
+  }, {});
+
+  return (Array.isArray(payments) ? payments : []).map((payment) => {
+    const hasPdfEvidence = Boolean(String(payment?.evid_pdf ?? '').trim());
+    const hasXmlEvidence = Boolean(String(payment?.evid_xml ?? '').trim());
+
+    return {
+      ...payment,
+      tipo_pago: getTipoPagoLabel(payment, tipoPagoMap),
+      dsc_tipo_pago: getTipoPagoLabel(payment, tipoPagoMap),
+      evidencias_completas: hasPdfEvidence && hasXmlEvidence,
+    };
+  });
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -234,6 +292,61 @@ export function AuthProvider({ children }) {
       rawLabel: 'saveTabla',
     }), [getApiJsonResponse]);
 
+  const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
+    if (!baseUser?.id_usuario || !token) {
+      return baseUser;
+    }
+
+    try {
+      const [userResponse, qrResponse] = await Promise.all([
+        getTableResponse({
+          tabla: 'usuario',
+          where: {
+            id_usuario: baseUser.id_usuario,
+            visible: 1,
+          },
+          limit: 1,
+        }, token),
+        getTableResponse({
+          tabla: 'qr_cliente',
+          where: {
+            id_usuario: baseUser.id_usuario,
+            activo: 1,
+            visible: 1,
+          },
+          order: 'id_qr_cliente DESC',
+        }, token),
+      ]);
+
+      const hydratedUserRow = normalizeTableRows(userResponse?.data)?.[0] ?? null;
+      const qrRows = normalizeTableRows(qrResponse?.data);
+      const validQrRow = qrRows.find((row) => isQrCurrentlyValid(row)) ?? null;
+
+      return {
+        ...baseUser,
+        ...(hydratedUserRow ?? {}),
+        saldo:
+          hydratedUserRow?.monto_deposito ??
+          baseUser?.monto_deposito ??
+          baseUser?.saldo ??
+          baseUser?.saldo_actual ??
+          baseUser?.saldoDisponible ??
+          null,
+        codigo_qr:
+          validQrRow?.codigo_qr ??
+          baseUser?.codigo_qr ??
+          baseUser?.qr_code ??
+          baseUser?.clientQrCode ??
+          null,
+        vigente_desde: validQrRow?.vigente_desde ?? null,
+        vigente_hasta: validQrRow?.vigente_hasta ?? null,
+      };
+    } catch (currentError) {
+      console.error('Error hydrating authenticated user:', currentError);
+      return baseUser;
+    }
+  }, [getTableResponse]);
+
   const validateToken = useCallback(async (token) => {
     try {
       const candidateUrls = [
@@ -271,8 +384,10 @@ export function AuthProvider({ children }) {
       const token = await AsyncStorage.getItem('token');
 
       if (userJson && token) {
-        const userData = JSON.parse(userJson);
+        const storedUserData = JSON.parse(userJson);
+        const userData = await hydrateAuthenticatedUser(storedUserData, token);
         setUser(userData);
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
 
         const storedEstablecimientoId = await AsyncStorage.getItem(ACTIVE_ESTABLECIMIENTO_KEY);
         const availableIds = (userData?.establecimientos ?? [])
@@ -296,7 +411,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [validateToken]);
+  }, [hydrateAuthenticatedUser, validateToken]);
 
   useEffect(() => {
     checkAuthStatus();
@@ -384,8 +499,9 @@ export function AuthProvider({ children }) {
       }
 
       const userRecord = extractUserRecord(data);
-      const userData = normalizeAuthenticatedUser(data, userRecord);
-      const sessionToken = extractToken(data, userData);
+      const normalizedUserData = normalizeAuthenticatedUser(data, userRecord);
+      const sessionToken = extractToken(data, normalizedUserData);
+      const userData = await hydrateAuthenticatedUser(normalizedUserData, sessionToken);
 
       console.log('Login userData encontrado:', !!userData);
       console.log('Login token encontrado:', !!sessionToken);
@@ -415,7 +531,7 @@ export function AuthProvider({ children }) {
       authActionRef.current = false;
       setLoading(false);
     }
-  }, [getLoginResponse]);
+  }, [getLoginResponse, hydrateAuthenticatedUser]);
 
   const register = useCallback(async (name, email, password, type) => {
     try {
@@ -437,8 +553,10 @@ export function AuthProvider({ children }) {
       }
 
       const userRecord = Array.isArray(data.data) ? data.data[0] : data.data;
-      const userData = normalizeAuthenticatedUser(data, userRecord);
-      const sessionToken = extractToken(data, userData);
+      const normalizedUserData = normalizeAuthenticatedUser(data, userRecord);
+      const sessionToken = extractToken(data, normalizedUserData);
+
+      const userData = await hydrateAuthenticatedUser(normalizedUserData, sessionToken);
 
       if (!userData || !sessionToken) {
         throw new Error('El backend no devolvio usuario/token');
@@ -465,7 +583,7 @@ export function AuthProvider({ children }) {
       authActionRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [hydrateAuthenticatedUser]);
 
   const logout = useCallback(async () => {
     try {
@@ -510,12 +628,21 @@ export function AuthProvider({ children }) {
     const nextValue = establecimientoId ? String(establecimientoId) : null;
     setActiveEstablecimientoIdState(nextValue);
 
-    if (nextValue) {
-      await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, nextValue);
-    } else {
-      await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
-    }
+      if (nextValue) {
+        await AsyncStorage.setItem(ACTIVE_ESTABLECIMIENTO_KEY, nextValue);
+      } else {
+        await AsyncStorage.removeItem(ACTIVE_ESTABLECIMIENTO_KEY);
+      }
   }, []);
+
+  const getPaymentTypesCatalog = useCallback(async () =>
+    await getTable({
+      tabla: 'cat_tipo_pago',
+      where: {
+        visible: 1,
+      },
+      order: 'id_tipo_pago ASC',
+    }), [getTable]);
 
   const getSalesByProvider = useCallback(async (_providerId = null, filters = {}) => {
     try {
@@ -531,32 +658,66 @@ export function AuthProvider({ children }) {
         where.id_establecimiento = establecimientoId;
       }
 
-      return await getTable({
-        tabla: 'pagos',
-        where,
-        order: 'fec_reg DESC',
-      });
+      const [paymentRows, paymentTypes] = await Promise.all([
+        getTable({
+          tabla: 'pagos',
+          where,
+          order: 'fec_reg DESC',
+        }),
+        getPaymentTypesCatalog(),
+      ]);
+
+      return enrichPaymentsWithCatalog(paymentRows, paymentTypes);
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
     }
-  }, [activeEstablecimientoId, getTable, user?.id_establecimiento]);
+  }, [activeEstablecimientoId, getPaymentTypesCatalog, getTable, user?.id_establecimiento]);
 
   const getSalesByClient = useCallback(async (clientId = null, _filters = {}) => {
     try {
-      return await getTable({
-        tabla: 'pagos',
-        where: {
-          id_usuario: clientId,
-          visible: 1,
-        },
-        order: 'fec_reg DESC',
-      });
+      const [paymentRows, paymentTypes] = await Promise.all([
+        getTable({
+          tabla: 'pagos',
+          where: {
+            id_usuario: clientId,
+            visible: 1,
+          },
+          order: 'fec_reg DESC',
+        }),
+        getPaymentTypesCatalog(),
+      ]);
+
+      return enrichPaymentsWithCatalog(paymentRows, paymentTypes);
     } catch (currentError) {
       console.error('Error fetching sales:', currentError);
       throw currentError;
     }
-  }, [getTable]);
+  }, [getPaymentTypesCatalog, getTable]);
+
+  const getClientQrData = useCallback(async (clientId = user?.id_usuario) => {
+    try {
+      const normalizedClientId = Number(clientId ?? 0);
+      if (normalizedClientId <= 0) {
+        return null;
+      }
+
+      const qrRows = await getTable({
+        tabla: 'qr_cliente',
+        where: {
+          id_usuario: normalizedClientId,
+          activo: 1,
+          visible: 1,
+        },
+        order: 'id_qr_cliente DESC',
+      });
+
+      return qrRows.find((row) => isQrCurrentlyValid(row)) ?? null;
+    } catch (currentError) {
+      console.error('Error fetching client QR data:', currentError);
+      throw currentError;
+    }
+  }, [getTable, user?.id_usuario]);
 
   const getClientAvailableBalance = useCallback(async (clientId = user?.id_usuario) => {
     try {
@@ -612,6 +773,7 @@ export function AuthProvider({ children }) {
       getSalesByProvider,
       getSalesByClient,
       getClientAvailableBalance,
+      getClientQrData,
     }),
     [
       activeEstablecimientoId,
@@ -620,6 +782,7 @@ export function AuthProvider({ children }) {
       getSalesByClient,
       getSalesByProvider,
       getTable,
+      getClientQrData,
       saveTable,
       loading,
       login,

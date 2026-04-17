@@ -77,7 +77,7 @@ const ROLE_CONFIG = {
     homeSubtitle: 'Consulta informacion operativa y supervisa la ejecucion administrativa.',
     permissions: {
       dashboard: true,
-      manageUsers: false,
+      manageUsers: true,
       manageEstablishments: true,
       reports: true,
       notifications: true,

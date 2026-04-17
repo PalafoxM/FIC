@@ -62,6 +62,9 @@ const SalesHistory = () => {
   };
 
   const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`;
+  const getPaymentTypeLabel = (item) => item.tipo_pago || item.dsc_tipo_pago || 'Tipo no disponible';
+  const getEvidenceStatusLabel = (item) =>
+    item.evidencias_completas ? 'Evidencias completas' : 'Pendiente de evidencias';
 
   const formatDate = (dateString) => {
     try {
@@ -107,7 +110,7 @@ const SalesHistory = () => {
       onPress={() =>
         Alert.alert(
           'Detalle de venta',
-          `Pago #${item.id_pagos || item.id || item._id}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}`
+          `Pago #${item.id_pagos || item.id || item._id}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
         )
       }
     >
@@ -119,6 +122,8 @@ const SalesHistory = () => {
         <Text style={styles.saleCustomer}>
           Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
         </Text>
+        <Text style={styles.saleMeta}>{getPaymentTypeLabel(item)}</Text>
+        <Text style={styles.saleMeta}>{getEvidenceStatusLabel(item)}</Text>
         <Text style={styles.saleDate}>{formatDate(item.fec_reg || item.createdAt || item.date)}</Text>
       </View>
     </TouchableOpacity>
@@ -219,6 +224,7 @@ const styles = StyleSheet.create({
   saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
   saleDetails: { marginBottom: 8 },
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
+  saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
   saleDate: { fontSize: 12, color: '#666' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
   loadingText: { marginTop: 10, fontSize: 16, color: '#666' },

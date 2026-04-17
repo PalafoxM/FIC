@@ -1,51 +1,49 @@
 import { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
 const ClientQRGenerator = () => {
-  const { user } = useAuth();
+  const { user, getClientQrData } = useAuth();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
+  const [loadingQr, setLoadingQr] = useState(false);
 
-  const generateClientQR = () => {
+  const generateClientQR = async () => {
     if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
       return;
     }
 
-    const qrCode =
-      user.codigo_qr ??
-      user.qr_code ??
-      user.clientQrCode ??
-      user.qrCliente ??
-      null;
+    try {
+      setLoadingQr(true);
 
-    const clientPaymentInfo = qrCode
-      ? {
-          type: 'client_payment',
-          codigo_qr: qrCode,
-          qr_code: qrCode,
-          clientQrCode: qrCode,
-          timestamp: new Date().toISOString(),
-        }
-      : {
-          type: 'client_payment',
-          clientId: user.id_usuario,
-          clientUserId: user.id_usuario,
-          id: user.id_usuario,
-          id_usuario_cliente: user.id_usuario,
-          clientName: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
-          name: [user.nombre, user.primer_apellido, user.segundo_apellido].filter(Boolean).join(' '),
-          clientEmail: user.correo,
-          email: user.correo,
-          clientEstablecimientoId: user.id_establecimiento ?? null,
-          id_establecimiento_cliente: user.id_establecimiento ?? null,
-          timestamp: new Date().toISOString(),
-        };
+      const qrRecord = await getClientQrData(user.id_usuario);
+      const qrCode = qrRecord?.codigo_qr ?? null;
 
-    setQrData(clientPaymentInfo);
-    setShowQR(true);
+      if (!qrCode) {
+        Alert.alert(
+          'QR no disponible',
+          'No tienes un QR vigente para cobrar. Revisa la vigencia con el area de TI.'
+        );
+        return;
+      }
+
+      const clientPaymentInfo = {
+        type: 'client_payment',
+        codigo_qr: qrCode,
+        qr_code: qrCode,
+        clientQrCode: qrCode,
+        timestamp: new Date().toISOString(),
+      };
+
+      setQrData(clientPaymentInfo);
+      setShowQR(true);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo obtener el QR vigente del cliente');
+    } finally {
+      setLoadingQr(false);
+    }
   };
 
   const handleCloseQR = () => {
@@ -58,9 +56,11 @@ const ClientQRGenerator = () => {
       <TouchableOpacity
         style={styles.menuItem}
         onPress={generateClientQR}
-        disabled={!hasPermission(user?.id_perfil, 'clientQr')}
+        disabled={!hasPermission(user?.id_perfil, 'clientQr') || loadingQr}
       >
-        <Text style={styles.menuItemText}>Generar QR para pagar</Text>
+        <Text style={styles.menuItemText}>
+          {loadingQr ? 'Consultando QR vigente...' : 'Generar QR para pagar'}
+        </Text>
       </TouchableOpacity>
 
       <Modal

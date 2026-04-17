@@ -338,22 +338,6 @@ export default function EnterAmountScreen() {
         </Text>
       </View>
 
-      {paymentMethod === 'nip' && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>NIP del cliente</Text>
-          <TextInput
-            style={styles.nipInput}
-            placeholder="Captura el NIP"
-            value={nip}
-            onChangeText={setNip}
-            keyboardType="number-pad"
-            secureTextEntry
-            maxLength={6}
-            placeholderTextColor="#999"
-          />
-        </View>
-      )}
-
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Monto a cobrar</Text>
         <View style={styles.amountInputContainer}>
@@ -422,6 +406,22 @@ export default function EnterAmountScreen() {
           multiline
         />
       </View>
+
+      {paymentMethod === 'nip' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NIP del cliente</Text>
+          <TextInput
+            style={styles.nipInput}
+            placeholder="Captura el NIP"
+            value={nip}
+            onChangeText={setNip}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={6}
+            placeholderTextColor="#999"
+          />
+        </View>
+      )}
 
       <View style={styles.summary}>
         <View style={styles.summaryRow}>
