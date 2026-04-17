@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
@@ -115,6 +116,8 @@ export default function ExploreScreen() {
             title: item.dsc_establecimiento || 'Establecimiento',
             type: getTipoLabel(item.id_tipo),
             address: item.direccion || 'Direccion pendiente',
+            phone: item.telefono || 'Telefono pendiente',
+            locationUrl: item.ubicacion || '',
           }))
         );
         return;
@@ -158,6 +161,8 @@ export default function ExploreScreen() {
           title: item.dsc_establecimiento || 'Establecimiento',
           type: getTipoLabel(item.id_tipo),
           address: item.direccion || 'Direccion pendiente',
+          phone: item.telefono || 'Telefono pendiente',
+          locationUrl: item.ubicacion || '',
           managers: gerentesPorEstablecimiento[String(item.id_establecimiento)] || [],
         }))
       );
@@ -349,6 +354,41 @@ export default function ExploreScreen() {
                 <Text style={styles.metaLabel}>Direccion</Text>
                 <Text style={styles.metaValue}>{item.address}</Text>
               </View>
+
+              {!isProvider && (
+                <>
+                  <View style={styles.metaBlock}>
+                    <Text style={styles.metaLabel}>Telefono</Text>
+                    <Text style={styles.metaValue}>{item.phone}</Text>
+                  </View>
+
+                  <View style={styles.metaBlock}>
+                    <Text style={styles.metaLabel}>Ubicacion</Text>
+                    {item.locationUrl ? (
+                      <TouchableOpacity
+                        style={styles.linkButton}
+                        onPress={async () => {
+                          try {
+                            const supported = await Linking.canOpenURL(item.locationUrl);
+                            if (!supported) {
+                              Alert.alert('Enlace no disponible', 'No se pudo abrir la ubicacion.');
+                              return;
+                            }
+
+                            await Linking.openURL(item.locationUrl);
+                          } catch {
+                            Alert.alert('Error', 'No se pudo abrir la ubicacion.');
+                          }
+                        }}
+                      >
+                        <Text style={styles.linkButtonText}>Abrir en Google Maps</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.metaValue}>Ubicacion pendiente</Text>
+                    )}
+                  </View>
+                </>
+              )}
 
               {isProvider && (
                 <View style={styles.metaBlock}>
@@ -568,6 +608,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#444',
+  },
+  linkButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F1FB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  linkButtonText: {
+    color: '#1C5D99',
+    fontSize: 14,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
