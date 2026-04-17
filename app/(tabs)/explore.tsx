@@ -42,6 +42,7 @@ export default function ExploreScreen() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [savingManager, setSavingManager] = useState(false);
   const [managerForm, setManagerForm] = useState(getEmptyManagerForm());
@@ -62,6 +63,31 @@ export default function ExploreScreen() {
 
     return 'Consulta nombre, tipo y direccion de los establecimientos visibles dentro del programa.';
   }, [isProvider]);
+
+  const filteredItems = useMemo(() => {
+    if (isProvider) {
+      return items;
+    }
+
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return items;
+    }
+
+    return items.filter((item) => {
+      const haystack = [
+        item?.title,
+        item?.type,
+        item?.address,
+        item?.phone,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedQuery);
+    });
+  }, [isProvider, items, searchQuery]);
 
   const closeManagerModal = () => {
     setModalVisible(false);
@@ -335,13 +361,30 @@ export default function ExploreScreen() {
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
 
-        {items.length === 0 ? (
+        {!isProvider && (
+          <View style={styles.searchBlock}>
+            <Text style={styles.inputLabel}>Buscar establecimiento</Text>
+            <TextInput
+              style={styles.input}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar por nombre, tipo, direccion o telefono"
+              placeholderTextColor="#999"
+            />
+          </View>
+        )}
+
+        {filteredItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Sin registros</Text>
-            <Text style={styles.emptyText}>No hay informacion disponible para mostrar.</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery.trim()
+                ? 'No encontramos establecimientos con ese criterio de busqueda.'
+                : 'No hay informacion disponible para mostrar.'}
+            </Text>
           </View>
         ) : (
-          items.map((item) => (
+          filteredItems.map((item) => (
             <View key={String(item.id)} style={styles.card}>
               <Text style={styles.cardTitle}>{item.title}</Text>
 
@@ -744,6 +787,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1f1f1f',
     marginBottom: 18,
+  },
+  searchBlock: {
+    marginBottom: 14,
   },
   formBlock: {
     marginBottom: 14,
