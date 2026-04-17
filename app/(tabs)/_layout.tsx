@@ -50,7 +50,7 @@ export default function TabLayout() {
           href: showParticipantsTab ? '/explore' : null,
           title: isProvider ? 'Establecimientos' : 'Participantes',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="compass-outline" size={size} color={color} />
+            <Ionicons name="storefront-outline" size={size} color={color} />
           ),
         }}
       />
