@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission } from '../../constants/roles';
@@ -12,8 +12,81 @@ import AccessDenied from '../AccessDenied';
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
   const { user } = useAuth();
-  const { approvePaymentRequest, rejectPaymentRequest } = useApi();
+  const { approvePaymentRequest, rejectPaymentRequest, getTransactionStatus } = useApi();
+  const transactionStatusRef = useRef(getTransactionStatus);
+
+  useEffect(() => {
+    transactionStatusRef.current = getTransactionStatus;
+  }, [getTransactionStatus]);
+
+  const parseNotificationData = useCallback((notification) => {
+    if (!notification) {
+      return {};
+    }
+
+    if (typeof notification.data === 'string') {
+      try {
+        return JSON.parse(notification.data);
+      } catch {
+        return {};
+      }
+    }
+
+    return notification.data || {};
+  }, []);
+
+  const enrichNotificationStatus = useCallback(async (notification) => {
+    const notificationData = parseNotificationData(notification);
+    const transactionId = notificationData?.transactionId;
+
+    if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
+      return {
+        ...notification,
+        parsedData: notificationData,
+        resolvedStatus: 'pending',
+      };
+    }
+
+    try {
+      const statusResponse = await transactionStatusRef.current(transactionId);
+      const resolvedStatus = statusResponse?.data?.status ?? 'pending';
+      const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
+
+      if (resolvedStatus === 'approved') {
+        return {
+          ...notification,
+          parsedData: notificationData,
+          resolvedStatus,
+          title: 'Pago finalizado',
+          body: `Pago completado por $${totalAmount.toFixed(2)}`,
+        };
+      }
+
+      if (resolvedStatus === 'rejected') {
+        return {
+          ...notification,
+          parsedData: notificationData,
+          resolvedStatus,
+          title: 'Pago rechazado',
+          body: `Pago rechazado por $${totalAmount.toFixed(2)}`,
+        };
+      }
+
+      return {
+        ...notification,
+        parsedData: notificationData,
+        resolvedStatus,
+      };
+    } catch {
+      return {
+        ...notification,
+        parsedData: notificationData,
+        resolvedStatus: 'pending',
+      };
+    }
+  }, [parseNotificationData]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -30,14 +103,22 @@ export default function NotificationsScreen() {
       const data = rawResponse ? JSON.parse(rawResponse) : null;
 
       if (data?.success) {
-        setNotifications(Array.isArray(data.data) ? data.data : []);
+        const rows = Array.isArray(data.data) ? data.data : [];
+        const sortedRows = [...rows].sort((left, right) => {
+          const leftDate = new Date(left?.created_at ?? 0).getTime();
+          const rightDate = new Date(right?.created_at ?? 0).getTime();
+          return rightDate - leftDate;
+        });
+        const enrichedRows = await Promise.all(sortedRows.map(enrichNotificationStatus));
+        setVisibleCount(10);
+        setNotifications(enrichedRows);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enrichNotificationStatus]);
 
   useFocusEffect(
     useCallback(() => {
@@ -98,10 +179,25 @@ export default function NotificationsScreen() {
 
   const handleNotificationPress = async (notification) => {
     try {
-      const notificationData =
-        typeof notification.data === 'string' ? JSON.parse(notification.data) : notification.data;
+      const notificationData = notification.parsedData ?? parseNotificationData(notification);
 
       if (notificationData?.type === 'PAYMENT_REQUEST') {
+        if (notification.resolvedStatus === 'approved') {
+          Alert.alert(
+            'Pago finalizado',
+            `Tu pago por $${notificationData.total ?? notificationData.amount} ya fue completado.`
+          );
+          return;
+        }
+
+        if (notification.resolvedStatus === 'rejected') {
+          Alert.alert(
+            'Pago rechazado',
+            `La solicitud por $${notificationData.total ?? notificationData.amount} ya fue rechazada.`
+          );
+          return;
+        }
+
         Alert.alert(
           'Solicitud de pago',
           `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
@@ -123,6 +219,9 @@ export default function NotificationsScreen() {
     }
   };
 
+  const visibleNotifications = notifications.slice(0, visibleCount);
+  const canShowMore = notifications.length > visibleCount;
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Notificaciones</Text>
@@ -138,21 +237,32 @@ export default function NotificationsScreen() {
           <Text style={styles.emptyText}>No hay notificaciones pendientes</Text>
         </View>
       ) : (
-        notifications.map((notification, index) => (
-          <TouchableOpacity
-            key={notification.id ?? `notification-${index}`}
-            style={styles.notificationCard}
-            onPress={() => handleNotificationPress(notification)}
-          >
-            <Text style={styles.notificationTitle}>{notification.title}</Text>
-            <Text style={styles.notificationBody}>{notification.body}</Text>
-            <Text style={styles.notificationDate}>
-              {notification.created_at
-                ? new Date(notification.created_at).toLocaleString()
-                : 'Sin fecha'}
-            </Text>
-          </TouchableOpacity>
-        ))
+        <>
+          {visibleNotifications.map((notification, index) => (
+            <TouchableOpacity
+              key={notification.id ?? `notification-${index}`}
+              style={styles.notificationCard}
+              onPress={() => handleNotificationPress(notification)}
+            >
+              <Text style={styles.notificationTitle}>{notification.title}</Text>
+              <Text style={styles.notificationBody}>{notification.body}</Text>
+              <Text style={styles.notificationDate}>
+                {notification.created_at
+                  ? new Date(notification.created_at).toLocaleString()
+                  : 'Sin fecha'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          {canShowMore ? (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => setVisibleCount((current) => current + 10)}
+            >
+              <Text style={styles.loadMoreButtonText}>Ver mas</Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
       )}
     </ScrollView>
   );
@@ -213,5 +323,18 @@ const styles = StyleSheet.create({
   notificationDate: {
     fontSize: 12,
     color: '#999',
+  },
+  loadMoreButton: {
+    alignItems: 'center',
+    backgroundColor: '#E8F1FB',
+    borderRadius: 10,
+    marginTop: 6,
+    marginBottom: 24,
+    paddingVertical: 12,
+  },
+  loadMoreButtonText: {
+    color: '#1C5D99',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

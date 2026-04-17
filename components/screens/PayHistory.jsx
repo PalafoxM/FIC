@@ -19,6 +19,7 @@ const PayHistory = () => {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const loadSales = useCallback(async (filters = {}, showLoader = false) => {
     try {
@@ -27,6 +28,7 @@ const PayHistory = () => {
       }
       const salesData = await getSalesByClient(user.id_usuario, filters);
       setSales(salesData);
+      setVisibleCount(10);
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudieron cargar los consumos');
     } finally {
@@ -131,11 +133,16 @@ const PayHistory = () => {
     );
   }
 
+  const visibleSales = sales.slice(0, visibleCount);
+  const canShowMore = sales.length > visibleCount;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Historial de consumo</Text>
-        <Text style={styles.subtitle}>{sales.length} movimientos encontrados</Text>
+        <Text style={styles.subtitle}>
+          Mostrando {visibleSales.length} de {sales.length} movimientos
+        </Text>
       </View>
 
       <View style={styles.filterContainer}>
@@ -156,13 +163,23 @@ const PayHistory = () => {
       </View>
 
       <FlatList
-        data={sales}
+        data={visibleSales}
         renderItem={renderSaleItem}
         keyExtractor={(item, index) =>
           String(item.id_pagos ?? item.id_detalle_movimiento ?? item.id ?? item._id ?? `pay-${index}`)
         }
         contentContainerStyle={styles.listContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} />}
+        ListFooterComponent={
+          canShowMore ? (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => setVisibleCount((current) => current + 10)}
+            >
+              <Text style={styles.loadMoreButtonText}>Ver mas</Text>
+            </TouchableOpacity>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No hay consumos registrados</Text>
@@ -208,6 +225,20 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#666', textAlign: 'center' },
   emptySubtext: { fontSize: 14, color: '#999', textAlign: 'center', marginTop: 5 },
+  loadMoreButton: {
+    alignItems: 'center',
+    backgroundColor: '#E8F1FB',
+    borderRadius: 10,
+    marginHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 24,
+    paddingVertical: 12,
+  },
+  loadMoreButtonText: {
+    color: '#1C5D99',
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });
 
 export default PayHistory;
