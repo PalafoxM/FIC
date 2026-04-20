@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
+import { usePaymentRequestAlerts } from '../hooks/usePaymentRequestAlerts';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 Notifications.setNotificationHandler({
@@ -19,6 +20,7 @@ function RootLayoutContent() {
   const segments = useSegments();
 
   usePushNotifications();
+  usePaymentRequestAlerts();
 
   useEffect(() => {
     if (loading) return;

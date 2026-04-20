@@ -45,6 +45,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="alerts"
+        options={{
+          href: showNotificationsTab ? '/alerts' : null,
+          title: 'Notificaciones',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           href: showParticipantsTab ? '/explore' : null,
@@ -55,12 +65,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="alerts"
+        name="logout"
         options={{
-          href: showNotificationsTab ? '/alerts' : null,
-          title: 'Notificaciones',
+          title: '',
+          href: '/logout',
+          tabBarShowLabel: false,
+          tabBarAccessibilityLabel: 'Cerrar sesion',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications-outline" size={size} color={color} />
+            <Ionicons name="log-out-outline" size={size} color={color} />
           ),
         }}
       />
