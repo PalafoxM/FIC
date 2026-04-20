@@ -383,6 +383,11 @@ export const useApi = () => {
       };
     } catch (error) {
       console.error('API Error - createPaymentReport:', error);
+      if (String(error?.message || '').includes('Creando reporte de pago devolvio una respuesta no valida')) {
+        throw new Error(
+          'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/create.'
+        );
+      }
       throw error;
     }
   };
@@ -416,6 +421,11 @@ export const useApi = () => {
       };
     } catch (error) {
       console.error('API Error - getPaymentReports:', error);
+      if (String(error?.message || '').includes('Consultando reportes devolvio una respuesta no valida')) {
+        throw new Error(
+          'El backend de reportes no respondio con JSON valido. Revisa la ruta GET /api/reportes.'
+        );
+      }
       throw error;
     }
   };
@@ -442,6 +452,11 @@ export const useApi = () => {
       };
     } catch (error) {
       console.error('API Error - updatePaymentReportStatus:', error);
+      if (String(error?.message || '').includes('Actualizando estatus de reporte devolvio una respuesta no valida')) {
+        throw new Error(
+          'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/update-status.'
+        );
+      }
       throw error;
     }
   };

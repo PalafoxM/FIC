@@ -42,6 +42,7 @@ const buildFullName = (record) =>
 
 const isDepositoCreditosAllowedForPerfil = (idPerfil) => ![ROLE_IDS.PROVIDER, ROLE_IDS.BUSINESS_MANAGER].includes(Number(idPerfil ?? 0));
 const CLIENT_BALANCE_REFRESH_COOLDOWN_MS = 30000;
+const REPORTS_RETRY_COOLDOWN_MS = 60000;
 
 export default function HomeScreen() {
   const {
@@ -55,6 +56,12 @@ export default function HomeScreen() {
   const { getPaymentReports, updatePaymentReportStatus } = useApi();
   const router = useRouter();
   const lastClientBalanceRefreshRef = useRef(0);
+  const getClientAvailableBalanceRef = useRef(getClientAvailableBalance);
+  const loadUsersViewRef = useRef(null);
+  const loadPaymentsViewRef = useRef(null);
+  const loadReportsViewRef = useRef(null);
+  const reportsEndpointUnavailableRef = useRef(false);
+  const reportsRetryAtRef = useRef(0);
 
   const [clientBalance, setClientBalance] = useState(
     user?.saldo ?? user?.saldo_actual ?? user?.saldoDisponible ?? null
@@ -65,6 +72,7 @@ export default function HomeScreen() {
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [reportsView, setReportsView] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [reportsEndpointUnavailable, setReportsEndpointUnavailable] = useState(false);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
   const [visibleUsersCount, setVisibleUsersCount] = useState(10);
   const [visiblePaymentsCount, setVisiblePaymentsCount] = useState(10);
@@ -205,6 +213,15 @@ export default function HomeScreen() {
       return;
     }
 
+    const now = Date.now();
+    if (
+      reportsEndpointUnavailableRef.current &&
+      reportsRetryAtRef.current &&
+      now < reportsRetryAtRef.current
+    ) {
+      return;
+    }
+
     try {
       setLoadingReports(true);
 
@@ -241,13 +258,47 @@ export default function HomeScreen() {
         }))
       );
       setVisibleReportsCount(10);
+      reportsEndpointUnavailableRef.current = false;
+      reportsRetryAtRef.current = 0;
+      setReportsEndpointUnavailable(false);
     } catch (error) {
       console.error('Error loading reports view:', error);
+      if (
+        String(error?.message || '').includes('Revisa la ruta GET /api/reportes') ||
+        String(error?.message || '').includes('Consultando reportes devolvio una respuesta no valida')
+      ) {
+        reportsEndpointUnavailableRef.current = true;
+        reportsRetryAtRef.current = Date.now() + REPORTS_RETRY_COOLDOWN_MS;
+        setReportsEndpointUnavailable(true);
+      }
       setReportsView([]);
     } finally {
       setLoadingReports(false);
     }
   }, [getPaymentReports, getTable, isAdmin]);
+
+  useEffect(() => {
+    getClientAvailableBalanceRef.current = getClientAvailableBalance;
+  }, [getClientAvailableBalance]);
+
+  useEffect(() => {
+    loadUsersViewRef.current = loadUsersView;
+  }, [loadUsersView]);
+
+  useEffect(() => {
+    loadPaymentsViewRef.current = loadPaymentsView;
+  }, [loadPaymentsView]);
+
+  useEffect(() => {
+    loadReportsViewRef.current = loadReportsView;
+  }, [loadReportsView]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      reportsEndpointUnavailableRef.current = false;
+      setReportsEndpointUnavailable(false);
+    }
+  }, [isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
@@ -270,7 +321,7 @@ export default function HomeScreen() {
         }
 
         try {
-          const balance = await getClientAvailableBalance(user.id_usuario);
+          const balance = await getClientAvailableBalanceRef.current(user.id_usuario);
 
           if (isMounted) {
             setClientBalance(balance);
@@ -284,18 +335,18 @@ export default function HomeScreen() {
       refreshBalanceOnFocus();
 
       if (isAdminOrManager) {
-        loadUsersView();
-        loadPaymentsView();
+        loadUsersViewRef.current?.();
+        loadPaymentsViewRef.current?.();
       }
 
       if (isAdmin) {
-        loadReportsView();
+        loadReportsViewRef.current?.();
       }
 
       return () => {
         isMounted = false;
       };
-    }, [clientBalance, getClientAvailableBalance, isAdmin, isAdminOrManager, isClient, loadPaymentsView, loadReportsView, loadUsersView, user?.id_usuario])
+    }, [clientBalance, isAdmin, isAdminOrManager, isClient, user?.id_usuario])
   );
 
   const filteredUsers = useMemo(() => {
@@ -622,6 +673,14 @@ export default function HomeScreen() {
 
                   {isAdmin ? (
                     <>
+                      {reportsEndpointUnavailable ? (
+                        <View style={styles.emptyBox}>
+                          <Text style={styles.emptyBoxText}>
+                            El endpoint de reportes aun no esta disponible en backend.
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
                       <View style={styles.searchBlock}>
                         <Text style={styles.inputLabel}>Buscar reportes</Text>
                         <TextInput
@@ -685,6 +744,8 @@ export default function HomeScreen() {
                               <Text style={styles.loadMoreButtonText}>Ver mas reportes</Text>
                             </TouchableOpacity>
                           ) : null}
+                        </>
+                      )}
                         </>
                       )}
                     </>
