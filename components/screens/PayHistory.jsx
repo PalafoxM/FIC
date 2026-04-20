@@ -203,9 +203,11 @@ const PayHistory = () => {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
-        <Text style={styles.reportButtonText}>Reporte</Text>
-      </TouchableOpacity>
+      <View style={styles.saleActions}>
+        <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
+          <Text style={styles.reportButtonText}>Levantar reporte</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -352,17 +354,23 @@ const styles = StyleSheet.create({
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
   saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
   saleDate: { fontSize: 12, color: '#666' },
+  saleActions: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+  },
   reportButton: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
+    width: '100%',
     backgroundColor: '#C62828',
     borderRadius: 10,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   reportButtonText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     textTransform: 'uppercase',
   },

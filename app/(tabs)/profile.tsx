@@ -219,6 +219,13 @@ export default function ProfileScreen() {
             >
               <Text style={styles.notificationsButtonText}>Notificaciones</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.consumptionButton}
+              onPress={() => router.push('/(tabs)')}
+            >
+              <Text style={styles.consumptionButtonText}>Consumo</Text>
+            </TouchableOpacity>
           </>
         )}
 
@@ -408,6 +415,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   notificationsButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  consumptionButton: {
+    width: '100%',
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#1F8A4D',
+    alignItems: 'center',
+  },
+  consumptionButtonText: {
     color: 'white',
     fontSize: 15,
     fontWeight: '700',

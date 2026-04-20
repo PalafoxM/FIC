@@ -262,7 +262,7 @@ export default function HomeScreen() {
       reportsRetryAtRef.current = 0;
       setReportsEndpointUnavailable(false);
     } catch (error) {
-      console.error('Error loading reports view:', error);
+      console.log('Reportes no disponibles:', error?.message || error);
       if (
         String(error?.message || '').includes('Revisa la ruta GET /api/reportes') ||
         String(error?.message || '').includes('Consultando reportes devolvio una respuesta no valida')
