@@ -244,6 +244,9 @@ export default function NotificationsScreen() {
               style={styles.notificationCard}
               onPress={() => handleNotificationPress(notification)}
             >
+              {notification.resolvedStatus === 'pending' ? (
+                <View style={styles.pendingDot} />
+              ) : null}
               <Text style={styles.notificationTitle}>{notification.title}</Text>
               <Text style={styles.notificationBody}>{notification.body}</Text>
               <Text style={styles.notificationDate}>
@@ -302,6 +305,7 @@ const styles = StyleSheet.create({
   notificationCard: {
     backgroundColor: 'white',
     padding: 15,
+    paddingLeft: 22,
     borderRadius: 10,
     marginBottom: 10,
     shadowColor: '#000',
@@ -309,6 +313,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
+  },
+  pendingDot: {
+    position: 'absolute',
+    left: 10,
+    top: 20,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#D62828',
   },
   notificationTitle: {
     fontSize: 16,
