@@ -35,6 +35,58 @@ const normalizeTransactionRecord = (payload, fallback = {}) => {
   };
 };
 
+const normalizeReportRecord = (payload, fallback = {}) => {
+  const report =
+    payload?.report ??
+    (Array.isArray(payload?.data) ? payload.data[0] : payload?.data) ??
+    payload ??
+    {};
+
+  return {
+    ...report,
+    id_reporte:
+      report?.id_reporte ??
+      report?.reportId ??
+      report?.id ??
+      fallback.id_reporte ??
+      null,
+    id_pagos:
+      report?.id_pagos ??
+      report?.paymentId ??
+      report?.id_pago ??
+      fallback.id_pagos ??
+      null,
+    id_usuario:
+      report?.id_usuario ??
+      report?.clientId ??
+      fallback.id_usuario ??
+      null,
+    id_establecimiento:
+      report?.id_establecimiento ??
+      report?.establishmentId ??
+      fallback.id_establecimiento ??
+      null,
+    tipo_reporte:
+      report?.tipo_reporte ??
+      report?.reportType ??
+      fallback.tipo_reporte ??
+      'Sin tipo',
+    estatus:
+      report?.estatus ??
+      report?.status ??
+      fallback.estatus ??
+      'pendiente',
+    monto: Number(report?.monto ?? fallback.monto ?? 0),
+    propina: Number(report?.propina ?? fallback.propina ?? 0),
+    total: Number(report?.total ?? fallback.total ?? 0),
+    fecha_movimiento:
+      report?.fecha_movimiento ??
+      report?.movementDate ??
+      fallback.fecha_movimiento ??
+      null,
+  };
+};
+
 export const useApi = () => {
   const getAuthHeaders = async () => {
     try {
@@ -114,6 +166,14 @@ export const useApi = () => {
   const getTransactionsResponse = async (path, method = 'GET', body, fallbackMessage) =>
     await getApiJsonResponse({
       path: `/transactions${path}`,
+      method,
+      body,
+      fallbackMessage,
+    });
+
+  const getReportsResponse = async (path, method = 'GET', body, fallbackMessage) =>
+    await getApiJsonResponse({
+      path: `/reportes${path}`,
       method,
       body,
       fallbackMessage,
@@ -292,15 +352,112 @@ export const useApi = () => {
     return await rejectPaymentRequest(transactionId);
   };
 
+  const createPaymentReport = async (reportData) => {
+    try {
+      const payload = {
+        id_pagos: Number(reportData?.id_pagos ?? 0),
+        id_usuario: Number(reportData?.id_usuario ?? 0),
+        id_establecimiento:
+          reportData?.id_establecimiento !== undefined && reportData?.id_establecimiento !== null
+            ? Number(reportData.id_establecimiento)
+            : null,
+        tipo_reporte: String(reportData?.tipo_reporte ?? '').trim(),
+        descripcion: String(reportData?.descripcion ?? '').trim(),
+        monto: Number(reportData?.monto ?? 0),
+        propina: Number(reportData?.propina ?? 0),
+        total: Number(reportData?.total ?? 0),
+        fecha_movimiento: reportData?.fecha_movimiento ?? null,
+      };
+
+      const data = await getReportsResponse(
+        '/create',
+        'POST',
+        payload,
+        'Creando reporte de pago'
+      );
+
+      return {
+        success: true,
+        message: data?.message || data?.respuesta || 'Reporte creado correctamente',
+        data: normalizeReportRecord(data, payload),
+      };
+    } catch (error) {
+      console.error('API Error - createPaymentReport:', error);
+      throw error;
+    }
+  };
+
+  const getPaymentReports = async (filters = {}) => {
+    try {
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          params.set(key, String(value));
+        }
+      });
+
+      const data = await getReportsResponse(
+        params.size > 0 ? `?${params.toString()}` : '',
+        'GET',
+        undefined,
+        'Consultando reportes'
+      );
+
+      const rows = Array.isArray(data?.data) ? data.data : [];
+
+      return {
+        success: true,
+        data: rows.map((row, index) =>
+          normalizeReportRecord(row, {
+            id_reporte: row?.id_reporte ?? index,
+          })
+        ),
+      };
+    } catch (error) {
+      console.error('API Error - getPaymentReports:', error);
+      throw error;
+    }
+  };
+
+  const updatePaymentReportStatus = async (idReporte, estatus) => {
+    try {
+      const data = await getReportsResponse(
+        '/update-status',
+        'POST',
+        {
+          id_reporte: Number(idReporte ?? 0),
+          estatus: String(estatus ?? '').trim(),
+        },
+        'Actualizando estatus de reporte'
+      );
+
+      return {
+        success: true,
+        message: data?.message || data?.respuesta || 'Reporte actualizado correctamente',
+        data: normalizeReportRecord(data?.data ?? data, {
+          id_reporte: Number(idReporte ?? 0),
+          estatus,
+        }),
+      };
+    } catch (error) {
+      console.error('API Error - updatePaymentReportStatus:', error);
+      throw error;
+    }
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
+    createPaymentReport,
     getTransactionStatus,
+    getPaymentReports,
     getUserTransactions,
     approveTransaction,
     rejectTransaction,
     approvePaymentRequest,
     rejectPaymentRequest,
     authorizePaymentWithNip,
+    updatePaymentReportStatus,
   };
 };

@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
@@ -11,15 +12,26 @@ import {
   View,
 } from 'react-native';
 import { hasPermission } from '../../constants/roles';
+import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
 
 const PayHistory = () => {
   const { user, getSalesByClient } = useAuth();
+  const { createPaymentReport } = useApi();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
+
+  const reportOptions = [
+    'Cobro duplicado',
+    'Cobro no reconocido',
+    'Cobro excede el monto',
+    'Problema con evidencia o comprobante',
+  ];
 
   const loadSales = useCallback(async (filters = {}, showLoader = false) => {
     try {
@@ -65,6 +77,11 @@ const PayHistory = () => {
   const getPaymentTypeLabel = (item) => item.tipo_pago || item.dsc_tipo_pago || 'Tipo no disponible';
   const getEvidenceStatusLabel = (item) =>
     item.evidencias_completas ? 'Evidencias completas' : 'Pendiente de evidencias';
+  const getEstablishmentLabel = (item) =>
+    item.establecimiento_nombre ||
+    item.establecimientoLabel ||
+    item.dsc_establecimiento ||
+    'Establecimiento no disponible';
 
   const formatDate = (dateString) => {
     try {
@@ -78,6 +95,63 @@ const PayHistory = () => {
       });
     } catch {
       return 'Fecha invalida';
+    }
+  };
+
+  const formatTime = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('es-MX', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return 'Hora invalida';
+    }
+  };
+
+  const openReportModal = (item) => {
+    setSelectedSale(item);
+    setReportModalVisible(true);
+  };
+
+  const closeReportModal = () => {
+    setReportModalVisible(false);
+    setSelectedSale(null);
+  };
+
+  const handleSelectReportType = async (reportType) => {
+    if (!selectedSale) {
+      return;
+    }
+
+    const paymentId = selectedSale.id_pagos || selectedSale.id || selectedSale._id;
+    const saleSnapshot = selectedSale;
+
+    try {
+      const response = await createPaymentReport({
+        id_pagos: paymentId,
+        id_usuario: Number(user?.id_usuario ?? 0),
+        id_establecimiento:
+          saleSnapshot?.id_establecimiento ??
+          saleSnapshot?.establishmentId ??
+          null,
+        tipo_reporte: reportType,
+        descripcion: '',
+        monto: Number(saleSnapshot.monto || saleSnapshot.amount || 0),
+        propina: Number(saleSnapshot.propina || 0),
+        total: Number(saleSnapshot.total || saleSnapshot.totalAmount || saleSnapshot.amount || 0),
+        fecha_movimiento: saleSnapshot.fec_reg || saleSnapshot.createdAt || saleSnapshot.date || null,
+      });
+
+      closeReportModal();
+
+      Alert.alert(
+        'Reporte enviado',
+        response?.message || 'Tu reporte fue enviado al equipo TI para revision.'
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo enviar el reporte.');
     }
   };
 
@@ -105,28 +179,34 @@ const PayHistory = () => {
   };
 
   const renderSaleItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.saleItem}
-      onPress={() =>
-        Alert.alert(
-          'Detalle de consumo',
-          `Pago #${item.id_pagos || item.id || item._id}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
-        )
-      }
-    >
-      <View style={styles.saleHeader}>
-        <Text style={styles.saleId}>Pago #{item.id_pagos || item.id || item._id}</Text>
-        <Text style={styles.saleAmount}>{formatCurrency(item.total || item.totalAmount || item.amount)}</Text>
-      </View>
-      <View style={styles.saleDetails}>
-        <Text style={styles.saleCustomer}>
-          Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
-        </Text>
-        <Text style={styles.saleMeta}>{getPaymentTypeLabel(item)}</Text>
-        <Text style={styles.saleMeta}>{getEvidenceStatusLabel(item)}</Text>
-        <Text style={styles.saleDate}>{formatDate(item.fec_reg || item.createdAt || item.date)}</Text>
-      </View>
-    </TouchableOpacity>
+    <View style={styles.saleItem}>
+      <TouchableOpacity
+        onPress={() =>
+          Alert.alert(
+            'Detalle de consumo',
+            `Pago #${item.id_pagos || item.id || item._id}\nEstablecimiento: ${getEstablishmentLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nHora: ${formatTime(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
+          )
+        }
+      >
+        <View style={styles.saleHeader}>
+          <Text style={styles.saleId}>Pago #{item.id_pagos || item.id || item._id}</Text>
+          <Text style={styles.saleAmount}>{formatCurrency(item.total || item.totalAmount || item.amount)}</Text>
+        </View>
+        <View style={styles.saleDetails}>
+          <Text style={styles.saleCustomer}>
+            Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
+          </Text>
+          <Text style={styles.saleMeta}>{getEstablishmentLabel(item)}</Text>
+          <Text style={styles.saleMeta}>{getPaymentTypeLabel(item)}</Text>
+          <Text style={styles.saleMeta}>{getEvidenceStatusLabel(item)}</Text>
+          <Text style={styles.saleDate}>{formatDate(item.fec_reg || item.createdAt || item.date)}</Text>
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
+        <Text style={styles.reportButtonText}>Reporte</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
@@ -192,6 +272,52 @@ const PayHistory = () => {
           </View>
         }
       />
+
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeReportModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Crear reporte</Text>
+
+            {selectedSale ? (
+              <View style={styles.reportSummary}>
+                <Text style={styles.reportSummaryText}>
+                  Establecimiento: {getEstablishmentLabel(selectedSale)}
+                </Text>
+                <Text style={styles.reportSummaryText}>
+                  Monto: {formatCurrency(selectedSale.total || selectedSale.totalAmount || selectedSale.amount)}
+                </Text>
+                <Text style={styles.reportSummaryText}>
+                  Fecha: {formatDate(selectedSale.fec_reg || selectedSale.createdAt || selectedSale.date)}
+                </Text>
+                <Text style={styles.reportSummaryText}>
+                  Hora: {formatTime(selectedSale.fec_reg || selectedSale.createdAt || selectedSale.date)}
+                </Text>
+              </View>
+            ) : null}
+
+            <Text style={styles.modalSubtitle}>Tipo de reporte</Text>
+
+            {reportOptions.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.reportOptionButton}
+                onPress={() => handleSelectReportType(option)}
+              >
+                <Text style={styles.reportOptionText}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.cancelButton} onPress={closeReportModal}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -226,6 +352,20 @@ const styles = StyleSheet.create({
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
   saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
   saleDate: { fontSize: 12, color: '#666' },
+  reportButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: '#C62828',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  reportButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
   loadingText: { marginTop: 10, fontSize: 16, color: '#666' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
@@ -243,6 +383,69 @@ const styles = StyleSheet.create({
   loadMoreButtonText: {
     color: '#1C5D99',
     fontSize: 15,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 12,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B4F0F',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  reportSummary: {
+    backgroundColor: '#F7F7F7',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  reportSummaryText: {
+    fontSize: 14,
+    color: '#444',
+    marginBottom: 4,
+  },
+  reportOptionButton: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+    backgroundColor: '#FFF5F5',
+  },
+  reportOptionText: {
+    color: '#8B1E1E',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    marginTop: 6,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  cancelButtonText: {
+    color: '#555',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

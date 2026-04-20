@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import ClientQRGenerator from '../../components/ClientQRGenerator';
 import { getRoleConfig, getRoleLabel, ROLE_IDS } from '../../constants/roles';
+import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 
 const ADMIN_FILTERS = [
@@ -40,6 +41,7 @@ const buildFullName = (record) =>
     .trim() || 'Sin nombre';
 
 const isDepositoCreditosAllowedForPerfil = (idPerfil) => ![ROLE_IDS.PROVIDER, ROLE_IDS.BUSINESS_MANAGER].includes(Number(idPerfil ?? 0));
+const CLIENT_BALANCE_REFRESH_COOLDOWN_MS = 30000;
 
 export default function HomeScreen() {
   const {
@@ -50,20 +52,25 @@ export default function HomeScreen() {
     getTable,
     saveTable,
   } = useAuth();
+  const { getPaymentReports, updatePaymentReportStatus } = useApi();
   const router = useRouter();
+  const lastClientBalanceRefreshRef = useRef(0);
 
   const [clientBalance, setClientBalance] = useState(
     user?.saldo ?? user?.saldo_actual ?? user?.saldoDisponible ?? null
   );
-  const [loadingClientBalance, setLoadingClientBalance] = useState(false);
   const [usersView, setUsersView] = useState([]);
   const [paymentsView, setPaymentsView] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [reportsView, setReportsView] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
   const [visibleUsersCount, setVisibleUsersCount] = useState(10);
   const [visiblePaymentsCount, setVisiblePaymentsCount] = useState(10);
+  const [visibleReportsCount, setVisibleReportsCount] = useState(10);
   const [paymentsSearch, setPaymentsSearch] = useState('');
+  const [reportsSearch, setReportsSearch] = useState('');
   const [depositModalVisible, setDepositModalVisible] = useState(false);
   const [depositTarget, setDepositTarget] = useState(null);
   const [depositAmount, setDepositAmount] = useState('');
@@ -193,6 +200,55 @@ export default function HomeScreen() {
     }
   }, [getTable, isAdminOrManager]);
 
+  const loadReportsView = useCallback(async () => {
+    if (!isAdmin) {
+      return;
+    }
+
+    try {
+      setLoadingReports(true);
+
+      const [reportsResponse, usuarios, establecimientos] = await Promise.all([
+        getPaymentReports(),
+        getTable({
+          tabla: 'usuario',
+          where: { visible: 1 },
+        }),
+        getTable({
+          tabla: 'establecimiento',
+          where: { visible: 1 },
+        }),
+      ]);
+
+      const reportRows = Array.isArray(reportsResponse?.data) ? reportsResponse.data : [];
+
+      const usuariosMap = usuarios.reduce((accumulator, record) => {
+        accumulator[String(record.id_usuario)] = buildFullName(record);
+        return accumulator;
+      }, {});
+
+      const establecimientosMap = establecimientos.reduce((accumulator, record) => {
+        accumulator[String(record.id_establecimiento)] = record.dsc_establecimiento || 'Sin establecimiento';
+        return accumulator;
+      }, {});
+
+      setReportsView(
+        reportRows.map((reportRecord) => ({
+          ...reportRecord,
+          usuarioLabel: usuariosMap[String(reportRecord.id_usuario ?? '')] || 'Sin usuario',
+          establecimientoLabel:
+            establecimientosMap[String(reportRecord.id_establecimiento ?? '')] || 'Sin establecimiento',
+        }))
+      );
+      setVisibleReportsCount(10);
+    } catch (error) {
+      console.error('Error loading reports view:', error);
+      setReportsView([]);
+    } finally {
+      setLoadingReports(false);
+    }
+  }, [getPaymentReports, getTable, isAdmin]);
+
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -202,19 +258,26 @@ export default function HomeScreen() {
           return;
         }
 
+        const now = Date.now();
+        const hasCachedBalance =
+          clientBalance !== null && clientBalance !== undefined;
+
+        if (
+          hasCachedBalance &&
+          now - lastClientBalanceRefreshRef.current < CLIENT_BALANCE_REFRESH_COOLDOWN_MS
+        ) {
+          return;
+        }
+
         try {
-          setLoadingClientBalance(true);
           const balance = await getClientAvailableBalance(user.id_usuario);
 
           if (isMounted) {
             setClientBalance(balance);
+            lastClientBalanceRefreshRef.current = Date.now();
           }
         } catch (balanceError) {
           console.error('Error refreshing client balance on focus:', balanceError);
-        } finally {
-          if (isMounted) {
-            setLoadingClientBalance(false);
-          }
         }
       };
 
@@ -225,10 +288,14 @@ export default function HomeScreen() {
         loadPaymentsView();
       }
 
+      if (isAdmin) {
+        loadReportsView();
+      }
+
       return () => {
         isMounted = false;
       };
-    }, [getClientAvailableBalance, isAdminOrManager, isClient, loadPaymentsView, loadUsersView, user?.id_usuario])
+    }, [clientBalance, getClientAvailableBalance, isAdmin, isAdminOrManager, isClient, loadPaymentsView, loadReportsView, loadUsersView, user?.id_usuario])
   );
 
   const filteredUsers = useMemo(() => {
@@ -271,6 +338,36 @@ export default function HomeScreen() {
     () => filteredPayments.slice(0, visiblePaymentsCount),
     [filteredPayments, visiblePaymentsCount]
   );
+
+  const filteredReports = useMemo(() => {
+    const normalizedSearch = reportsSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return reportsView;
+    }
+
+    return reportsView.filter((record) =>
+      [
+        record?.id_reporte,
+        record?.id_pagos,
+        record?.usuarioLabel,
+        record?.establecimientoLabel,
+        record?.tipo_reporte,
+        record?.estatus,
+        record?.total,
+        record?.fecha_movimiento,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [reportsSearch, reportsView]);
+
+  const visibleReports = useMemo(
+    () => filteredReports.slice(0, visibleReportsCount),
+    [filteredReports, visibleReportsCount]
+  );
+  const hasClientBalanceValue = clientBalance !== null && clientBalance !== undefined;
 
   const closeDepositModal = () => {
     setDepositModalVisible(false);
@@ -433,6 +530,16 @@ export default function HomeScreen() {
     }
   };
 
+  const handleReportStatusChange = async (reportId, nextStatus) => {
+    try {
+      await updatePaymentReportStatus(reportId, nextStatus);
+      await loadReportsView();
+      Alert.alert('Reporte actualizado', 'El estatus del reporte fue actualizado correctamente.');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo actualizar el reporte.');
+    }
+  };
+
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -493,7 +600,7 @@ export default function HomeScreen() {
             <View style={styles.balanceCard}>
               <Text style={styles.balanceLabel}>Saldo disponible</Text>
               <Text style={styles.balanceValue}>
-                {!loadingClientBalance && clientBalance !== null && clientBalance !== undefined
+                {hasClientBalanceValue
                   ? `$${Number(clientBalance).toFixed(2)}`
                   : 'Pendiente de sincronizar'}
               </Text>
@@ -512,6 +619,76 @@ export default function HomeScreen() {
                   <Text style={styles.cardTitle}>{card.title}</Text>
                   <Text style={styles.cardDescription}>{card.description}</Text>
                   <Text style={styles.cardMeta}>{card.actionLabel}</Text>
+
+                  {isAdmin ? (
+                    <>
+                      <View style={styles.searchBlock}>
+                        <Text style={styles.inputLabel}>Buscar reportes</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={reportsSearch}
+                          onChangeText={setReportsSearch}
+                          placeholder="Buscar por reporte, pago, cliente o estatus"
+                          placeholderTextColor="#999"
+                        />
+                      </View>
+
+                      {loadingReports ? (
+                        <View style={styles.emptyBox}>
+                          <Text style={styles.emptyBoxText}>Cargando reportes...</Text>
+                        </View>
+                      ) : visibleReports.length === 0 ? (
+                        <View style={styles.emptyBox}>
+                          <Text style={styles.emptyBoxText}>No hay reportes registrados para mostrar.</Text>
+                        </View>
+                      ) : (
+                        <>
+                          {visibleReports.map((record) => (
+                            <View key={String(record.id_reporte)} style={styles.reportCard}>
+                              <View style={styles.userCardHeader}>
+                                <Text style={styles.userCardTitle}>Reporte #{record.id_reporte}</Text>
+                                <Text style={styles.userCardId}>{record.estatus || 'pendiente'}</Text>
+                              </View>
+                              <Text style={styles.userCardMeta}>Pago relacionado: #{record.id_pagos || 'N/D'}</Text>
+                              <Text style={styles.userCardMeta}>Cliente: {record.usuarioLabel}</Text>
+                              <Text style={styles.userCardMeta}>
+                                Establecimiento: {record.establecimientoLabel}
+                              </Text>
+                              <Text style={styles.userCardMeta}>Tipo: {record.tipo_reporte || 'Sin tipo'}</Text>
+                              <Text style={styles.userCardMeta}>Total: ${Number(record.total ?? 0).toFixed(2)}</Text>
+                              <Text style={styles.userCardMeta}>
+                                Fecha del movimiento: {record.fecha_movimiento || 'Sin fecha'}
+                              </Text>
+
+                              <View style={styles.reportActions}>
+                                <TouchableOpacity
+                                  style={styles.reportStatusButton}
+                                  onPress={() => handleReportStatusChange(record.id_reporte, 'en_revision')}
+                                >
+                                  <Text style={styles.reportStatusButtonText}>En revision</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.reportStatusButton, styles.reportStatusButtonSuccess]}
+                                  onPress={() => handleReportStatusChange(record.id_reporte, 'resuelto')}
+                                >
+                                  <Text style={styles.reportStatusButtonText}>Resuelto</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ))}
+
+                          {filteredReports.length > visibleReportsCount ? (
+                            <TouchableOpacity
+                              style={styles.loadMoreButton}
+                              onPress={() => setVisibleReportsCount((current) => current + 10)}
+                            >
+                              <Text style={styles.loadMoreButtonText}>Ver mas reportes</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </>
+                      )}
+                    </>
+                  ) : null}
 
                   <View style={styles.searchBlock}>
                     <Text style={styles.inputLabel}>Buscar pagos</Text>
@@ -953,6 +1130,27 @@ const styles = StyleSheet.create({
   depositButtonText: {
     color: '#fff',
     fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  reportActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  reportStatusButton: {
+    flex: 1,
+    backgroundColor: '#A66A00',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  reportStatusButtonSuccess: {
+    backgroundColor: '#1F8A4D',
+  },
+  reportStatusButtonText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
