@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#1C5D99',
+    backgroundColor: '#4A0B17',
     alignItems: 'center',
   },
   qrButtonText: {
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#8E6C17',
+    backgroundColor: '#4A0B17',
     alignItems: 'center',
   },
   notificationsButtonText: {
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#1F8A4D',
+    backgroundColor: '#4A0B17',
     alignItems: 'center',
   },
   consumptionButtonText: {
