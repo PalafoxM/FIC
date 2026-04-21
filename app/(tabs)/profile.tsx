@@ -222,7 +222,7 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.consumptionButton}
-              onPress={() => router.push('/(tabs)')}
+              onPress={() => router.push('/consumption')}
             >
               <Text style={styles.consumptionButtonText}>Consumo</Text>
             </TouchableOpacity>

@@ -55,6 +55,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="consumption"
+        options={{
+          href: null,
+          title: 'Consumo',
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           href: showParticipantsTab ? '/explore' : null,

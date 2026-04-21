@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,23 +8,30 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { hasPermission } from '../../constants/roles';
+import { ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
 
 const PayHistory = () => {
-  const { user, getSalesByClient } = useAuth();
+  const { user, getConsumptionPayments } = useAuth();
   const { createPaymentReport } = useApi();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [searchTerm, setSearchTerm] = useState('');
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
+  const canViewConsumption = [ROLE_IDS.ADMIN, ROLE_IDS.CLIENT, ROLE_IDS.MANAGER].includes(
+    Number(user?.id_perfil ?? 0)
+  );
+  const canCreateReport = [ROLE_IDS.CLIENT, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
+  const isClient = Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
 
   const reportOptions = [
     'Cobro duplicado',
@@ -33,12 +40,12 @@ const PayHistory = () => {
     'Problema con evidencia o comprobante',
   ];
 
-  const loadSales = useCallback(async (filters = {}, showLoader = false) => {
+  const loadSales = useCallback(async (showLoader = false) => {
     try {
       if (showLoader) {
         setLoading(true);
       }
-      const salesData = await getSalesByClient(user.id_usuario, filters);
+      const salesData = await getConsumptionPayments(isClient ? user?.id_usuario : null);
       setSales(salesData);
       setVisibleCount(10);
     } catch (error) {
@@ -47,26 +54,17 @@ const PayHistory = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [getSalesByClient, user?.id_usuario]);
+  }, [getConsumptionPayments, isClient, user?.id_usuario]);
 
   useFocusEffect(
     useCallback(() => {
-      if (user && hasPermission(user?.id_perfil, 'payHistory')) {
-        loadSales({}, sales.length === 0);
+      if (user && canViewConsumption) {
+        loadSales(true);
       } else {
         setLoading(false);
       }
-    }, [loadSales, sales.length, user])
+    }, [canViewConsumption, loadSales, user])
   );
-
-  if (!hasPermission(user?.id_perfil, 'payHistory')) {
-    return (
-      <AccessDenied
-        title="Consumos restringidos"
-        message="Solo el perfil de cliente puede consultar historial de consumo."
-      />
-    );
-  }
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -82,6 +80,11 @@ const PayHistory = () => {
     item.establecimientoLabel ||
     item.dsc_establecimiento ||
     'Establecimiento no disponible';
+  const getClientLabel = (item) =>
+    item.cliente_nombre ||
+    item.clienteLabel ||
+    item.usuario_nombre ||
+    'Cliente no disponible';
 
   const formatDate = (dateString) => {
     try {
@@ -139,7 +142,7 @@ const PayHistory = () => {
     const authenticatedUserId = Number(user?.id_usuario ?? 0);
     const paymentOwnerId = Number(saleSnapshot?.id_usuario ?? authenticatedUserId);
 
-    if (paymentOwnerId > 0 && authenticatedUserId > 0 && paymentOwnerId !== authenticatedUserId) {
+    if (isClient && paymentOwnerId > 0 && authenticatedUserId > 0 && paymentOwnerId !== authenticatedUserId) {
       console.log('Reporte bloqueado por cruce de usuario:', {
         authenticatedUserId,
         paymentOwnerId,
@@ -198,29 +201,6 @@ const PayHistory = () => {
     }
   };
 
-  const applyFilter = (filterType) => {
-    const today = new Date();
-    const filters = {};
-
-    if (filterType === 'today') {
-      filters.startDate = today.toISOString().split('T')[0];
-    }
-
-    if (filterType === 'week') {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(today.getDate() - 7);
-      filters.startDate = weekAgo.toISOString().split('T')[0];
-    }
-
-    if (filterType === 'month') {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(today.getMonth() - 1);
-      filters.startDate = monthAgo.toISOString().split('T')[0];
-    }
-
-    loadSales(filters);
-  };
-
   const renderSaleItem = ({ item }) => (
     <View style={styles.saleItem}>
       <TouchableOpacity
@@ -240,19 +220,64 @@ const PayHistory = () => {
             Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
           </Text>
           <Text style={styles.saleMeta}>{getEstablishmentLabel(item)}</Text>
+          {!isClient && <Text style={styles.saleMeta}>Cliente: {getClientLabel(item)}</Text>}
           <Text style={styles.saleMeta}>{getPaymentTypeLabel(item)}</Text>
           <Text style={styles.saleMeta}>{getEvidenceStatusLabel(item)}</Text>
           <Text style={styles.saleDate}>{formatDate(item.fec_reg || item.createdAt || item.date)}</Text>
         </View>
       </TouchableOpacity>
 
-      <View style={styles.saleActions}>
-        <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
-          <Text style={styles.reportButtonText}>Levantar reporte</Text>
-        </TouchableOpacity>
-      </View>
+      {canCreateReport && (
+        <View style={styles.saleActions}>
+          <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
+            <Text style={styles.reportButtonText}>Levantar reporte</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
+
+  const filteredSales = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const sortedRows = [...sales].sort((first, second) => {
+      const firstDate = new Date(first?.fec_reg || first?.createdAt || first?.date || 0).getTime();
+      const secondDate = new Date(second?.fec_reg || second?.createdAt || second?.date || 0).getTime();
+      return secondDate - firstDate;
+    });
+
+    if (!normalizedSearch) {
+      return sortedRows;
+    }
+
+    return sortedRows.filter((item) =>
+      [
+        item?.id_pagos,
+        item?.id_usuario,
+        item?.cliente_nombre,
+        item?.establecimiento_nombre,
+        item?.tipo_pago,
+        item?.dsc_tipo_pago,
+        item?.monto,
+        item?.propina,
+        item?.total,
+        item?.fec_reg,
+      ]
+        .filter((value) => value !== undefined && value !== null)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+    );
+  }, [sales, searchTerm]);
+
+  const visibleSales = filteredSales.slice(0, visibleCount);
+  const canShowMore = filteredSales.length > visibleCount;
+
+  if (!canViewConsumption) {
+    return (
+      <AccessDenied
+        title="Consumos restringidos"
+        message="Tu perfil no tiene habilitada la consulta de consumos."
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -263,33 +288,27 @@ const PayHistory = () => {
     );
   }
 
-  const visibleSales = sales.slice(0, visibleCount);
-  const canShowMore = sales.length > visibleCount;
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Historial de consumo</Text>
         <Text style={styles.subtitle}>
-          Mostrando {visibleSales.length} de {sales.length} movimientos
+          Mostrando {visibleSales.length} de {filteredSales.length} movimientos
         </Text>
       </View>
 
-      <View style={styles.filterContainer}>
-        <Text style={styles.filterTitle}>Filtrar por:</Text>
-        <View style={styles.filterButtons}>
-          {['today', 'week', 'month', 'all'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={styles.filterButton}
-              onPress={() => applyFilter(filter)}
-            >
-              <Text style={styles.filterButtonText}>
-                {filter === 'today' ? 'Hoy' : filter === 'week' ? 'Semana' : filter === 'month' ? 'Mes' : 'Todos'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.searchContainer}>
+        <Text style={styles.searchLabel}>Buscar consumo</Text>
+        <TextInput
+          value={searchTerm}
+          onChangeText={(value) => {
+            setSearchTerm(value);
+            setVisibleCount(10);
+          }}
+          placeholder="Buscar por pago, cliente, comercio, monto o fecha"
+          placeholderTextColor="#888"
+          style={styles.searchInput}
+        />
       </View>
 
       <FlatList
@@ -372,11 +391,18 @@ const styles = StyleSheet.create({
   header: { backgroundColor: 'white', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
   subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
-  filterContainer: { backgroundColor: 'white', padding: 15, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  filterTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 10 },
-  filterButtons: { flexDirection: 'row', justifyContent: 'space-between' },
-  filterButton: { flex: 1, padding: 8, marginHorizontal: 2, backgroundColor: '#f8f9fa', borderRadius: 8, alignItems: 'center' },
-  filterButtonText: { fontSize: 12, fontWeight: '500', color: '#333' },
+  searchContainer: { backgroundColor: 'white', padding: 15, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  searchLabel: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 8 },
+  searchInput: {
+    backgroundColor: '#F7F7F7',
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#222',
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   listContainer: { padding: 10 },
   saleItem: {
     backgroundColor: 'white',

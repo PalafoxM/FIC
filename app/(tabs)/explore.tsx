@@ -34,7 +34,6 @@ const getEmptyManagerForm = () => ({
   primer_apellido: '',
   segundo_apellido: '',
   correo: '',
-  contrasenia: '',
 });
 
 export default function ExploreScreen() {
@@ -106,7 +105,6 @@ export default function ExploreScreen() {
       primer_apellido: gerente?.primer_apellido ?? '',
       segundo_apellido: gerente?.segundo_apellido ?? '',
       correo: gerente?.correo ?? '',
-      contrasenia: '',
     });
     setModalVisible(true);
   };
@@ -211,9 +209,17 @@ export default function ExploreScreen() {
       [field]:
         field === 'nombre' || field === 'primer_apellido' || field === 'segundo_apellido'
           ? value.toUpperCase()
-          : field === 'usuario' || field === 'correo' || field === 'contrasenia'
+          : field === 'usuario' || field === 'correo'
             ? value.toLowerCase()
             : value,
+    }));
+  };
+
+  const handleSelectManagerEstablecimiento = (establecimiento) => {
+    setSelectedEstablecimiento(establecimiento);
+    setManagerForm((current) => ({
+      ...current,
+      id_establecimiento: String(establecimiento?.id ?? establecimiento?.id_establecimiento ?? ''),
     }));
   };
 
@@ -228,15 +234,10 @@ export default function ExploreScreen() {
       return;
     }
 
-    if (!managerForm.id_usuario && !managerForm.contrasenia.trim()) {
-      Alert.alert('Contrasena requerida', 'Captura una contrasena para el nuevo gerente.');
-      return;
-    }
-
     try {
       setSavingManager(true);
 
-      const payload = {
+      const requestPayload = {
         id_establecimiento: Number(managerForm.id_establecimiento),
         id_perfil: 5,
         usuario: managerForm.usuario.trim(),
@@ -244,43 +245,21 @@ export default function ExploreScreen() {
         primer_apellido: managerForm.primer_apellido.trim(),
         segundo_apellido: managerForm.segundo_apellido.trim() || null,
         correo: managerForm.correo.trim() || null,
-        visible: 1,
+        id_proveedor: user?.id_usuario ?? 0,
+        tipo_solicitud: Number(managerForm.id_usuario) > 0 ? 'actualizacion_gerente' : 'alta_gerente',
+        estatus: 'pendiente',
       };
 
-      if (managerForm.contrasenia.trim()) {
-        payload.contrasenia = managerForm.contrasenia.trim();
-      }
-
-      if (Number(managerForm.id_usuario) > 0) {
-        payload.usu_act = user?.id_usuario ?? 0;
-        await saveTable({
-          data: payload,
-          config: {
-            tabla: 'usuario',
-            editar: true,
-            idEditar: { id_usuario: Number(managerForm.id_usuario) },
-          },
-          bitacora: { script: 'App.explore.updateBusinessManager' },
-        });
-      } else {
-        payload.usu_reg = user?.id_usuario ?? 0;
-        payload.usu_act = user?.id_usuario ?? 0;
-        await saveTable({
-          data: payload,
-          config: {
-            tabla: 'usuario',
-            editar: false,
-          },
-          bitacora: { script: 'App.explore.createBusinessManager' },
-        });
-      }
+      console.log('Solicitud de gerente preparada:', requestPayload);
 
       closeManagerModal();
-      await loadData();
-      Alert.alert('Guardado', 'El gerente de negocio fue guardado correctamente.');
+      Alert.alert(
+        'Solicitud enviada',
+        'Tu solicitud quedo preparada para revision de TI. En cuanto backend habilite la ruta de solicitudes, se registrara sin tocar directamente la tabla usuario.'
+      );
     } catch (error) {
-      console.error('Error saving business manager:', error);
-      Alert.alert('Error', error.message || 'No se pudo guardar el gerente.');
+      console.error('Error preparing business manager request:', error);
+      Alert.alert('Error', error.message || 'No se pudo preparar la solicitud de gerente.');
     } finally {
       setSavingManager(false);
     }
@@ -486,7 +465,7 @@ export default function ExploreScreen() {
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modalContainer} contentContainerStyle={styles.modalContent}>
           <Text style={styles.modalTitle}>
-            {Number(managerForm.id_usuario) > 0 ? 'Editar gerente' : 'Agregar gerente'}
+            {Number(managerForm.id_usuario) > 0 ? 'Solicitar cambio de gerente' : 'Solicitar gerente'}
           </Text>
 
           <View style={styles.formBlock}>
@@ -496,11 +475,37 @@ export default function ExploreScreen() {
 
           <View style={styles.formBlock}>
             <Text style={styles.inputLabel}>Establecimiento</Text>
-            <TextInput
-              style={styles.input}
-              value={selectedEstablecimiento?.title || ''}
-              editable={false}
-            />
+            {items.length > 1 && Number(managerForm.id_usuario) === 0 ? (
+              <View style={styles.selectOptions}>
+                {items.map((establecimiento) => {
+                  const isSelected =
+                    String(managerForm.id_establecimiento) === String(establecimiento.id);
+
+                  return (
+                    <TouchableOpacity
+                      key={String(establecimiento.id)}
+                      style={[styles.selectOption, isSelected && styles.selectOptionActive]}
+                      onPress={() => handleSelectManagerEstablecimiento(establecimiento)}
+                    >
+                      <Text
+                        style={[
+                          styles.selectOptionText,
+                          isSelected && styles.selectOptionTextActive,
+                        ]}
+                      >
+                        {establecimiento.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={selectedEstablecimiento?.title || ''}
+                editable={false}
+              />
+            )}
           </View>
 
           <View style={styles.formBlock}>
@@ -519,6 +524,8 @@ export default function ExploreScreen() {
               value={managerForm.usuario}
               onChangeText={(value) => handleChangeManagerField('usuario', value)}
               autoCapitalize="none"
+              placeholder="escribe letra inicial y apellido completo"
+              placeholderTextColor="#999"
             />
           </View>
 
@@ -560,18 +567,6 @@ export default function ExploreScreen() {
             />
           </View>
 
-          <View style={styles.formBlock}>
-            <Text style={styles.inputLabel}>Contrasena</Text>
-            <TextInput
-              style={styles.input}
-              value={managerForm.contrasenia}
-              onChangeText={(value) => handleChangeManagerField('contrasenia', value)}
-              autoCapitalize="none"
-              secureTextEntry
-              placeholder={Number(managerForm.id_usuario) > 0 ? 'Opcional para editar' : 'Obligatoria'}
-            />
-          </View>
-
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.secondaryButton} onPress={closeManagerModal}>
               <Text style={styles.secondaryButtonText}>Cancelar</Text>
@@ -583,7 +578,7 @@ export default function ExploreScreen() {
               disabled={savingManager}
             >
               <Text style={styles.primaryButtonText}>
-                {savingManager ? 'Guardando...' : 'Guardar usuario'}
+                {savingManager ? 'Enviando...' : 'Enviar solicitud'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -811,6 +806,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: '#222',
+  },
+  selectOptions: {
+    gap: 8,
+  },
+  selectOption: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  selectOptionActive: {
+    backgroundColor: '#4A0B17',
+    borderColor: '#4A0B17',
+  },
+  selectOptionText: {
+    color: '#222',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  selectOptionTextActive: {
+    color: '#fff',
   },
   modalActions: {
     flexDirection: 'row',

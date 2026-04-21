@@ -716,6 +716,69 @@ export function AuthProvider({ children }) {
     }
   }, [getPaymentTypesCatalog, getTable]);
 
+  const getConsumptionPayments = useCallback(async (clientId = null) => {
+    try {
+      const normalizedClientId = Number(clientId ?? 0);
+      const where = {
+        visible: 1,
+      };
+
+      if (normalizedClientId > 0) {
+        where.id_usuario = normalizedClientId;
+      }
+
+      const [paymentRows, paymentTypes, establishmentRows, userRows] = await Promise.all([
+        getTable({
+          tabla: 'pagos',
+          where,
+          order: 'fec_reg DESC',
+        }),
+        getPaymentTypesCatalog(),
+        getTable({
+          tabla: 'establecimiento',
+          where: {
+            visible: 1,
+          },
+        }),
+        getTable({
+          tabla: 'usuario',
+          where: {
+            visible: 1,
+          },
+        }),
+      ]);
+
+      const establishmentsMap = (Array.isArray(establishmentRows) ? establishmentRows : []).reduce(
+        (accumulator, row) => {
+          accumulator[String(row?.id_establecimiento ?? '')] = row?.dsc_establecimiento;
+          return accumulator;
+        },
+        {}
+      );
+      const usersMap = (Array.isArray(userRows) ? userRows : []).reduce((accumulator, row) => {
+        accumulator[String(row?.id_usuario ?? '')] = [row?.nombre, row?.primer_apellido, row?.segundo_apellido]
+          .filter(Boolean)
+          .join(' ');
+        return accumulator;
+      }, {});
+
+      return enrichPaymentsWithCatalog(paymentRows, paymentTypes).map((payment) => ({
+        ...payment,
+        cliente_nombre:
+          payment?.cliente_nombre ??
+          usersMap[String(payment?.id_usuario ?? '')] ??
+          'Cliente no disponible',
+        establecimiento_nombre:
+          payment?.establecimiento_nombre ??
+          establishmentsMap[String(payment?.id_establecimiento ?? '')] ??
+          'Establecimiento no disponible',
+      }));
+    } catch (currentError) {
+      console.error('Error fetching consumption payments:', currentError);
+      throw currentError;
+    }
+  }, [getPaymentTypesCatalog, getTable]);
+
   const getClientQrData = useCallback(async (clientId = user?.id_usuario) => {
     try {
       const normalizedClientId = Number(clientId ?? 0);
@@ -793,6 +856,7 @@ export function AuthProvider({ children }) {
       setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,
+      getConsumptionPayments,
       getClientAvailableBalance,
       getClientQrData,
     }),
@@ -800,6 +864,7 @@ export function AuthProvider({ children }) {
       activeEstablecimientoId,
       error,
       getClientAvailableBalance,
+      getConsumptionPayments,
       getSalesByClient,
       getSalesByProvider,
       getTable,
