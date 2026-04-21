@@ -516,8 +516,9 @@ export const useApi = () => {
   };
 
   const createManagerRequest = async (requestData) => {
+    let payload = null;
     try {
-      const payload = {
+      payload = {
         id_establecimiento: Number(requestData?.id_establecimiento ?? 0),
         usuario: String(requestData?.usuario ?? '').trim(),
         nombre: String(requestData?.nombre ?? '').trim(),
@@ -542,7 +543,13 @@ export const useApi = () => {
         message: error?.message,
         status: error?.status,
         data: error?.data,
+        payload,
       });
+      if (String(error?.message || '').includes('Enviando solicitud de gerente devolvio una respuesta no valida')) {
+        throw new Error(
+          'El backend de solicitudes de usuario no respondio con JSON valido. Revisa la ruta POST /api/solicitudes-usuario/create.'
+        );
+      }
       throw error;
     }
   };
