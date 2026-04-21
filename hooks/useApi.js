@@ -515,12 +515,45 @@ export const useApi = () => {
     }
   };
 
+  const createManagerRequest = async (requestData) => {
+    try {
+      const payload = {
+        id_establecimiento: Number(requestData?.id_establecimiento ?? 0),
+        usuario: String(requestData?.usuario ?? '').trim(),
+        nombre: String(requestData?.nombre ?? '').trim(),
+        primer_apellido: String(requestData?.primer_apellido ?? '').trim(),
+        segundo_apellido: String(requestData?.segundo_apellido ?? '').trim(),
+        correo: String(requestData?.correo ?? '').trim(),
+      };
+
+      const data = await postJson(
+        '/solicitudes-usuario/create',
+        payload,
+        'Enviando solicitud de gerente'
+      );
+
+      return {
+        success: true,
+        message: data?.message || data?.respuesta || 'Solicitud enviada correctamente',
+        data: data?.data ?? null,
+      };
+    } catch (error) {
+      console.error('API Error - createManagerRequest:', {
+        message: error?.message,
+        status: error?.status,
+        data: error?.data,
+      });
+      throw error;
+    }
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
     createPaymentReport,
     getTransactionStatus,
     getPaymentReports,
+    createManagerRequest,
     getUserTransactions,
     approveTransaction,
     rejectTransaction,

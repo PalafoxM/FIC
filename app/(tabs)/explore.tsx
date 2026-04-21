@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { ROLE_IDS } from '../../constants/roles';
+import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 
 const getTipoLabel = (idTipo) => {
@@ -38,6 +39,7 @@ const getEmptyManagerForm = () => ({
 
 export default function ExploreScreen() {
   const { user, getTable, saveTable } = useAuth();
+  const { createManagerRequest } = useApi();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -239,26 +241,22 @@ export default function ExploreScreen() {
 
       const requestPayload = {
         id_establecimiento: Number(managerForm.id_establecimiento),
-        id_perfil: 5,
         usuario: managerForm.usuario.trim(),
         nombre: managerForm.nombre.trim(),
         primer_apellido: managerForm.primer_apellido.trim(),
         segundo_apellido: managerForm.segundo_apellido.trim() || null,
         correo: managerForm.correo.trim() || null,
-        id_proveedor: user?.id_usuario ?? 0,
-        tipo_solicitud: Number(managerForm.id_usuario) > 0 ? 'actualizacion_gerente' : 'alta_gerente',
-        estatus: 'pendiente',
       };
 
-      console.log('Solicitud de gerente preparada:', requestPayload);
+      const response = await createManagerRequest(requestPayload);
 
       closeManagerModal();
       Alert.alert(
         'Solicitud enviada',
-        'Tu solicitud quedo preparada para revision de TI. En cuanto backend habilite la ruta de solicitudes, se registrara sin tocar directamente la tabla usuario.'
+        response?.message || 'Tu solicitud fue enviada a TI para revision.'
       );
     } catch (error) {
-      console.error('Error preparing business manager request:', error);
+      console.error('Error sending business manager request:', error);
       Alert.alert('Error', error.message || 'No se pudo preparar la solicitud de gerente.');
     } finally {
       setSavingManager(false);
