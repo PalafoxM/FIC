@@ -121,7 +121,10 @@ export const useApi = () => {
     }
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || actionLabel);
+      const error = new Error(data?.respuesta || data?.message || actionLabel);
+      error.status = response.status;
+      error.data = data;
+      throw error;
     }
 
     return data;
@@ -353,8 +356,9 @@ export const useApi = () => {
   };
 
   const createPaymentReport = async (reportData) => {
+    let payload = null;
     try {
-      const payload = {
+      payload = {
         id_pagos: Number(reportData?.id_pagos ?? 0),
         id_usuario: Number(reportData?.id_usuario ?? 0),
         id_establecimiento:
@@ -369,6 +373,8 @@ export const useApi = () => {
         fecha_movimiento: reportData?.fecha_movimiento ?? null,
       };
 
+      console.log('Creando reporte de pago payload normalizado:', payload);
+
       const data = await getReportsResponse(
         '/create',
         'POST',
@@ -382,7 +388,12 @@ export const useApi = () => {
         data: normalizeReportRecord(data, payload),
       };
     } catch (error) {
-      console.error('API Error - createPaymentReport:', error);
+      console.error('API Error - createPaymentReport:', {
+        message: error?.message,
+        status: error?.status,
+        data: error?.data,
+        payload,
+      });
       if (String(error?.message || '').includes('Creando reporte de pago devolvio una respuesta no valida')) {
         throw new Error(
           'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/create.'

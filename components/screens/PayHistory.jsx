@@ -125,13 +125,38 @@ const PayHistory = () => {
       return;
     }
 
-    const paymentId = selectedSale.id_pagos || selectedSale.id || selectedSale._id;
+    const paymentId = selectedSale.id_pagos ?? selectedSale.id_pago ?? null;
     const saleSnapshot = selectedSale;
 
+    if (!paymentId) {
+      Alert.alert(
+        'Reporte no disponible',
+        'Este movimiento no tiene un identificador de pago valido para reportarse.'
+      );
+      return;
+    }
+
+    const authenticatedUserId = Number(user?.id_usuario ?? 0);
+    const paymentOwnerId = Number(saleSnapshot?.id_usuario ?? authenticatedUserId);
+
+    if (paymentOwnerId > 0 && authenticatedUserId > 0 && paymentOwnerId !== authenticatedUserId) {
+      console.log('Reporte bloqueado por cruce de usuario:', {
+        authenticatedUserId,
+        paymentOwnerId,
+        paymentId,
+      });
+
+      Alert.alert(
+        'Reporte no disponible',
+        'Este consumo pertenece a otro usuario segun la informacion local. Cierra sesion e inicia de nuevo para sincronizar tus consumos.'
+      );
+      return;
+    }
+
     try {
-      const response = await createPaymentReport({
-        id_pagos: paymentId,
-        id_usuario: Number(user?.id_usuario ?? 0),
+      const reportPayload = {
+        id_pagos: Number(paymentId),
+        id_usuario: authenticatedUserId,
         id_establecimiento:
           saleSnapshot?.id_establecimiento ??
           saleSnapshot?.establishmentId ??
@@ -142,6 +167,17 @@ const PayHistory = () => {
         propina: Number(saleSnapshot.propina || 0),
         total: Number(saleSnapshot.total || saleSnapshot.totalAmount || saleSnapshot.amount || 0),
         fecha_movimiento: saleSnapshot.fec_reg || saleSnapshot.createdAt || saleSnapshot.date || null,
+      };
+
+      console.log('Creando reporte de pago payload:', {
+        ...reportPayload,
+        authenticatedUserId,
+        paymentOwnerId: saleSnapshot?.id_usuario ?? null,
+        rawPaymentId: paymentId,
+      });
+
+      const response = await createPaymentReport({
+        ...reportPayload,
       });
 
       closeReportModal();
@@ -151,7 +187,14 @@ const PayHistory = () => {
         response?.message || 'Tu reporte fue enviado al equipo TI para revision.'
       );
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo enviar el reporte.');
+      const permissionMessage = String(error?.message || '').includes('permisos');
+
+      Alert.alert(
+        permissionMessage ? 'No se pudo reportar' : 'Error',
+        permissionMessage
+          ? 'El backend rechazo el permiso para crear este reporte. Revisa la regla POST /api/reportes/create: cliente y gestor pueden crear reportes; solo TI puede leerlos y cambiar estatus.'
+          : error.message || 'No se pudo enviar el reporte.'
+      );
     }
   };
 

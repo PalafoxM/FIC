@@ -43,6 +43,192 @@ const buildFullName = (record) =>
 const isDepositoCreditosAllowedForPerfil = (idPerfil) => ![ROLE_IDS.PROVIDER, ROLE_IDS.BUSINESS_MANAGER].includes(Number(idPerfil ?? 0));
 const CLIENT_BALANCE_REFRESH_COOLDOWN_MS = 30000;
 const REPORTS_RETRY_COOLDOWN_MS = 60000;
+const CALENDAR_DAY_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
+
+const pad2 = (value) => String(value).padStart(2, '0');
+
+const parseDateTimeInput = (value) => {
+  if (!value) {
+    return new Date();
+  }
+
+  const normalizedValue = String(value).trim().replace(' ', 'T');
+  const parsedDate = new Date(normalizedValue);
+  return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+};
+
+const formatDateTimeValue = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:00`;
+
+const addDays = (date, days) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+};
+
+const setDatePart = (date, sourceDate) => {
+  const nextDate = new Date(date);
+  nextDate.setFullYear(sourceDate.getFullYear(), sourceDate.getMonth(), sourceDate.getDate());
+  return nextDate;
+};
+
+const shiftHours = (date, amount) => {
+  const nextDate = new Date(date);
+  nextDate.setHours((nextDate.getHours() + amount + 24) % 24);
+  return nextDate;
+};
+
+const shiftMinutes = (date, amount) => {
+  const nextDate = new Date(date);
+  nextDate.setMinutes((nextDate.getMinutes() + amount + 60) % 60);
+  return nextDate;
+};
+
+const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const isSameCalendarDay = (leftDate, rightDate) =>
+  leftDate.getFullYear() === rightDate.getFullYear() &&
+  leftDate.getMonth() === rightDate.getMonth() &&
+  leftDate.getDate() === rightDate.getDate();
+
+const formatCalendarDayLabel = (date) =>
+  date.toLocaleDateString('es-MX', {
+    weekday: 'short',
+    day: '2-digit',
+  });
+
+const DateTimeSelector = ({ label, value, onChange }) => {
+  const selectedDate = parseDateTimeInput(value);
+  const setSelectedDate = (nextDate) => onChange(formatDateTimeValue(nextDate));
+  const setHourValue = (text) => {
+    const numericValue = Number(String(text).replace(/\D/g, '').slice(0, 2));
+    if (Number.isNaN(numericValue)) {
+      return;
+    }
+
+    const nextDate = new Date(selectedDate);
+    nextDate.setHours(clampNumber(numericValue, 0, 23));
+    setSelectedDate(nextDate);
+  };
+
+  const setMinuteValue = (text) => {
+    const numericValue = Number(String(text).replace(/\D/g, '').slice(0, 2));
+    if (Number.isNaN(numericValue)) {
+      return;
+    }
+
+    const nextDate = new Date(selectedDate);
+    nextDate.setMinutes(clampNumber(numericValue, 0, 59));
+    setSelectedDate(nextDate);
+  };
+
+  return (
+    <View style={styles.dateTimeSelector}>
+      <View style={styles.dateTimeHeader}>
+        <Text style={styles.inputLabel}>{label}</Text>
+        <Text style={styles.dateTimeValue}>{formatDateTimeValue(selectedDate)}</Text>
+      </View>
+
+      <View style={styles.calendarControls}>
+        <TouchableOpacity
+          style={styles.calendarNavButton}
+          onPress={() => setSelectedDate(addDays(selectedDate, -1))}
+        >
+          <Text style={styles.calendarNavText}>Dia -</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.calendarTodayButton}
+          onPress={() => setSelectedDate(setDatePart(selectedDate, new Date()))}
+        >
+          <Text style={styles.calendarTodayText}>Hoy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.calendarNavButton}
+          onPress={() => setSelectedDate(addDays(selectedDate, 1))}
+        >
+          <Text style={styles.calendarNavText}>Dia +</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.calendarStrip}
+      >
+        {CALENDAR_DAY_OFFSETS.map((offset) => {
+          const day = addDays(selectedDate, offset);
+          const isActive = isSameCalendarDay(day, selectedDate);
+
+          return (
+            <TouchableOpacity
+              key={offset}
+              style={[styles.calendarDayChip, isActive && styles.calendarDayChipActive]}
+              onPress={() => setSelectedDate(setDatePart(selectedDate, day))}
+            >
+              <Text style={[styles.calendarDayText, isActive && styles.calendarDayTextActive]}>
+                {formatCalendarDayLabel(day)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.timePickerRow}>
+        <View style={styles.timePickerColumn}>
+          <Text style={styles.timePickerLabel}>Hora</Text>
+          <View style={styles.timeStepper}>
+            <TouchableOpacity
+              style={styles.timeStepperButton}
+              onPress={() => setSelectedDate(shiftHours(selectedDate, -1))}
+            >
+              <Text style={styles.timeStepperText}>-</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={styles.timeStepperInput}
+              value={pad2(selectedDate.getHours())}
+              onChangeText={setHourValue}
+              keyboardType="number-pad"
+              maxLength={2}
+              selectTextOnFocus
+            />
+            <TouchableOpacity
+              style={styles.timeStepperButton}
+              onPress={() => setSelectedDate(shiftHours(selectedDate, 1))}
+            >
+              <Text style={styles.timeStepperText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.timePickerColumn}>
+          <Text style={styles.timePickerLabel}>Minuto</Text>
+          <View style={styles.timeStepper}>
+            <TouchableOpacity
+              style={styles.timeStepperButton}
+              onPress={() => setSelectedDate(shiftMinutes(selectedDate, -5))}
+            >
+              <Text style={styles.timeStepperText}>-</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={styles.timeStepperInput}
+              value={pad2(selectedDate.getMinutes())}
+              onChangeText={setMinuteValue}
+              keyboardType="number-pad"
+              maxLength={2}
+              selectTextOnFocus
+            />
+            <TouchableOpacity
+              style={styles.timeStepperButton}
+              onPress={() => setSelectedDate(shiftMinutes(selectedDate, 5))}
+            >
+              <Text style={styles.timeStepperText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
 
 export default function HomeScreen() {
   const {
@@ -433,12 +619,15 @@ export default function HomeScreen() {
   };
 
   const openDepositModal = async (targetUser) => {
+    const defaultStartDate = new Date();
+    const defaultEndDate = addDays(defaultStartDate, 1);
+
     setDepositTarget(targetUser);
     setDepositAmount('');
     setDepositQrCode('');
     setDepositQrRowId(null);
-    setDepositVigenteDesde('');
-    setDepositVigenteHasta('');
+    setDepositVigenteDesde(formatDateTimeValue(defaultStartDate));
+    setDepositVigenteHasta(formatDateTimeValue(defaultEndDate));
     setDepositModalVisible(true);
 
     try {
@@ -459,8 +648,8 @@ export default function HomeScreen() {
 
       setDepositQrRowId(qrRecord?.id_qr_cliente ?? null);
       setDepositQrCode(qrRecord?.codigo_qr ?? '');
-      setDepositVigenteDesde(qrRecord?.vigente_desde ?? '');
-      setDepositVigenteHasta(qrRecord?.vigente_hasta ?? '');
+      setDepositVigenteDesde(qrRecord?.vigente_desde ?? formatDateTimeValue(defaultStartDate));
+      setDepositVigenteHasta(qrRecord?.vigente_hasta ?? formatDateTimeValue(defaultEndDate));
     } catch (error) {
       console.error('Error loading deposit details:', error);
       Alert.alert('Error', error.message || 'No se pudieron consultar los datos del deposito.');
@@ -480,7 +669,7 @@ export default function HomeScreen() {
     if (
       depositVigenteDesde.trim() &&
       depositVigenteHasta.trim() &&
-      new Date(depositVigenteHasta).getTime() < new Date(depositVigenteDesde).getTime()
+      parseDateTimeInput(depositVigenteHasta).getTime() < parseDateTimeInput(depositVigenteDesde).getTime()
     ) {
       Alert.alert('Vigencia invalida', 'La vigencia final del QR no puede ser menor a la inicial.');
       return;
@@ -926,29 +1115,17 @@ export default function HomeScreen() {
               />
             </View>
 
-            <View style={styles.formBlock}>
-              <Text style={styles.inputLabel}>Vigente desde</Text>
-              <TextInput
-                style={styles.input}
-                value={depositVigenteDesde}
-                onChangeText={setDepositVigenteDesde}
-                placeholder="YYYY-MM-DD HH:MM:SS"
-                placeholderTextColor="#999"
-                autoCapitalize="none"
-              />
-            </View>
+            <DateTimeSelector
+              label="Vigente desde"
+              value={depositVigenteDesde}
+              onChange={setDepositVigenteDesde}
+            />
 
-            <View style={styles.formBlock}>
-              <Text style={styles.inputLabel}>Vigente hasta</Text>
-              <TextInput
-                style={styles.input}
-                value={depositVigenteHasta}
-                onChangeText={setDepositVigenteHasta}
-                placeholder="YYYY-MM-DD HH:MM:SS"
-                placeholderTextColor="#999"
-                autoCapitalize="none"
-              />
-            </View>
+            <DateTimeSelector
+              label="Vigente hasta"
+              value={depositVigenteHasta}
+              onChange={setDepositVigenteHasta}
+            />
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.secondaryButton} onPress={closeDepositModal}>
@@ -1271,6 +1448,120 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: '#222',
+  },
+  dateTimeSelector: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E1D6B8',
+    padding: 14,
+    marginBottom: 14,
+  },
+  dateTimeHeader: {
+    marginBottom: 12,
+  },
+  dateTimeValue: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4A0B17',
+  },
+  calendarControls: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  calendarNavButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#4A0B17',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  calendarNavText: {
+    color: '#4A0B17',
+    fontWeight: '700',
+  },
+  calendarTodayButton: {
+    flex: 1,
+    backgroundColor: '#4A0B17',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  calendarTodayText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  calendarStrip: {
+    gap: 8,
+    paddingBottom: 10,
+  },
+  calendarDayChip: {
+    minWidth: 76,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D8C48A',
+    backgroundColor: '#FFF9EA',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  calendarDayChipActive: {
+    backgroundColor: '#4A0B17',
+    borderColor: '#4A0B17',
+  },
+  calendarDayText: {
+    color: '#4A0B17',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  calendarDayTextActive: {
+    color: '#F6E7B0',
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  timePickerColumn: {
+    flex: 1,
+  },
+  timePickerLabel: {
+    fontSize: 12,
+    color: '#777',
+    marginBottom: 6,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  timeStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E1D6B8',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  timeStepperButton: {
+    width: 42,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#FFF9EA',
+  },
+  timeStepperText: {
+    color: '#4A0B17',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  timeStepperInput: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#222',
+    paddingVertical: 8,
   },
   modalActions: {
     flexDirection: 'row',

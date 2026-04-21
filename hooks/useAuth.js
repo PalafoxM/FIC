@@ -365,16 +365,20 @@ export function AuthProvider({ children }) {
             await AsyncStorage.multiRemove(['user', 'token']);
             setUser(null);
           }
-          return false;
+          return { valid: false, userData: null };
         }
 
-        return true;
+        const userRecord = extractUserRecord(data);
+        return {
+          valid: true,
+          userData: normalizeAuthenticatedUser(data, userRecord),
+        };
       }
 
-      return true;
+      return { valid: true, userData: null };
     } catch (currentError) {
       console.error('No se pudo validar el token en background:', currentError);
-      return true;
+      return { valid: true, userData: null };
     }
   }, [getValidateTokenResponse]);
 
@@ -385,7 +389,25 @@ export function AuthProvider({ children }) {
 
       if (userJson && token) {
         const storedUserData = JSON.parse(userJson);
-        const userData = await hydrateAuthenticatedUser(storedUserData, token);
+        const validation = await validateToken(token);
+
+        if (!validation.valid) {
+          return;
+        }
+
+        const tokenUserData = validation.userData?.id_usuario ? validation.userData : null;
+        if (
+          tokenUserData?.id_usuario &&
+          storedUserData?.id_usuario &&
+          Number(tokenUserData.id_usuario) !== Number(storedUserData.id_usuario)
+        ) {
+          console.log('Sesion local sincronizada con usuario del token:', {
+            storedUserId: storedUserData.id_usuario,
+            tokenUserId: tokenUserData.id_usuario,
+          });
+        }
+
+        const userData = await hydrateAuthenticatedUser(tokenUserData ?? storedUserData, token);
         setUser(userData);
         await AsyncStorage.setItem('user', JSON.stringify(userData));
 
@@ -404,7 +426,6 @@ export function AuthProvider({ children }) {
           setActiveEstablecimientoIdState(null);
         }
 
-        await validateToken(token);
       }
     } catch (currentError) {
       console.error('Error checking auth:', currentError);
