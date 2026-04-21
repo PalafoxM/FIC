@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
@@ -223,7 +223,17 @@ export default function NotificationsScreen() {
   const canShowMore = notifications.length > visibleCount;
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={loadNotifications}
+          colors={['#4A0B17']}
+          tintColor="#4A0B17"
+        />
+      }
+    >
       <Text style={styles.title}>Notificaciones</Text>
 
       <TouchableOpacity style={styles.refreshButton} onPress={loadNotifications}>

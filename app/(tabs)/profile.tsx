@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
@@ -63,6 +63,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [availableBalance, setAvailableBalance] = useState(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
+  const [refreshingProfile, setRefreshingProfile] = useState(false);
   const [loadingQr, setLoadingQr] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [qrPayload, setQrPayload] = useState(null);
@@ -83,36 +84,36 @@ export default function ProfileScreen() {
 
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadOwnBalance = useCallback(async (showLoader = true) => {
+    if (!isAdminOrManager || !user?.id_usuario) {
+      return;
+    }
 
-    const loadOwnBalance = async () => {
-      if (!isAdminOrManager || !user?.id_usuario) {
-        return;
-      }
-
-      try {
+    try {
+      if (showLoader) {
         setLoadingBalance(true);
-        const balance = await getClientAvailableBalance(user.id_usuario);
-
-        if (isMounted) {
-          setAvailableBalance(balance);
-        }
-      } catch (error) {
-        console.error('Error loading profile balance:', error);
-      } finally {
-        if (isMounted) {
-          setLoadingBalance(false);
-        }
       }
-    };
-
-    loadOwnBalance();
-
-    return () => {
-      isMounted = false;
-    };
+      const balance = await getClientAvailableBalance(user.id_usuario);
+      setAvailableBalance(balance);
+    } catch (error) {
+      console.error('Error loading profile balance:', error);
+    } finally {
+      setLoadingBalance(false);
+    }
   }, [getClientAvailableBalance, isAdminOrManager, user?.id_usuario]);
+
+  useEffect(() => {
+    loadOwnBalance();
+  }, [loadOwnBalance]);
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      setRefreshingProfile(true);
+      await loadOwnBalance(false);
+    } finally {
+      setRefreshingProfile(false);
+    }
+  }, [loadOwnBalance]);
 
   if (isClient) {
     return <PayHistory />;
@@ -160,7 +161,18 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshingProfile}
+          onRefresh={refreshProfile}
+          colors={['#4A0B17']}
+          tintColor="#4A0B17"
+        />
+      }
+    >
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{avatarLetter}</Text>

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -59,6 +60,17 @@ const parseDateTimeInput = (value) => {
 
 const formatDateTimeValue = (date) =>
   `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:00`;
+
+const normalizeDateTimeValue = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  return formatDateTimeValue(parseDateTimeInput(value));
+};
+
+const buildQrClienteCode = (userId) =>
+  `FIC-${String(userId).padStart(6, '0')}-${Date.now().toString(36).toUpperCase()}`;
 
 const addDays = (date, days) => {
   const nextDate = new Date(date);
@@ -274,6 +286,7 @@ export default function HomeScreen() {
   const [depositVigenteHasta, setDepositVigenteHasta] = useState('');
   const [loadingDepositDetails, setLoadingDepositDetails] = useState(false);
   const [savingDeposit, setSavingDeposit] = useState(false);
+  const [refreshingHome, setRefreshingHome] = useState(false);
 
   const roleConfig = getRoleConfig(user?.id_perfil);
   const isProvider =
@@ -296,7 +309,7 @@ export default function HomeScreen() {
     try {
       setLoadingUsers(true);
 
-      const [usuarios, establecimientos] = await Promise.all([
+      const [usuarios, establecimientos, qrClientes] = await Promise.all([
         getTable({
           tabla: 'usuario',
           where: { visible: 1 },
@@ -307,11 +320,26 @@ export default function HomeScreen() {
           where: { visible: 1 },
           order: 'dsc_establecimiento ASC',
         }),
+        getTable({
+          tabla: 'qr_cliente',
+          where: {
+            activo: 1,
+            visible: 1,
+          },
+          order: 'id_qr_cliente DESC',
+        }),
       ]);
 
       const establecimientosMap = establecimientos.reduce((accumulator, establecimiento) => {
         accumulator[String(establecimiento.id_establecimiento)] =
           establecimiento.dsc_establecimiento || 'Sin establecimiento';
+        return accumulator;
+      }, {});
+      const qrClientesMap = qrClientes.reduce((accumulator, qrRecord) => {
+        const userId = String(qrRecord.id_usuario ?? '');
+        if (userId && !accumulator[userId]) {
+          accumulator[userId] = qrRecord;
+        }
         return accumulator;
       }, {});
 
@@ -320,6 +348,7 @@ export default function HomeScreen() {
           ...usuarioRecord,
           fullName: buildFullName(usuarioRecord),
           roleLabel: getRoleLabel(usuarioRecord.id_perfil),
+          qrCliente: qrClientesMap[String(usuarioRecord.id_usuario ?? '')] ?? null,
           establecimientoLabel:
             establecimientosMap[String(usuarioRecord.id_establecimiento ?? '')] || 'Sin establecimiento',
         }))
@@ -535,6 +564,34 @@ export default function HomeScreen() {
     }, [clientBalance, isAdmin, isAdminOrManager, isClient, user?.id_usuario])
   );
 
+  const refreshHomeData = useCallback(async () => {
+    try {
+      setRefreshingHome(true);
+
+      if (isClient && user?.id_usuario) {
+        const balance = await getClientAvailableBalanceRef.current(user.id_usuario);
+        setClientBalance(balance);
+        lastClientBalanceRefreshRef.current = Date.now();
+      }
+
+      if (isAdminOrManager) {
+        await Promise.all([
+          loadUsersViewRef.current?.(),
+          loadPaymentsViewRef.current?.(),
+        ]);
+      }
+
+      if (isAdmin) {
+        await loadReportsViewRef.current?.();
+      }
+    } catch (error) {
+      console.error('Error refreshing home data:', error);
+      Alert.alert('Error', error.message || 'No se pudo actualizar la informacion.');
+    } finally {
+      setRefreshingHome(false);
+    }
+  }, [isAdmin, isAdminOrManager, isClient, user?.id_usuario]);
+
   const filteredUsers = useMemo(() => {
     if (selectedRoleFilter === 0) {
       return usersView;
@@ -648,13 +705,65 @@ export default function HomeScreen() {
 
       setDepositQrRowId(qrRecord?.id_qr_cliente ?? null);
       setDepositQrCode(qrRecord?.codigo_qr ?? '');
-      setDepositVigenteDesde(qrRecord?.vigente_desde ?? formatDateTimeValue(defaultStartDate));
-      setDepositVigenteHasta(qrRecord?.vigente_hasta ?? formatDateTimeValue(defaultEndDate));
+      setDepositVigenteDesde(
+        qrRecord?.vigente_desde
+          ? normalizeDateTimeValue(qrRecord.vigente_desde)
+          : formatDateTimeValue(defaultStartDate)
+      );
+      setDepositVigenteHasta(
+        qrRecord?.vigente_hasta
+          ? normalizeDateTimeValue(qrRecord.vigente_hasta)
+          : formatDateTimeValue(defaultEndDate)
+      );
     } catch (error) {
       console.error('Error loading deposit details:', error);
       Alert.alert('Error', error.message || 'No se pudieron consultar los datos del deposito.');
     } finally {
       setLoadingDepositDetails(false);
+    }
+  };
+
+  const handleGenerateUserQr = async (targetUser) => {
+    if (!targetUser?.id_usuario) {
+      return;
+    }
+
+    if (targetUser?.qrCliente?.codigo_qr) {
+      Alert.alert(
+        'QR ya generado',
+        `Este usuario ya tiene un QR activo:\n${targetUser.qrCliente.codigo_qr}`
+      );
+      return;
+    }
+
+    try {
+      const qrCode = buildQrClienteCode(targetUser.id_usuario);
+
+      await saveTable({
+        data: {
+          id_usuario: Number(targetUser.id_usuario),
+          codigo_qr: qrCode,
+          activo: 1,
+          visible: 1,
+          vigente_desde: null,
+          vigente_hasta: null,
+          usu_reg: user?.id_usuario ?? 0,
+          usu_act: user?.id_usuario ?? 0,
+        },
+        config: {
+          tabla: 'qr_cliente',
+          editar: false,
+        },
+        bitacora: {
+          script: 'App.home.generateUserQr',
+        },
+      });
+
+      await loadUsersView();
+      Alert.alert('QR generado', 'El codigo QR fue creado con vigencia vacia.');
+    } catch (error) {
+      console.error('Error generating user QR:', error);
+      Alert.alert('Error', error.message || 'No se pudo generar el QR del usuario.');
     }
   };
 
@@ -677,6 +786,12 @@ export default function HomeScreen() {
 
     try {
       setSavingDeposit(true);
+      const vigenteDesdeSql = depositVigenteDesde.trim()
+        ? normalizeDateTimeValue(depositVigenteDesde)
+        : null;
+      const vigenteHastaSql = depositVigenteHasta.trim()
+        ? normalizeDateTimeValue(depositVigenteHasta)
+        : null;
 
       const previousBalance = Number(depositTarget?.monto_deposito ?? 0);
       const nextBalance = previousBalance + amountValue;
@@ -684,8 +799,8 @@ export default function HomeScreen() {
       if (depositQrRowId) {
         await saveTable({
           data: {
-            vigente_desde: depositVigenteDesde.trim() || null,
-            vigente_hasta: depositVigenteHasta.trim() || null,
+            vigente_desde: vigenteDesdeSql,
+            vigente_hasta: vigenteHastaSql,
             usu_act: user?.id_usuario ?? 0,
           },
           config: {
@@ -760,7 +875,10 @@ export default function HomeScreen() {
       });
 
       closeDepositModal();
-      await loadUsersView();
+      await Promise.all([
+        loadUsersView(),
+        loadPaymentsView(),
+      ]);
       Alert.alert('Creditos depositados', 'El deposito fue registrado correctamente.');
     } catch (error) {
       console.error('Error depositing credits:', error);
@@ -782,7 +900,18 @@ export default function HomeScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshingHome}
+            onRefresh={refreshHomeData}
+            colors={['#4A0B17']}
+            tintColor="#4A0B17"
+          />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.eyebrow}>{getRoleLabel(user?.id_perfil)}</Text>
           <Text style={styles.welcome}>Te damos la bienvenida, {user?.nombre}</Text>
@@ -1043,14 +1172,31 @@ export default function HomeScreen() {
                       Establecimiento: {record.establecimientoLabel}
                     </Text>
                     <Text style={styles.userCardMeta}>Correo: {record.correo || 'Sin correo'}</Text>
+                    <Text style={styles.userCardMeta}>
+                      QR: {record.qrCliente?.codigo_qr || 'Sin QR generado'}
+                    </Text>
 
                     {isAdmin && isDepositoCreditosAllowedForPerfil(record.id_perfil) && (
-                      <TouchableOpacity
-                        style={styles.depositButton}
-                        onPress={() => openDepositModal(record)}
-                      >
-                        <Text style={styles.depositButtonText}>Depositar creditos</Text>
-                      </TouchableOpacity>
+                      <View style={styles.userActions}>
+                        <TouchableOpacity
+                          style={styles.depositButton}
+                          onPress={() => openDepositModal(record)}
+                        >
+                          <Text style={styles.depositButtonText}>Depositar creditos</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.qrActionButton,
+                            record.qrCliente?.codigo_qr && styles.qrActionButtonDisabled,
+                          ]}
+                          onPress={() => handleGenerateUserQr(record)}
+                        >
+                          <Text style={styles.qrActionButtonText}>
+                            {record.qrCliente?.codigo_qr ? 'QR generado' : 'Generar QR'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 ))
@@ -1357,15 +1503,36 @@ const styles = StyleSheet.create({
     color: '#5f5f5f',
     marginBottom: 4,
   },
+  userActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
   depositButton: {
     alignSelf: 'flex-start',
-    marginTop: 12,
     backgroundColor: '#1F8A4D',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   depositButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  qrActionButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#4A0B17',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  qrActionButtonDisabled: {
+    backgroundColor: '#8E8E93',
+  },
+  qrActionButtonText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',

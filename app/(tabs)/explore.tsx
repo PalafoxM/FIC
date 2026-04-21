@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -208,12 +210,7 @@ export default function ExploreScreen() {
   const handleChangeManagerField = (field, value) => {
     setManagerForm((current) => ({
       ...current,
-      [field]:
-        field === 'nombre' || field === 'primer_apellido' || field === 'segundo_apellido'
-          ? value.toUpperCase()
-          : field === 'usuario' || field === 'correo'
-            ? value.toLowerCase()
-            : value,
+      [field]: value,
     }));
   };
 
@@ -241,11 +238,11 @@ export default function ExploreScreen() {
 
       const requestPayload = {
         id_establecimiento: Number(managerForm.id_establecimiento),
-        usuario: managerForm.usuario.trim(),
-        nombre: managerForm.nombre.trim(),
-        primer_apellido: managerForm.primer_apellido.trim(),
-        segundo_apellido: managerForm.segundo_apellido.trim() || null,
-        correo: managerForm.correo.trim() || null,
+        usuario: managerForm.usuario.trim().toLowerCase(),
+        nombre: managerForm.nombre.trim().toUpperCase(),
+        primer_apellido: managerForm.primer_apellido.trim().toUpperCase(),
+        segundo_apellido: managerForm.segundo_apellido.trim().toUpperCase() || null,
+        correo: managerForm.correo.trim().toLowerCase() || null,
       };
 
       const response = await createManagerRequest(requestPayload);
@@ -461,7 +458,16 @@ export default function ExploreScreen() {
       </ScrollView>
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.modalContainer} contentContainerStyle={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={styles.modalContent}
+          >
           <Text style={styles.modalTitle}>
             {Number(managerForm.id_usuario) > 0 ? 'Solicitar cambio de gerente' : 'Solicitar gerente'}
           </Text>
@@ -522,6 +528,9 @@ export default function ExploreScreen() {
               value={managerForm.usuario}
               onChangeText={(value) => handleChangeManagerField('usuario', value)}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
               placeholder="escribe letra inicial y apellido completo"
               placeholderTextColor="#999"
             />
@@ -533,6 +542,10 @@ export default function ExploreScreen() {
               style={styles.input}
               value={managerForm.nombre}
               onChangeText={(value) => handleChangeManagerField('nombre', value)}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
             />
           </View>
 
@@ -542,6 +555,10 @@ export default function ExploreScreen() {
               style={styles.input}
               value={managerForm.primer_apellido}
               onChangeText={(value) => handleChangeManagerField('primer_apellido', value)}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
             />
           </View>
 
@@ -551,6 +568,10 @@ export default function ExploreScreen() {
               style={styles.input}
               value={managerForm.segundo_apellido}
               onChangeText={(value) => handleChangeManagerField('segundo_apellido', value)}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
             />
           </View>
 
@@ -561,6 +582,8 @@ export default function ExploreScreen() {
               value={managerForm.correo}
               onChangeText={(value) => handleChangeManagerField('correo', value)}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
               keyboardType="email-address"
             />
           </View>
@@ -580,7 +603,8 @@ export default function ExploreScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
