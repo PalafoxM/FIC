@@ -87,6 +87,44 @@ const normalizeReportRecord = (payload, fallback = {}) => {
   };
 };
 
+const decodeJwtPayload = (token) => {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+
+    if (typeof atob === 'function') {
+      return JSON.parse(atob(paddedBase64));
+    }
+
+    return null;
+  } catch (_error) {
+    return null;
+  }
+};
+
+const getTokenDebugSummary = (token) => {
+  const claims = decodeJwtPayload(token);
+
+  if (!claims) {
+    return {
+      tokenType: token ? 'opaque-or-unreadable' : 'missing',
+      hasToken: Boolean(token),
+    };
+  }
+
+  return {
+    tokenType: 'jwt',
+    id_usuario: claims?.id_usuario ?? claims?.id ?? claims?.userId ?? claims?.sub ?? null,
+    id_perfil: claims?.id_perfil ?? claims?.perfil ?? claims?.roleId ?? null,
+    exp: claims?.exp ?? null,
+  };
+};
+
 export const useApi = () => {
   const getAuthHeaders = async () => {
     try {
@@ -357,7 +395,10 @@ export const useApi = () => {
 
   const createPaymentReport = async (reportData) => {
     let payload = null;
+    let authDebug = null;
     try {
+      const token = await AsyncStorage.getItem('token');
+      authDebug = getTokenDebugSummary(token);
       payload = {
         id_pagos: Number(reportData?.id_pagos ?? 0),
         id_usuario: Number(reportData?.id_usuario ?? 0),
@@ -374,6 +415,7 @@ export const useApi = () => {
       };
 
       console.log('Creando reporte de pago payload normalizado:', payload);
+      console.log('Creando reporte de pago auth debug:', authDebug);
 
       const data = await getReportsResponse(
         '/create',
@@ -393,6 +435,7 @@ export const useApi = () => {
         status: error?.status,
         data: error?.data,
         payload,
+        authDebug,
       });
       if (String(error?.message || '').includes('Creando reporte de pago devolvio una respuesta no valida')) {
         throw new Error(
