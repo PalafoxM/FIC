@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -59,7 +60,7 @@ export default function NotificationsScreen() {
           ...notification,
           parsedData: notificationData,
           resolvedStatus,
-          title: 'Pago finalizado',
+          title: 'Operaci\u00f3n exitosa',
           body: `Pago completado por $${totalAmount.toFixed(2)}`,
         };
       }
@@ -69,7 +70,7 @@ export default function NotificationsScreen() {
           ...notification,
           parsedData: notificationData,
           resolvedStatus,
-          title: 'Pago rechazado',
+          title: 'Atenci\u00f3n',
           body: `Pago rechazado por $${totalAmount.toFixed(2)}`,
         };
       }
@@ -148,15 +149,15 @@ export default function NotificationsScreen() {
       const data = await approvePaymentRequest(transactionId);
 
       if (data?.success) {
-        Alert.alert('Pago aprobado', 'El pago ha sido aprobado exitosamente');
+        Alert.alert('Operaci\u00f3n exitosa', 'El pago ha sido aprobado exitosamente');
         loadNotifications();
         return;
       }
 
-      Alert.alert('Error', data?.respuesta || 'No se pudo aprobar el pago');
+      Alert.alert('Atenci\u00f3n', data?.respuesta || 'No se pudo aprobar el pago');
     } catch (error) {
       console.error('Error aprobando pago:', error);
-      Alert.alert('Error', error.message || 'No se pudo completar la aprobacion');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar la aprobacion');
     }
   };
 
@@ -165,15 +166,15 @@ export default function NotificationsScreen() {
       const data = await rejectPaymentRequest(transactionId);
 
       if (data?.success) {
-        Alert.alert('Pago rechazado', 'El pago ha sido rechazado');
+        Alert.alert('Atenci\u00f3n', 'El pago ha sido rechazado');
         loadNotifications();
         return;
       }
 
-      Alert.alert('Error', data?.respuesta || 'No se pudo rechazar el pago');
+      Alert.alert('Atenci\u00f3n', data?.respuesta || 'No se pudo rechazar el pago');
     } catch (error) {
       console.error('Error rechazando pago:', error);
-      Alert.alert('Error', error.message || 'No se pudo completar el rechazo');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar el rechazo');
     }
   };
 
@@ -184,7 +185,7 @@ export default function NotificationsScreen() {
       if (notificationData?.type === 'PAYMENT_REQUEST') {
         if (notification.resolvedStatus === 'approved') {
           Alert.alert(
-            'Pago finalizado',
+            'Operaci\u00f3n exitosa',
             `Tu pago por $${notificationData.total ?? notificationData.amount} ya fue completado.`
           );
           return;
@@ -192,7 +193,7 @@ export default function NotificationsScreen() {
 
         if (notification.resolvedStatus === 'rejected') {
           Alert.alert(
-            'Pago rechazado',
+            'Atenci\u00f3n',
             `La solicitud por $${notificationData.total ?? notificationData.amount} ya fue rechazada.`
           );
           return;
@@ -221,6 +222,26 @@ export default function NotificationsScreen() {
 
   const visibleNotifications = notifications.slice(0, visibleCount);
   const canShowMore = notifications.length > visibleCount;
+  const getAdminStatusIcon = (status) => {
+    if (status === 'approved') {
+      return {
+        name: 'checkmark-circle',
+        color: '#1B8A3A',
+      };
+    }
+
+    if (status === 'rejected') {
+      return {
+        name: 'close-circle',
+        color: '#C62828',
+      };
+    }
+
+    return {
+      name: 'alert-circle',
+      color: '#D99000',
+    };
+  };
 
   return (
     <ScrollView
@@ -248,24 +269,31 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <>
-          {visibleNotifications.map((notification, index) => (
-            <TouchableOpacity
-              key={notification.id ?? `notification-${index}`}
-              style={styles.notificationCard}
-              onPress={() => handleNotificationPress(notification)}
-            >
-              {notification.resolvedStatus === 'pending' ? (
-                <View style={styles.pendingDot} />
-              ) : null}
-              <Text style={styles.notificationTitle}>{notification.title}</Text>
-              <Text style={styles.notificationBody}>{notification.body}</Text>
-              <Text style={styles.notificationDate}>
-                {notification.created_at
-                  ? new Date(notification.created_at).toLocaleString()
-                  : 'Sin fecha'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {visibleNotifications.map((notification, index) => {
+            const statusIcon = getAdminStatusIcon(notification.resolvedStatus);
+
+            return (
+              <TouchableOpacity
+                key={notification.id ?? `notification-${index}`}
+                style={[styles.notificationCard, styles.notificationCardWithIcon]}
+                onPress={() => handleNotificationPress(notification)}
+              >
+                <Ionicons
+                  name={statusIcon.name}
+                  size={22}
+                  color={statusIcon.color}
+                  style={styles.statusIcon}
+                />
+                <Text style={styles.notificationTitle}>{notification.title}</Text>
+                <Text style={styles.notificationBody}>{notification.body}</Text>
+                <Text style={styles.notificationDate}>
+                  {notification.created_at
+                    ? new Date(notification.created_at).toLocaleString()
+                    : 'Sin fecha'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           {canShowMore ? (
             <TouchableOpacity
@@ -325,14 +353,13 @@ const styles = StyleSheet.create({
     elevation: 3,
     position: 'relative',
   },
-  pendingDot: {
+  notificationCardWithIcon: {
+    paddingLeft: 46,
+  },
+  statusIcon: {
     position: 'absolute',
-    left: 10,
-    top: 20,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#D62828',
+    left: 14,
+    top: 16,
   },
   notificationTitle: {
     fontSize: 16,
@@ -362,3 +389,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+

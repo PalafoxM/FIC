@@ -103,8 +103,8 @@ export default function EnterAmountScreen() {
 
   const showPaymentApproved = (transaction) => {
     Alert.alert(
-      'Pago aprobado',
-      `El cliente aprobó el pago de $${transaction.total}.`,
+      'Operaci\u00f3n exitosa',
+      `El cliente aprobÃ³ el pago de $${transaction.total}.`,
       [
         {
           text: 'Ir al historial',
@@ -116,8 +116,8 @@ export default function EnterAmountScreen() {
 
   const showPaymentRejected = (transaction) => {
     Alert.alert(
-      'Pago rechazado',
-      `El cliente rechazó el pago de $${transaction.total}.`,
+      'Atenci\u00f3n',
+      `El cliente rechazÃ³ el pago de $${transaction.total}.`,
       [
         {
           text: 'Intentar nuevamente',
@@ -137,8 +137,8 @@ export default function EnterAmountScreen() {
 
   const showPaymentExpired = () => {
     Alert.alert(
-      'Tiempo expirado',
-      'La solicitud de pago expiró.',
+      'Atenci\u00f3n',
+      'La solicitud de pago expirÃ³.',
       [
         {
           text: 'Intentar nuevamente',
@@ -191,17 +191,17 @@ export default function EnterAmountScreen() {
 
   const requestPaymentApproval = async () => {
     if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      Alert.alert('Error', 'Por favor ingresa un monto válido');
+      Alert.alert('Atenci\u00f3n', 'Por favor ingresa un monto vÃ¡lido');
       return;
     }
 
     if (!clientId && !qrCode) {
-      Alert.alert('Error', 'No se pudo identificar al cliente');
+      Alert.alert('Atenci\u00f3n', 'No se pudo identificar al cliente');
       return;
     }
 
     if (paymentMethod === 'nip' && String(nip || '').trim().length < 4) {
-      Alert.alert('Error', 'Captura un NIP valido para continuar con el cobro sin app.');
+      Alert.alert('Atenci\u00f3n', 'Captura un NIP valido para continuar con el cobro sin app.');
       return;
     }
 
@@ -251,8 +251,8 @@ export default function EnterAmountScreen() {
       if (transaction.supportsStatusPolling && transaction.id) {
         startPolling(transaction.id);
         Alert.alert(
-          'Solicitud enviada',
-          `Se envió una solicitud de pago de $${transaction.total} a ${clientName}.`,
+          'Operaci\u00f3n exitosa',
+          `Se enviÃ³ una solicitud de pago de $${transaction.total} a ${clientName}.`,
           [
             {
               text: 'Ir al historial',
@@ -263,8 +263,8 @@ export default function EnterAmountScreen() {
       } else {
         setIsProcessing(false);
         Alert.alert(
-          'Pago registrado',
-          response.message || `Se registró el pago de $${transaction.total} para ${clientName}.`,
+          'Operaci\u00f3n exitosa',
+          response.message || `Se registrÃ³ el pago de $${transaction.total} para ${clientName}.`,
           [
             {
               text: 'Ir al historial',
@@ -276,7 +276,7 @@ export default function EnterAmountScreen() {
       }
     } catch (error) {
       console.error('Error enviando solicitud REAL:', error);
-      Alert.alert('Error', error.message || 'No se pudo enviar la solicitud de pago');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo enviar la solicitud de pago');
       setIsProcessing(false);
     }
   };
@@ -295,7 +295,7 @@ export default function EnterAmountScreen() {
         {currentTransaction && (
           <View style={styles.transactionInfo}>
             <Text style={styles.transactionText}>
-              Transacción: {currentTransaction.transaction_id}
+              TransacciÃ³n: {currentTransaction.transaction_id}
             </Text>
             <Text style={styles.transactionText}>
               Estado: {getStatusText(transactionStatus)}
@@ -352,7 +352,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Montos rápidos</Text>
+        <Text style={styles.quickAmountsTitle}>Montos rÃ¡pidos</Text>
         <View style={styles.quickButtons}>
           {quickAmounts.map((quickAmount) => (
             <TouchableOpacity
@@ -380,7 +380,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Propina rápida</Text>
+        <Text style={styles.quickAmountsTitle}>Propina rÃ¡pida</Text>
         <View style={styles.quickButtons}>
           {quickTips.map((tipPercent) => (
             <TouchableOpacity
@@ -397,7 +397,7 @@ export default function EnterAmountScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Descripción</Text>
+        <Text style={styles.sectionTitle}>DescripciÃ³n</Text>
         <TextInput
           style={styles.descriptionInput}
           placeholder="Ej: Producto X, Servicio Y..."
@@ -450,7 +450,7 @@ export default function EnterAmountScreen() {
                 ? 'Enviando solicitud...'
                 : 'Registrando pago...'
               : currentTransaction
-                ? 'Pago registrado'
+                ? 'Operaci\u00f3n exitosa'
                 : paymentMethod === 'app'
                   ? `Solicitar pago $${total.toFixed(2)}`
                   : `Registrar pago $${total.toFixed(2)}`}
@@ -711,3 +711,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+

@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -20,6 +21,7 @@ const SalesHistory = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadSales = useCallback(async (filters = {}, showLoader = false) => {
     try {
@@ -30,7 +32,7 @@ const SalesHistory = () => {
       setSales(salesData);
       setVisibleCount(10);
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudieron cargar las ventas');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudieron cargar las ventas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -40,12 +42,46 @@ const SalesHistory = () => {
   useFocusEffect(
     useCallback(() => {
       if (user && hasPermission(user?.id_perfil, 'salesHistory')) {
-        loadSales({}, sales.length === 0);
+        loadSales({}, true);
       } else {
         setLoading(false);
       }
-    }, [loadSales, sales.length, user])
+    }, [loadSales, user])
   );
+
+  const filteredSales = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const sortedRows = [...sales].sort((first, second) => {
+      const firstDate = new Date(first?.fec_reg || first?.createdAt || first?.date || 0).getTime();
+      const secondDate = new Date(second?.fec_reg || second?.createdAt || second?.date || 0).getTime();
+      return secondDate - firstDate;
+    });
+
+    if (!normalizedSearch) {
+      return sortedRows;
+    }
+
+    return sortedRows.filter((item) =>
+      [
+        item?.id_pagos,
+        item?.id_usuario,
+        item?.cliente_nombre,
+        item?.usuario_nombre,
+        item?.establecimiento_nombre,
+        item?.tipo_pago,
+        item?.dsc_tipo_pago,
+        item?.monto,
+        item?.propina,
+        item?.total,
+        item?.fec_reg,
+      ]
+        .filter((value) => value !== undefined && value !== null)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+    );
+  }, [sales, searchTerm]);
+
+  const visibleSales = filteredSales.slice(0, visibleCount);
+  const canShowMore = filteredSales.length > visibleCount;
 
   if (!hasPermission(user?.id_perfil, 'salesHistory')) {
     return (
@@ -79,29 +115,6 @@ const SalesHistory = () => {
     } catch {
       return 'Fecha invalida';
     }
-  };
-
-  const applyFilter = (filterType) => {
-    const today = new Date();
-    const filters = {};
-
-    if (filterType === 'today') {
-      filters.startDate = today.toISOString().split('T')[0];
-    }
-
-    if (filterType === 'week') {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(today.getDate() - 7);
-      filters.startDate = weekAgo.toISOString().split('T')[0];
-    }
-
-    if (filterType === 'month') {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(today.getMonth() - 1);
-      filters.startDate = monthAgo.toISOString().split('T')[0];
-    }
-
-    loadSales(filters);
   };
 
   const renderSaleItem = ({ item }) => (
@@ -138,33 +151,27 @@ const SalesHistory = () => {
     );
   }
 
-  const visibleSales = sales.slice(0, visibleCount);
-  const canShowMore = sales.length > visibleCount;
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Historial de ventas</Text>
         <Text style={styles.subtitle}>
-          Mostrando {visibleSales.length} de {sales.length} ventas
+          Mostrando {visibleSales.length} de {filteredSales.length} ventas
         </Text>
       </View>
 
-      <View style={styles.filterContainer}>
-        <Text style={styles.filterTitle}>Filtrar por:</Text>
-        <View style={styles.filterButtons}>
-          {['today', 'week', 'month', 'all'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={styles.filterButton}
-              onPress={() => applyFilter(filter)}
-            >
-              <Text style={styles.filterButtonText}>
-                {filter === 'today' ? 'Hoy' : filter === 'week' ? 'Semana' : filter === 'month' ? 'Mes' : 'Todos'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.searchContainer}>
+        <Text style={styles.searchLabel}>Buscar venta</Text>
+        <TextInput
+          value={searchTerm}
+          onChangeText={(value) => {
+            setSearchTerm(value);
+            setVisibleCount(10);
+          }}
+          placeholder="Buscar por pago, cliente, comercio, monto o fecha"
+          placeholderTextColor="#888"
+          style={styles.searchInput}
+        />
       </View>
 
       <FlatList
@@ -201,11 +208,18 @@ const styles = StyleSheet.create({
   header: { backgroundColor: 'white', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
   subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
-  filterContainer: { backgroundColor: 'white', padding: 15, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  filterTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 10 },
-  filterButtons: { flexDirection: 'row', justifyContent: 'space-between' },
-  filterButton: { flex: 1, padding: 8, marginHorizontal: 2, backgroundColor: '#f8f9fa', borderRadius: 8, alignItems: 'center' },
-  filterButtonText: { fontSize: 12, fontWeight: '500', color: '#333' },
+  searchContainer: { backgroundColor: 'white', padding: 15, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  searchLabel: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 8 },
+  searchInput: {
+    backgroundColor: '#F7F7F7',
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#222',
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   listContainer: { padding: 10 },
   saleItem: {
     backgroundColor: 'white',
@@ -248,3 +262,4 @@ const styles = StyleSheet.create({
 });
 
 export default SalesHistory;
+

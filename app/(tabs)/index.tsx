@@ -41,10 +41,29 @@ const buildFullName = (record) =>
     .join(' ')
     .trim() || 'Sin nombre';
 
+const GENERIC_ESTABLISHMENT_LABELS = new Set([
+  'establecimiento',
+  'establecimiento asignado',
+  'establecimiento principal',
+  'sin establecimiento',
+]);
+
+const getEstablishmentDisplayName = (record) =>
+  record?.dsc_establecimiento ??
+  record?.establecimiento_nombre ??
+  record?.nombre ??
+  record?.name ??
+  'Establecimiento asignado';
+
+const isGenericEstablishmentLabel = (value) =>
+  GENERIC_ESTABLISHMENT_LABELS.has(String(value ?? '').trim().toLowerCase());
+
 const isDepositoCreditosAllowedForPerfil = (idPerfil) => ![ROLE_IDS.PROVIDER, ROLE_IDS.BUSINESS_MANAGER].includes(Number(idPerfil ?? 0));
 const CLIENT_BALANCE_REFRESH_COOLDOWN_MS = 30000;
 const REPORTS_RETRY_COOLDOWN_MS = 60000;
 const CALENDAR_DAY_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
+const HOUR_VALUES = Array.from({ length: 24 }, (_, index) => index);
+const TIME_UNIT_VALUES = Array.from({ length: 60 }, (_, index) => index);
 
 const pad2 = (value) => String(value).padStart(2, '0');
 
@@ -84,20 +103,6 @@ const setDatePart = (date, sourceDate) => {
   return nextDate;
 };
 
-const shiftHours = (date, amount) => {
-  const nextDate = new Date(date);
-  nextDate.setHours((nextDate.getHours() + amount + 24) % 24);
-  return nextDate;
-};
-
-const shiftMinutes = (date, amount) => {
-  const nextDate = new Date(date);
-  nextDate.setMinutes((nextDate.getMinutes() + amount + 60) % 60);
-  return nextDate;
-};
-
-const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
-
 const isSameCalendarDay = (leftDate, rightDate) =>
   leftDate.getFullYear() === rightDate.getFullYear() &&
   leftDate.getMonth() === rightDate.getMonth() &&
@@ -109,28 +114,48 @@ const formatCalendarDayLabel = (date) =>
     day: '2-digit',
   });
 
+const TimeWheelColumn = ({ label, values, selectedValue, onSelect }) => (
+  <View style={styles.timeWheelColumn}>
+    <Text style={styles.timeWheelLabel}>{label}</Text>
+    <ScrollView
+      nestedScrollEnabled
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.timeWheelContent}
+      style={styles.timeWheel}
+    >
+      {values.map((value) => {
+        const isActive = value === selectedValue;
+
+        return (
+          <TouchableOpacity
+            key={value}
+            style={[styles.timeWheelItem, isActive && styles.timeWheelItemActive]}
+            onPress={() => onSelect(value)}
+          >
+            <Text style={[styles.timeWheelItemText, isActive && styles.timeWheelItemTextActive]}>
+              {pad2(value)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  </View>
+);
+
 const DateTimeSelector = ({ label, value, onChange }) => {
   const selectedDate = parseDateTimeInput(value);
   const setSelectedDate = (nextDate) => onChange(formatDateTimeValue(nextDate));
-  const setHourValue = (text) => {
-    const numericValue = Number(String(text).replace(/\D/g, '').slice(0, 2));
-    if (Number.isNaN(numericValue)) {
-      return;
-    }
-
+  const setTimePart = (part, amount) => {
     const nextDate = new Date(selectedDate);
-    nextDate.setHours(clampNumber(numericValue, 0, 23));
-    setSelectedDate(nextDate);
-  };
-
-  const setMinuteValue = (text) => {
-    const numericValue = Number(String(text).replace(/\D/g, '').slice(0, 2));
-    if (Number.isNaN(numericValue)) {
-      return;
+    if (part === 'hour') {
+      nextDate.setHours(amount);
     }
-
-    const nextDate = new Date(selectedDate);
-    nextDate.setMinutes(clampNumber(numericValue, 0, 59));
+    if (part === 'minute') {
+      nextDate.setMinutes(amount);
+    }
+    if (part === 'second') {
+      nextDate.setSeconds(amount);
+    }
     setSelectedDate(nextDate);
   };
 
@@ -185,58 +210,33 @@ const DateTimeSelector = ({ label, value, onChange }) => {
         })}
       </ScrollView>
 
-      <View style={styles.timePickerRow}>
-        <View style={styles.timePickerColumn}>
-          <Text style={styles.timePickerLabel}>Hora</Text>
-          <View style={styles.timeStepper}>
-            <TouchableOpacity
-              style={styles.timeStepperButton}
-              onPress={() => setSelectedDate(shiftHours(selectedDate, -1))}
-            >
-              <Text style={styles.timeStepperText}>-</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.timeStepperInput}
-              value={pad2(selectedDate.getHours())}
-              onChangeText={setHourValue}
-              keyboardType="number-pad"
-              maxLength={2}
-              selectTextOnFocus
-            />
-            <TouchableOpacity
-              style={styles.timeStepperButton}
-              onPress={() => setSelectedDate(shiftHours(selectedDate, 1))}
-            >
-              <Text style={styles.timeStepperText}>+</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={styles.chronometerPanel}>
+        <Text style={styles.chronometerLabel}>Hora seleccionada</Text>
+        <Text style={styles.chronometerValue}>
+          {pad2(selectedDate.getHours())}:{pad2(selectedDate.getMinutes())}:{pad2(selectedDate.getSeconds())}
+        </Text>
+        <Text style={styles.chronometerFormat}>{formatDateTimeValue(selectedDate)}</Text>
+      </View>
 
-        <View style={styles.timePickerColumn}>
-          <Text style={styles.timePickerLabel}>Minuto</Text>
-          <View style={styles.timeStepper}>
-            <TouchableOpacity
-              style={styles.timeStepperButton}
-              onPress={() => setSelectedDate(shiftMinutes(selectedDate, -5))}
-            >
-              <Text style={styles.timeStepperText}>-</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.timeStepperInput}
-              value={pad2(selectedDate.getMinutes())}
-              onChangeText={setMinuteValue}
-              keyboardType="number-pad"
-              maxLength={2}
-              selectTextOnFocus
-            />
-            <TouchableOpacity
-              style={styles.timeStepperButton}
-              onPress={() => setSelectedDate(shiftMinutes(selectedDate, 5))}
-            >
-              <Text style={styles.timeStepperText}>+</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={styles.timeWheelRow}>
+        <TimeWheelColumn
+          label="Hora"
+          values={HOUR_VALUES}
+          selectedValue={selectedDate.getHours()}
+          onSelect={(nextHour) => setTimePart('hour', nextHour)}
+        />
+        <TimeWheelColumn
+          label="Minuto"
+          values={TIME_UNIT_VALUES}
+          selectedValue={selectedDate.getMinutes()}
+          onSelect={(nextMinute) => setTimePart('minute', nextMinute)}
+        />
+        <TimeWheelColumn
+          label="Segundo"
+          values={TIME_UNIT_VALUES}
+          selectedValue={selectedDate.getSeconds()}
+          onSelect={(nextSecond) => setTimePart('second', nextSecond)}
+        />
       </View>
     </View>
   );
@@ -271,6 +271,7 @@ export default function HomeScreen() {
   const [reportsView, setReportsView] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [reportsEndpointUnavailable, setReportsEndpointUnavailable] = useState(false);
+  const [providerEstablishmentsView, setProviderEstablishmentsView] = useState([]);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
   const [visibleUsersCount, setVisibleUsersCount] = useState(10);
   const [visiblePaymentsCount, setVisiblePaymentsCount] = useState(10);
@@ -295,7 +296,37 @@ export default function HomeScreen() {
   const isAdmin = user?.id_perfil === ROLE_IDS.ADMIN;
   const isManagerProfile = user?.id_perfil === ROLE_IDS.MANAGER;
   const isAdminOrManager = isAdmin || isManagerProfile;
-  const providerEstablishments = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
+  const baseProviderEstablishments = useMemo(() => {
+    const rawList = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
+
+    if (rawList.length > 0) {
+      return rawList
+        .map((establecimiento) => ({
+          ...establecimiento,
+          id_establecimiento:
+            establecimiento?.id_establecimiento ??
+            establecimiento?.idEstablecimiento ??
+            establecimiento?.id ??
+            null,
+          dsc_establecimiento: getEstablishmentDisplayName(establecimiento),
+        }))
+        .filter((establecimiento) => establecimiento.id_establecimiento !== null);
+    }
+
+    if (isProvider && user?.id_establecimiento) {
+      return [
+        {
+          id_establecimiento: user.id_establecimiento,
+          dsc_establecimiento: getEstablishmentDisplayName(user),
+        },
+      ];
+    }
+
+    return [];
+  }, [isProvider, user]);
+
+  const providerEstablishments =
+    providerEstablishmentsView.length > 0 ? providerEstablishmentsView : baseProviderEstablishments;
 
   useEffect(() => {
     setClientBalance(user?.saldo ?? user?.saldo_actual ?? user?.saldoDisponible ?? null);
@@ -361,6 +392,50 @@ export default function HomeScreen() {
       setLoadingUsers(false);
     }
   }, [getTable, isAdminOrManager]);
+
+  const loadProviderEstablishmentsView = useCallback(async () => {
+    if (!isProvider || baseProviderEstablishments.length === 0) {
+      setProviderEstablishmentsView([]);
+      return;
+    }
+
+    const hasGenericLabel = baseProviderEstablishments.some((establecimiento) =>
+      isGenericEstablishmentLabel(establecimiento.dsc_establecimiento)
+    );
+
+    if (!hasGenericLabel) {
+      setProviderEstablishmentsView(baseProviderEstablishments);
+      return;
+    }
+
+    try {
+      const establecimientos = await getTable({
+        tabla: 'establecimiento',
+        where: { visible: 1 },
+        order: 'dsc_establecimiento ASC',
+      });
+
+      const establecimientosMap = establecimientos.reduce((accumulator, establecimiento) => {
+        accumulator[String(establecimiento.id_establecimiento)] = establecimiento;
+        return accumulator;
+      }, {});
+
+      setProviderEstablishmentsView(
+        baseProviderEstablishments.map((establecimiento) => {
+          const matchedEstablishment = establecimientosMap[String(establecimiento.id_establecimiento ?? '')];
+          const displayName = getEstablishmentDisplayName(matchedEstablishment ?? establecimiento);
+
+          return {
+            ...establecimiento,
+            dsc_establecimiento: displayName,
+          };
+        })
+      );
+    } catch (error) {
+      console.error('Error loading provider establishments:', error);
+      setProviderEstablishmentsView(baseProviderEstablishments);
+    }
+  }, [baseProviderEstablishments, getTable, isProvider]);
 
   const loadPaymentsView = useCallback(async () => {
     if (!isAdminOrManager) {
@@ -549,6 +624,10 @@ export default function HomeScreen() {
 
       refreshBalanceOnFocus();
 
+      if (isProvider) {
+        loadProviderEstablishmentsView();
+      }
+
       if (isAdminOrManager) {
         loadUsersViewRef.current?.();
         loadPaymentsViewRef.current?.();
@@ -561,7 +640,7 @@ export default function HomeScreen() {
       return () => {
         isMounted = false;
       };
-    }, [clientBalance, isAdmin, isAdminOrManager, isClient, user?.id_usuario])
+    }, [clientBalance, isAdmin, isAdminOrManager, isClient, isProvider, loadProviderEstablishmentsView, user?.id_usuario])
   );
 
   const refreshHomeData = useCallback(async () => {
@@ -572,6 +651,10 @@ export default function HomeScreen() {
         const balance = await getClientAvailableBalanceRef.current(user.id_usuario);
         setClientBalance(balance);
         lastClientBalanceRefreshRef.current = Date.now();
+      }
+
+      if (isProvider) {
+        await loadProviderEstablishmentsView();
       }
 
       if (isAdminOrManager) {
@@ -586,11 +669,11 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Error refreshing home data:', error);
-      Alert.alert('Error', error.message || 'No se pudo actualizar la informacion.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo actualizar la informacion.');
     } finally {
       setRefreshingHome(false);
     }
-  }, [isAdmin, isAdminOrManager, isClient, user?.id_usuario]);
+  }, [isAdmin, isAdminOrManager, isClient, isProvider, loadProviderEstablishmentsView, user?.id_usuario]);
 
   const filteredUsers = useMemo(() => {
     if (selectedRoleFilter === 0) {
@@ -717,7 +800,7 @@ export default function HomeScreen() {
       );
     } catch (error) {
       console.error('Error loading deposit details:', error);
-      Alert.alert('Error', error.message || 'No se pudieron consultar los datos del deposito.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudieron consultar los datos del deposito.');
     } finally {
       setLoadingDepositDetails(false);
     }
@@ -763,7 +846,7 @@ export default function HomeScreen() {
       Alert.alert('QR generado', 'El codigo QR fue creado con vigencia vacia.');
     } catch (error) {
       console.error('Error generating user QR:', error);
-      Alert.alert('Error', error.message || 'No se pudo generar el QR del usuario.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo generar el QR del usuario.');
     }
   };
 
@@ -771,7 +854,7 @@ export default function HomeScreen() {
     const amountValue = Number.parseFloat(depositAmount);
 
     if (!depositTarget?.id_usuario || Number.isNaN(amountValue) || amountValue <= 0) {
-      Alert.alert('Monto invalido', 'Captura un monto valido para depositar creditos.');
+      Alert.alert('Atenci\u00f3n', 'Captura un monto valido para depositar creditos.');
       return;
     }
 
@@ -780,7 +863,7 @@ export default function HomeScreen() {
       depositVigenteHasta.trim() &&
       parseDateTimeInput(depositVigenteHasta).getTime() < parseDateTimeInput(depositVigenteDesde).getTime()
     ) {
-      Alert.alert('Vigencia invalida', 'La vigencia final del QR no puede ser menor a la inicial.');
+      Alert.alert('Atenci\u00f3n', 'La vigencia final del QR no puede ser menor a la inicial.');
       return;
     }
 
@@ -882,7 +965,7 @@ export default function HomeScreen() {
       Alert.alert('Creditos depositados', 'El deposito fue registrado correctamente.');
     } catch (error) {
       console.error('Error depositing credits:', error);
-      Alert.alert('Error', error.message || 'No se pudo registrar el deposito.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo registrar el deposito.');
     } finally {
       setSavingDeposit(false);
     }
@@ -894,7 +977,7 @@ export default function HomeScreen() {
       await loadReportsView();
       Alert.alert('Reporte actualizado', 'El estatus del reporte fue actualizado correctamente.');
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo actualizar el reporte.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo actualizar el reporte.');
     }
   };
 
@@ -1688,47 +1771,82 @@ const styles = StyleSheet.create({
   calendarDayTextActive: {
     color: '#F6E7B0',
   },
-  timePickerRow: {
-    flexDirection: 'row',
-    gap: 12,
+  chronometerPanel: {
+    alignItems: 'center',
+    backgroundColor: '#2A0710',
+    borderRadius: 18,
     marginTop: 4,
+    marginBottom: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
-  timePickerColumn: {
-    flex: 1,
-  },
-  timePickerLabel: {
-    fontSize: 12,
-    color: '#777',
-    marginBottom: 6,
-    fontWeight: '700',
+  chronometerLabel: {
+    color: '#E8DAB2',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  timeStepper: {
+  chronometerValue: {
+    color: '#F4D03F',
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  chronometerFormat: {
+    color: '#FFF7D6',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  timeWheelRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
+  },
+  timeWheelColumn: {
+    flex: 1,
+  },
+  timeWheelLabel: {
+    color: '#777',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  timeWheel: {
+    maxHeight: 150,
+    backgroundColor: '#FFF9EA',
     borderWidth: 1,
     borderColor: '#E1D6B8',
-    borderRadius: 10,
-    overflow: 'hidden',
+    borderRadius: 16,
   },
-  timeStepperButton: {
-    width: 42,
-    paddingVertical: 12,
+  timeWheelContent: {
+    paddingVertical: 40,
+  },
+  timeWheelItem: {
     alignItems: 'center',
-    backgroundColor: '#FFF9EA',
+    borderRadius: 12,
+    marginHorizontal: 6,
+    marginVertical: 3,
+    paddingVertical: 10,
   },
-  timeStepperText: {
-    color: '#4A0B17',
+  timeWheelItemActive: {
+    backgroundColor: '#4A0B17',
+  },
+  timeWheelItemText: {
+    color: '#6C4C11',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 1,
   },
-  timeStepperInput: {
-    flex: 1,
+  timeWheelItemTextActive: {
+    color: '#F6E7B0',
+  },
+  timeWheelSelectionHint: {
     textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#222',
-    paddingVertical: 8,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1763,3 +1881,4 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 });
+

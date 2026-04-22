@@ -70,6 +70,7 @@ export default function ProfileScreen() {
 
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
+  const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isProviderOrClient = isProvider || isClient;
   const isAdminOrManager =
     user?.id_perfil === ROLE_IDS.ADMIN || user?.id_perfil === ROLE_IDS.MANAGER;
@@ -119,7 +120,7 @@ export default function ProfileScreen() {
     return <PayHistory />;
   }
 
-  if (isProvider) {
+  if (isProvider || isBusinessManager) {
     return <SalesHistory />;
   }
 
@@ -134,7 +135,7 @@ export default function ProfileScreen() {
       const qrCode = qrRecord?.codigo_qr ?? null;
 
       if (!qrCode) {
-        Alert.alert('QR no disponible', 'No tienes un codigo QR vigente para mostrar.');
+        Alert.alert('Atenci\u00f3n', 'No tienes un codigo QR vigente para mostrar.');
         return;
       }
 
@@ -147,7 +148,7 @@ export default function ProfileScreen() {
       });
       setQrVisible(true);
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo obtener el codigo QR.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el codigo QR.');
     } finally {
       setLoadingQr(false);
     }
@@ -512,3 +513,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

@@ -112,3 +112,4 @@ export const getRoleLabel = (idPerfil) => getRoleConfig(idPerfil).label;
 
 export const hasPermission = (idPerfil, permission) =>
   Boolean(getRoleConfig(idPerfil).permissions?.[permission]);
+

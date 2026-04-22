@@ -49,7 +49,7 @@ const PayHistory = () => {
       setSales(salesData);
       setVisibleCount(10);
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudieron cargar los consumos');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudieron cargar los consumos');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,7 +193,7 @@ const PayHistory = () => {
       const permissionMessage = String(error?.message || '').includes('permisos');
 
       Alert.alert(
-        permissionMessage ? 'No se pudo reportar' : 'Error',
+        'Atenci\u00f3n',
         permissionMessage
           ? 'El backend rechazo el permiso para crear este reporte. Revisa la regla POST /api/reportes/create: cliente y gestor pueden crear reportes; solo TI puede leerlos y cambiar estatus.'
           : error.message || 'No se pudo enviar el reporte.'
@@ -528,3 +528,4 @@ const styles = StyleSheet.create({
 });
 
 export default PayHistory;
+

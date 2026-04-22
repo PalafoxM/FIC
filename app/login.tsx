@@ -86,7 +86,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!user || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      Alert.alert('Atenci\u00f3n', 'Por favor completa todos los campos');
       return;
     }
 
@@ -95,7 +95,7 @@ export default function LoginScreen() {
     try {
       await login(user, password.toLowerCase());
     } catch (error) {
-      Alert.alert('Error', error.message || 'Error al iniciar sesión');
+      Alert.alert('Atenci\u00f3n', error.message || 'Error al iniciar sesión');
     } finally {
       setIsLoading(false);
     }
@@ -270,3 +270,4 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 });
+

@@ -85,7 +85,7 @@ export default function ScannerScreen() {
       const clientData = parseScannedClientQr(data);
 
       if (!clientData || clientData.type !== 'client_payment') {
-        Alert.alert('QR invalido', 'Este no es un codigo de pago valido');
+        Alert.alert('Atenci\u00f3n', 'Este no es un codigo de pago valido');
         setTimeout(() => {
           setScanned(false);
           navigatingRef.current = false;
@@ -98,7 +98,7 @@ export default function ScannerScreen() {
         clientData.codigo_qr ?? clientData.qr_code ?? clientData.clientQrCode ?? null;
 
       if (!resolvedClientId && !resolvedQrCode) {
-        Alert.alert('QR incompleto', 'El codigo no contiene un identificador de cliente valido.');
+        Alert.alert('Atenci\u00f3n', 'El codigo no contiene un identificador de cliente valido.');
         setTimeout(() => {
           setScanned(false);
           navigatingRef.current = false;
@@ -116,7 +116,7 @@ export default function ScannerScreen() {
         },
       });
     } catch (_error) {
-      Alert.alert('Error', 'No se pudo leer el codigo QR');
+      Alert.alert('Atenci\u00f3n', 'No se pudo leer el codigo QR');
       setTimeout(() => {
         setScanned(false);
         navigatingRef.current = false;
@@ -232,3 +232,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+

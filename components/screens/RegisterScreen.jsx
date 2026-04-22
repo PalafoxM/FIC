@@ -25,17 +25,17 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      Alert.alert('Atenci\u00f3n', 'Por favor completa todos los campos');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contrasenas no coinciden');
+      Alert.alert('Atenci\u00f3n', 'Las contrasenas no coinciden');
       return;
     }
 
     if (password.length < 12) {
-      Alert.alert('Error', 'La contrasena debe tener al menos 12 caracteres');
+      Alert.alert('Atenci\u00f3n', 'La contrasena debe tener al menos 12 caracteres');
       return;
     }
 
@@ -44,7 +44,7 @@ export default function RegisterScreen() {
     try {
       await register(name, email, password, userType);
     } catch (error) {
-      Alert.alert('Error', error.message || 'Error al registrar usuario');
+      Alert.alert('Atenci\u00f3n', error.message || 'Error al registrar usuario');
     } finally {
       setIsLoading(false);
     }
@@ -266,3 +266,4 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
 });
+

@@ -70,3 +70,4 @@ const styles = StyleSheet.create({
     color: '#5f5f5f',
   },
 });
+

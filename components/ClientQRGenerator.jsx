@@ -23,7 +23,7 @@ const ClientQRGenerator = () => {
 
       if (!qrCode) {
         Alert.alert(
-          'QR no disponible',
+          'Atenci\u00f3n',
           'No tienes un QR vigente para cobrar. Revisa la vigencia con el area de TI.'
         );
         return;
@@ -40,7 +40,7 @@ const ClientQRGenerator = () => {
       setQrData(clientPaymentInfo);
       setShowQR(true);
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo obtener el QR vigente del cliente');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el QR vigente del cliente');
     } finally {
       setLoadingQr(false);
     }
@@ -214,3 +214,4 @@ const styles = StyleSheet.create({
 });
 
 export default ClientQRGenerator;
+

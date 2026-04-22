@@ -94,3 +94,4 @@ export const sendPaymentNotification = (title, body, paymentData) => {
   const notifications = useNotifications();
   return notifications.sendPaymentNotification(title, body, paymentData);
 };
+

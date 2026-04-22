@@ -2,3 +2,4 @@ import PaymentConfirmationScreen from '../components/screens/PaymentConfirmation
 export default function PaymentConfirmation() {
   return <PaymentConfirmationScreen />;
 }
+

@@ -24,7 +24,7 @@ export default function PendingPaymentsScreen() {
       }
     } catch (error) {
       console.error('Error loading transactions:', error);
-      Alert.alert('Error', 'No se pudieron cargar las transacciones');
+      Alert.alert('Atenci\u00f3n', 'No se pudieron cargar las transacciones');
     } finally {
       setLoading(false);
     }
@@ -34,7 +34,7 @@ export default function PendingPaymentsScreen() {
     try {
       Alert.alert(
         'Confirmar Pago',
-        `¿Aprobar pago de $${transaction.total} a ${transaction.vendor_name}?`,
+        `Â¿Aprobar pago de $${transaction.total} a ${transaction.vendor_name}?`,
         [
           { text: 'Cancelar', style: 'cancel' },
           { 
@@ -42,7 +42,7 @@ export default function PendingPaymentsScreen() {
             onPress: async () => {
               const response = await approveTransaction(transaction.transaction_id);
               if (response.success) {
-                Alert.alert('✅ Pago Aprobado', 'El pago ha sido procesado exitosamente');
+                Alert.alert('Operaci\u00f3n exitosa', 'El pago ha sido procesado exitosamente');
                 loadPendingTransactions(); // Recargar lista
               }
             }
@@ -50,7 +50,7 @@ export default function PendingPaymentsScreen() {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo aprobar el pago');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo aprobar el pago');
     }
   };
 
@@ -58,7 +58,7 @@ export default function PendingPaymentsScreen() {
     try {
       Alert.alert(
         'Rechazar Pago',
-        `¿Rechazar pago de $${transaction.total} de ${transaction.vendor_name}?`,
+        `Â¿Rechazar pago de $${transaction.total} de ${transaction.vendor_name}?`,
         [
           { text: 'Cancelar', style: 'cancel' },
           { 
@@ -67,7 +67,7 @@ export default function PendingPaymentsScreen() {
             onPress: async () => {
               const response = await rejectTransaction(transaction.transaction_id);
               if (response.success) {
-                Alert.alert('❌ Pago Rechazado', 'El pago ha sido rechazado');
+                Alert.alert('Atenci\u00f3n', 'El pago ha sido rechazado');
                 loadPendingTransactions(); // Recargar lista
               }
             }
@@ -75,7 +75,7 @@ export default function PendingPaymentsScreen() {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo rechazar el pago');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo rechazar el pago');
     }
   };
 
@@ -111,14 +111,14 @@ export default function PendingPaymentsScreen() {
                 style={styles.approveButton}
                 onPress={() => handleApprove(transaction)}
               >
-                <Text style={styles.approveText}>✅ Aprobar</Text>
+                <Text style={styles.approveText}>âœ… Aprobar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 style={styles.rejectButton}
                 onPress={() => handleReject(transaction)}
               >
-                <Text style={styles.rejectText}>❌ Rechazar</Text>
+                <Text style={styles.rejectText}>âŒ Rechazar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -213,3 +213,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
