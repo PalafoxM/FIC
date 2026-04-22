@@ -217,27 +217,27 @@ export default function ProfileScreen() {
             </View>
 
             <TouchableOpacity
-              style={styles.qrButton}
+              style={[styles.profileActionButton, styles.profileActionButtonPrimary]}
               onPress={handleGenerateQr}
               disabled={loadingQr}
             >
-              <Text style={styles.qrButtonText}>
+              <Text style={styles.profileActionButtonText}>
                 {loadingQr ? 'Consultando QR vigente...' : 'Generar codigo QR'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.notificationsButton}
+              style={[styles.profileActionButton, styles.profileActionButtonSecondary]}
               onPress={() => router.push('/alerts')}
             >
-              <Text style={styles.notificationsButtonText}>Notificaciones</Text>
+              <Text style={styles.profileActionButtonText}>Notificaciones</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.consumptionButton}
+              style={[styles.profileActionButton, styles.profileActionButtonTertiary]}
               onPress={() => router.push('/consumption')}
             >
-              <Text style={styles.consumptionButtonText}>Consumo</Text>
+              <Text style={styles.profileActionButtonText}>Consumo</Text>
             </TouchableOpacity>
           </>
         )}
@@ -406,41 +406,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F4D03F',
   },
-  qrButton: {
+  profileActionButton: {
     width: '100%',
     marginTop: 12,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#4A0B17',
     alignItems: 'center',
   },
-  qrButtonText: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  notificationsButton: {
-    width: '100%',
-    marginTop: 12,
-    paddingVertical: 14,
-    borderRadius: 10,
+  profileActionButtonPrimary: {
     backgroundColor: '#4A0B17',
-    alignItems: 'center',
   },
-  notificationsButtonText: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '700',
+  profileActionButtonSecondary: {
+    backgroundColor: '#6A2030',
   },
-  consumptionButton: {
-    width: '100%',
-    marginTop: 12,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#4A0B17',
-    alignItems: 'center',
+  profileActionButtonTertiary: {
+    backgroundColor: '#8D3C4B',
   },
-  consumptionButtonText: {
+  profileActionButtonText: {
     color: 'white',
     fontSize: 15,
     fontWeight: '700',
