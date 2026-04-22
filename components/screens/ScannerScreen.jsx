@@ -6,6 +6,51 @@ import AccessDenied from '../../components/AccessDenied';
 import { hasPermission } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 
+const parseScannedClientQr = (rawData) => {
+  const rawValue = String(rawData ?? '').trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsedJson = JSON.parse(rawValue);
+    if (parsedJson?.type === 'client_payment') {
+      return parsedJson;
+    }
+  } catch (_jsonError) {
+    // Printed QRs can contain only the qr_cliente.codigo_qr value.
+  }
+
+  try {
+    const parsedUrl = new URL(rawValue);
+    const urlQrCode =
+      parsedUrl.searchParams.get('codigo_qr') ??
+      parsedUrl.searchParams.get('qr_code') ??
+      parsedUrl.searchParams.get('clientQrCode');
+
+    if (urlQrCode) {
+      return {
+        type: 'client_payment',
+        codigo_qr: urlQrCode.trim(),
+        qr_code: urlQrCode.trim(),
+        clientQrCode: urlQrCode.trim(),
+        source: 'printed_url',
+      };
+    }
+  } catch (_urlError) {
+    // Not a URL; treat it as the raw QR code below.
+  }
+
+  return {
+    type: 'client_payment',
+    codigo_qr: rawValue,
+    qr_code: rawValue,
+    clientQrCode: rawValue,
+    source: 'printed_code',
+  };
+};
+
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -37,9 +82,9 @@ export default function ScannerScreen() {
     navigatingRef.current = true;
 
     try {
-      const clientData = JSON.parse(data);
+      const clientData = parseScannedClientQr(data);
 
-      if (clientData.type !== 'client_payment') {
+      if (!clientData || clientData.type !== 'client_payment') {
         Alert.alert('QR invalido', 'Este no es un codigo de pago valido');
         setTimeout(() => {
           setScanned(false);
