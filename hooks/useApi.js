@@ -399,8 +399,18 @@ export const useApi = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       authDebug = getTokenDebugSummary(token);
+      const paymentId = Number(
+        reportData?.id_pagos ??
+        reportData?.id_pago ??
+        reportData?.paymentId ??
+        reportData?.idPago ??
+        0
+      );
+
       payload = {
-        id_pagos: Number(reportData?.id_pagos ?? 0),
+        id_pagos: paymentId,
+        id_pago: paymentId,
+        paymentId,
         id_usuario: Number(reportData?.id_usuario ?? 0),
         id_establecimiento:
           reportData?.id_establecimiento !== undefined && reportData?.id_establecimiento !== null
@@ -420,7 +430,10 @@ export const useApi = () => {
       const data = await getReportsResponse(
         '/create',
         'POST',
-        payload,
+        {
+          ...payload,
+          data: payload,
+        },
         'Creando reporte de pago'
       );
 

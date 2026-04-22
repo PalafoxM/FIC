@@ -78,7 +78,7 @@ const parseDateTimeInput = (value) => {
 };
 
 const formatDateTimeValue = (date) =>
-  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:00`;
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
 
 const normalizeDateTimeValue = (value) => {
   if (!value) {
@@ -119,6 +119,7 @@ const TimeWheelColumn = ({ label, values, selectedValue, onSelect }) => (
     <Text style={styles.timeWheelLabel}>{label}</Text>
     <ScrollView
       nestedScrollEnabled
+      keyboardShouldPersistTaps="always"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.timeWheelContent}
       style={styles.timeWheel}
