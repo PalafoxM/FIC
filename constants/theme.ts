@@ -5,16 +5,22 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+export const FranceTheme = {
+  blue: '#263B80',
+  white: '#FFFFFF',
+  red: '#B23A48',
+};
+
+const tintColorLight = FranceTheme.blue;
+const tintColorDark = FranceTheme.white;
 
 export const Colors = {
   light: {
     text: '#11181C',
-    background: '#fff',
+    background: FranceTheme.white,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: FranceTheme.blue,
+    tabIconDefault: FranceTheme.blue,
     tabIconSelected: tintColorLight,
   },
   dark: {

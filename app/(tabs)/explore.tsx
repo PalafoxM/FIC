@@ -309,7 +309,7 @@ export default function ExploreScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A0B17" />
+        <ActivityIndicator size="large" color="#263B80" />
         <Text style={styles.loadingText}>Cargando informacion...</Text>
       </View>
     );
@@ -613,7 +613,7 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 20,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 12,
   },
   metaBlock: {
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#8E6C17',
+    color: '#B23A48',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 4,
@@ -671,13 +671,13 @@ const styles = StyleSheet.create({
   },
   linkButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   linkButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   loadingText: {
     marginTop: 10,
@@ -697,12 +697,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 30,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   emptyTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 8,
   },
   emptyText: {
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   managerActionButton: {
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   managerName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 4,
   },
   managerMeta: {
@@ -754,32 +754,32 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#4A0B17',
+    borderColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     backgroundColor: '#fff',
   },
   secondaryButtonText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontWeight: '700',
   },
   dangerButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#C62828',
+    borderColor: '#B23A48',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     backgroundColor: '#FFF5F5',
   },
   dangerButtonText: {
-    color: '#C62828',
+    color: '#B23A48',
     fontWeight: '700',
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   modalContent: {
     padding: 20,
@@ -814,7 +814,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B4F0F',
+    color: '#B23A48',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -841,8 +841,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   selectOptionActive: {
-    backgroundColor: '#4A0B17',
-    borderColor: '#4A0B17',
+    backgroundColor: '#263B80',
+    borderColor: '#263B80',
   },
   selectOptionText: {
     color: '#222',

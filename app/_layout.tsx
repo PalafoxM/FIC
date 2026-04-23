@@ -55,7 +55,7 @@ function RootLayoutContent() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <ActivityIndicator size="large" color="#263B80" />
         <Text style={{ marginTop: 10, fontSize: 16, color: '#666' }}>Cargando...</Text>
       </View>
     );
@@ -102,6 +102,20 @@ function RootLayoutContent() {
         name="notifications"
         options={{
           title: 'Notificaciones',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="(modals)/historyStore"
+        options={{
+          title: 'Historial de ventas',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="(modals)/historyPay"
+        options={{
+          title: 'Historial de consumo',
           presentation: 'modal',
         }}
       />

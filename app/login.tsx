@@ -125,7 +125,7 @@ export default function LoginScreen() {
               onChangeText={setUser}
               autoCapitalize="none"
               keyboardType="email-address"
-              placeholderTextColor="#666"
+              placeholderTextColor="rgba(255,255,255,0.7)"
             />
 
             <View style={styles.passwordWrapper}>
@@ -137,7 +137,7 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholderTextColor="#666"
+                placeholderTextColor="rgba(255,255,255,0.7)"
               />
               <TouchableOpacity
                 style={styles.passwordToggle}
@@ -146,7 +146,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={22}
-                  color="#4A0B17"
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
             </View>
@@ -157,7 +157,7 @@ export default function LoginScreen() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#F4D03F" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.loginButtonText}>Adentrarse</Text>
               )}
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 45,
     fontWeight: 'bold',
-    color: '#D4AF37',
+    color: '#FFFFFF',
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     marginBottom: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
@@ -200,17 +200,17 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    color: '#E8DAB2',
+    color: '#FFFFFF',
     textAlign: 'center',
     fontFamily: 'serif',
     fontStyle: 'italic',
   },
   formModal: {
-    backgroundColor: 'rgba(88, 15, 28, 0.25)',
+    backgroundColor: 'rgba(34, 49, 92, 0.78)',
     padding: 30,
     borderRadius: 15,
     borderWidth: 2,
-    borderColor: '#D4AF37',
+    borderColor: 'rgba(255,255,255,0.3)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.8,
@@ -219,50 +219,50 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#D4AF37',
+    borderColor: 'rgba(255,255,255,0.4)',
     borderRadius: 8,
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
-    backgroundColor: 'rgba(244, 238, 224, 0.95)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     fontFamily: 'serif',
-    color: '#333',
+    color: '#FFFFFF',
   },
   passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D4AF37',
+    borderColor: 'rgba(255,255,255,0.4)',
     borderRadius: 8,
     marginBottom: 15,
-    backgroundColor: 'rgba(244, 238, 224, 0.95)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   passwordInput: {
     flex: 1,
     padding: 15,
     fontSize: 16,
     fontFamily: 'serif',
-    color: '#333',
+    color: '#FFFFFF',
   },
   passwordToggle: {
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   loginButton: {
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#B23A48',
     padding: 18,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D4AF37',
+    borderColor: '#B23A48',
     alignItems: 'center',
     marginTop: 10,
   },
   disabledButton: {
-    backgroundColor: '#30060e',
-    borderColor: '#7a641d',
+    backgroundColor: '#7A4A56',
+    borderColor: '#7A4A56',
   },
   loginButtonText: {
-    color: '#D4AF37',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
     fontFamily: 'serif',

@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
-import { hasPermission } from '../../constants/roles';
+import { hasPermission, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
@@ -15,8 +15,10 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
   const { user } = useAuth();
+  const router = useRouter();
   const { approvePaymentRequest, rejectPaymentRequest, getTransactionStatus } = useApi();
   const transactionStatusRef = useRef(getTransactionStatus);
+  const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   useEffect(() => {
     transactionStatusRef.current = getTransactionStatus;
@@ -226,20 +228,20 @@ export default function NotificationsScreen() {
     if (status === 'approved') {
       return {
         name: 'checkmark-circle',
-        color: '#1B8A3A',
+        color: '#263B80',
       };
     }
 
     if (status === 'rejected') {
       return {
         name: 'close-circle',
-        color: '#C62828',
+        color: '#B23A48',
       };
     }
 
     return {
       name: 'alert-circle',
-      color: '#D99000',
+      color: '#B23A48',
     };
   };
 
@@ -250,11 +252,17 @@ export default function NotificationsScreen() {
         <RefreshControl
           refreshing={loading}
           onRefresh={loadNotifications}
-          colors={['#4A0B17']}
-          tintColor="#4A0B17"
+          colors={['#263B80']}
+          tintColor="#263B80"
         />
       }
     >
+      {showBackButton ? (
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
+          <Text style={styles.backButtonText}>Regresar</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <Text style={styles.title}>Notificaciones</Text>
 
       <TouchableOpacity style={styles.refreshButton} onPress={loadNotifications}>
@@ -312,7 +320,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     padding: 20,
   },
   title: {
@@ -320,16 +328,32 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
+  backButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#263B80',
+    borderRadius: 8,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  backButtonText: {
+    color: '#263B80',
+    fontWeight: '700',
+  },
   refreshButton: {
     alignSelf: 'flex-end',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#263B80',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
     marginBottom: 12,
   },
   refreshButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontWeight: '600',
   },
   empty: {
@@ -341,7 +365,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   notificationCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     padding: 15,
     paddingLeft: 22,
     borderRadius: 10,
@@ -377,14 +401,16 @@ const styles = StyleSheet.create({
   },
   loadMoreButton: {
     alignItems: 'center',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#263B80',
     borderRadius: 10,
     marginTop: 6,
     marginBottom: 24,
     paddingVertical: 12,
   },
   loadMoreButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontSize: 15,
     fontWeight: '600',
   },

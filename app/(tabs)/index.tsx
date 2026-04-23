@@ -991,8 +991,8 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshingHome}
             onRefresh={refreshHomeData}
-            colors={['#4A0B17']}
-            tintColor="#4A0B17"
+            colors={['#263B80']}
+            tintColor="#263B80"
           />
         }
       >
@@ -1382,7 +1382,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 20,
@@ -1395,7 +1395,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8E6C17',
+    color: '#B23A48',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 8,
@@ -1417,7 +1417,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 12,
   },
   sectionDescription: {
@@ -1440,7 +1440,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 6,
   },
   cardDescription: {
@@ -1451,7 +1451,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     marginTop: 10,
     fontSize: 12,
-    color: '#8E6C17',
+    color: '#B23A48',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -1473,7 +1473,7 @@ const styles = StyleSheet.create({
   establishmentsLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B4F0F',
+    color: '#B23A48',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 12,
@@ -1485,26 +1485,26 @@ const styles = StyleSheet.create({
   },
   establishmentChip: {
     borderWidth: 1,
-    borderColor: '#D8C48A',
+    borderColor: '#263B80',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#FFF9EA',
+    backgroundColor: '#FFFFFF',
   },
   establishmentChipActive: {
-    backgroundColor: '#4A0B17',
-    borderColor: '#4A0B17',
+    backgroundColor: '#263B80',
+    borderColor: '#263B80',
   },
   establishmentChipText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontSize: 13,
     fontWeight: '600',
   },
   establishmentChipTextActive: {
-    color: '#F6E7B0',
+    color: '#FFFFFF',
   },
   balanceCard: {
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 14,
     padding: 18,
     marginBottom: 12,
@@ -1512,7 +1512,7 @@ const styles = StyleSheet.create({
   balanceLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#E8DAB2',
+    color: '#FFFFFF',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -1520,31 +1520,31 @@ const styles = StyleSheet.create({
   balanceValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F4D03F',
+    color: '#FFFFFF',
   },
   filterRow: {
     gap: 8,
     paddingBottom: 6,
   },
   filterChip: {
-    backgroundColor: '#FFF9EA',
+    backgroundColor: '#FFFFFF',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D8C48A',
+    borderColor: '#263B80',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   filterChipActive: {
-    backgroundColor: '#4A0B17',
-    borderColor: '#4A0B17',
+    backgroundColor: '#263B80',
+    borderColor: '#263B80',
   },
   filterChipText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontSize: 13,
     fontWeight: '600',
   },
   filterChipTextActive: {
-    color: '#F6E7B0',
+    color: '#FFFFFF',
   },
   userCard: {
     backgroundColor: 'white',
@@ -1574,12 +1574,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   userCardId: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#8E6C17',
+    color: '#B23A48',
     textTransform: 'uppercase',
   },
   userCardMeta: {
@@ -1595,7 +1595,7 @@ const styles = StyleSheet.create({
   },
   depositButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1F8A4D',
+    backgroundColor: '#263B80',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1608,7 +1608,7 @@ const styles = StyleSheet.create({
   },
   qrActionButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1629,13 +1629,13 @@ const styles = StyleSheet.create({
   },
   reportStatusButton: {
     flex: 1,
-    backgroundColor: '#A66A00',
+    backgroundColor: '#B23A48',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
   },
   reportStatusButtonSuccess: {
-    backgroundColor: '#1F8A4D',
+    backgroundColor: '#263B80',
   },
   reportStatusButtonText: {
     color: '#fff',
@@ -1646,12 +1646,12 @@ const styles = StyleSheet.create({
   loadMoreButton: {
     marginTop: 12,
     alignItems: 'center',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     paddingVertical: 12,
   },
   loadMoreButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -1667,7 +1667,7 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   modalContent: {
     padding: 20,
@@ -1685,7 +1685,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B4F0F',
+    color: '#B23A48',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1704,7 +1704,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E1D6B8',
+    borderColor: '#263B80',
     padding: 14,
     marginBottom: 14,
   },
@@ -1715,7 +1715,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 16,
     fontWeight: '700',
-    color: '#4A0B17',
+    color: '#263B80',
   },
   calendarControls: {
     flexDirection: 'row',
@@ -1725,18 +1725,18 @@ const styles = StyleSheet.create({
   calendarNavButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#4A0B17',
+    borderColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
   },
   calendarNavText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontWeight: '700',
   },
   calendarTodayButton: {
     flex: 1,
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
@@ -1753,28 +1753,28 @@ const styles = StyleSheet.create({
     minWidth: 76,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D8C48A',
-    backgroundColor: '#FFF9EA',
+    borderColor: '#263B80',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 10,
     alignItems: 'center',
   },
   calendarDayChipActive: {
-    backgroundColor: '#4A0B17',
-    borderColor: '#4A0B17',
+    backgroundColor: '#263B80',
+    borderColor: '#263B80',
   },
   calendarDayText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'capitalize',
   },
   calendarDayTextActive: {
-    color: '#F6E7B0',
+    color: '#FFFFFF',
   },
   chronometerPanel: {
     alignItems: 'center',
-    backgroundColor: '#2A0710',
+    backgroundColor: '#263B80',
     borderRadius: 18,
     marginTop: 4,
     marginBottom: 12,
@@ -1782,14 +1782,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   chronometerLabel: {
-    color: '#E8DAB2',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   chronometerValue: {
-    color: '#F4D03F',
+    color: '#FFFFFF',
     fontSize: 36,
     fontWeight: '900',
     letterSpacing: 2,
@@ -1819,9 +1819,9 @@ const styles = StyleSheet.create({
   },
   timeWheel: {
     maxHeight: 150,
-    backgroundColor: '#FFF9EA',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E1D6B8',
+    borderColor: '#263B80',
     borderRadius: 16,
   },
   timeWheelContent: {
@@ -1835,16 +1835,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   timeWheelItemActive: {
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
   },
   timeWheelItemText: {
-    color: '#6C4C11',
+    color: '#263B80',
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: 1,
   },
   timeWheelItemTextActive: {
-    color: '#F6E7B0',
+    color: '#FFFFFF',
   },
   timeWheelSelectionHint: {
     textAlign: 'center',
@@ -1857,19 +1857,19 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#4A0B17',
+    borderColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     backgroundColor: '#fff',
   },
   secondaryButtonText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontWeight: '700',
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',

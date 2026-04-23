@@ -90,7 +90,7 @@ export default function PaymentConfirmationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     padding: 20,
   },
   successIcon: {
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     fontSize: 14,
-    color: '#2C3E50',
+    color: '#263B80',
     fontWeight: '600',
     textAlign: 'right',
     flex: 1,
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#263B80',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -180,10 +180,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: '#263B80',
   },
   secondaryButtonText: {
-    color: '#007AFF',
+    color: '#263B80',
     fontSize: 16,
     fontWeight: '600',
   },

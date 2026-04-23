@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   camera: {
     flex: 1,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     position: 'absolute',
     bottom: 40,
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#B23A48',
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#263B80',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',

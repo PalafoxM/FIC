@@ -87,7 +87,7 @@ const ClientQRGenerator = () => {
                   <QRCode
                     value={JSON.stringify(qrData)}
                     size={220}
-                    color="#2C3E50"
+                    color="#263B80"
                     backgroundColor="#FFFFFF"
                   />
                 </View>
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#2C3E50',
+    color: '#263B80',
   },
   userInfo: {
     alignItems: 'center',
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#263B80',
     marginBottom: 5,
   },
   userEmail: {
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   closeButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#B23A48',
     padding: 15,
     borderRadius: 8,
     width: '100%',

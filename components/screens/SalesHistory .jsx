@@ -145,7 +145,7 @@ const SalesHistory = () => {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#263B80" />
         <Text style={styles.loadingText}>Cargando ventas...</Text>
       </View>
     );
@@ -181,7 +181,7 @@ const SalesHistory = () => {
           String(item.id_pagos ?? item.id_detalle_movimiento ?? item.id ?? item._id ?? `sale-${index}`)
         }
         contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#263B80']} />}
         ListFooterComponent={
           canShowMore ? (
             <TouchableOpacity
@@ -204,7 +204,7 @@ const SalesHistory = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { backgroundColor: 'white', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
   subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
@@ -235,19 +235,19 @@ const styles = StyleSheet.create({
   },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   saleId: { fontSize: 16, fontWeight: '600', color: '#333' },
-  saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
+  saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#263B80' },
   saleDetails: { marginBottom: 8 },
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
   saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
   saleDate: { fontSize: 12, color: '#666' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
   loadingText: { marginTop: 10, fontSize: 16, color: '#666' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#666', textAlign: 'center' },
   emptySubtext: { fontSize: 14, color: '#999', textAlign: 'center', marginTop: 5 },
   loadMoreButton: {
     alignItems: 'center',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginHorizontal: 10,
     marginTop: 8,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loadMoreButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontSize: 15,
     fontWeight: '600',
   },

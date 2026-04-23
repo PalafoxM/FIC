@@ -104,7 +104,7 @@ export default function EnterAmountScreen() {
   const showPaymentApproved = (transaction) => {
     Alert.alert(
       'Operaci\u00f3n exitosa',
-      `El cliente aprobÃ³ el pago de $${transaction.total}.`,
+      `El cliente aprobo el pago de $${transaction.total}.`,
       [
         {
           text: 'Ir al historial',
@@ -117,7 +117,7 @@ export default function EnterAmountScreen() {
   const showPaymentRejected = (transaction) => {
     Alert.alert(
       'Atenci\u00f3n',
-      `El cliente rechazÃ³ el pago de $${transaction.total}.`,
+      `El cliente rechazo el pago de $${transaction.total}.`,
       [
         {
           text: 'Intentar nuevamente',
@@ -138,7 +138,7 @@ export default function EnterAmountScreen() {
   const showPaymentExpired = () => {
     Alert.alert(
       'Atenci\u00f3n',
-      'La solicitud de pago expirÃ³.',
+      'La solicitud de pago expiro.',
       [
         {
           text: 'Intentar nuevamente',
@@ -191,7 +191,7 @@ export default function EnterAmountScreen() {
 
   const requestPaymentApproval = async () => {
     if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      Alert.alert('Atenci\u00f3n', 'Por favor ingresa un monto vÃ¡lido');
+    Alert.alert('Atenci\u00f3n', 'Por favor ingresa un monto valido');
       return;
     }
 
@@ -252,7 +252,7 @@ export default function EnterAmountScreen() {
         startPolling(transaction.id);
         Alert.alert(
           'Operaci\u00f3n exitosa',
-          `Se enviÃ³ una solicitud de pago de $${transaction.total} a ${clientName}.`,
+      `Se envio una solicitud de pago de $${transaction.total} a ${clientName}.`,
           [
             {
               text: 'Ir al historial',
@@ -264,7 +264,7 @@ export default function EnterAmountScreen() {
         setIsProcessing(false);
         Alert.alert(
           'Operaci\u00f3n exitosa',
-          response.message || `Se registrÃ³ el pago de $${transaction.total} para ${clientName}.`,
+      response.message || `Se registro el pago de $${transaction.total} para ${clientName}.`,
           [
             {
               text: 'Ir al historial',
@@ -295,7 +295,7 @@ export default function EnterAmountScreen() {
         {currentTransaction && (
           <View style={styles.transactionInfo}>
             <Text style={styles.transactionText}>
-              TransacciÃ³n: {currentTransaction.transaction_id}
+                Transaccion: {currentTransaction.transaction_id}
             </Text>
             <Text style={styles.transactionText}>
               Estado: {getStatusText(transactionStatus)}
@@ -352,7 +352,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Montos rÃ¡pidos</Text>
+            <Text style={styles.quickAmountsTitle}>Montos rapidos</Text>
         <View style={styles.quickButtons}>
           {quickAmounts.map((quickAmount) => (
             <TouchableOpacity
@@ -380,7 +380,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-        <Text style={styles.quickAmountsTitle}>Propina rÃ¡pida</Text>
+            <Text style={styles.quickAmountsTitle}>Propina rapida</Text>
         <View style={styles.quickButtons}>
           {quickTips.map((tipPercent) => (
             <TouchableOpacity
@@ -397,7 +397,7 @@ export default function EnterAmountScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>DescripciÃ³n</Text>
+          <Text style={styles.sectionTitle}>Descripcion</Text>
         <TextInput
           style={styles.descriptionInput}
           placeholder="Ej: Producto X, Servicio Y..."
@@ -482,7 +482,7 @@ export default function EnterAmountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     padding: 20,
   },
   header: {
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   clientId: {
     fontSize: 12,
@@ -545,16 +545,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   methodButtonActive: {
-    backgroundColor: '#4A0B17',
-    borderColor: '#4A0B17',
+    backgroundColor: '#263B80',
+    borderColor: '#263B80',
   },
   methodButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   methodButtonTextActive: {
-    color: '#F6E7B0',
+    color: '#FFFFFF',
   },
   methodHelpText: {
     marginTop: 12,
@@ -569,34 +569,34 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 18,
     letterSpacing: 6,
-    color: '#2C3E50',
+    color: '#263B80',
     backgroundColor: '#fff',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 15,
-    color: '#2C3E50',
+    color: '#263B80',
   },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
+    borderBottomColor: '#263B80',
     marginBottom: 20,
     paddingVertical: 10,
   },
   currencySymbol: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#263B80',
     marginRight: 10,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   quickAmountsTitle: {
     fontSize: 14,
@@ -660,12 +660,12 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   totalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#263B80',
   },
   totalValue: {
     fontSize: 20,
@@ -703,10 +703,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FF3B30',
+    borderColor: '#B23A48',
   },
   cancelButtonText: {
-    color: '#FF3B30',
+    color: '#B23A48',
     fontSize: 16,
     fontWeight: '600',
   },

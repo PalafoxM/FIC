@@ -165,7 +165,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     justifyContent: 'center',
   },
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   typeButtonActive: {
-    borderColor: '#007AFF',
+    borderColor: '#263B80',
     backgroundColor: '#E3F2FD',
   },
   typeButtonText: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   typeButtonTextActive: {
-    color: '#007AFF',
+    color: '#263B80',
   },
   registerButton: {
     backgroundColor: '#27AE60',
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   },
   loginBold: {
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#263B80',
   },
 });
 

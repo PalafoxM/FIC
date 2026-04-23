@@ -169,8 +169,8 @@ export default function ProfileScreen() {
         <RefreshControl
           refreshing={refreshingProfile}
           onRefresh={refreshProfile}
-          colors={['#4A0B17']}
-          tintColor="#4A0B17"
+          colors={['#263B80']}
+          tintColor="#263B80"
         />
       }
     >
@@ -289,7 +289,7 @@ export default function ProfileScreen() {
                   <QRCode
                     value={JSON.stringify(qrPayload)}
                     size={220}
-                    color="#2C3E50"
+                    color="#263B80"
                     backgroundColor="#FFFFFF"
                   />
                 </View>
@@ -309,7 +309,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 20,
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -353,14 +353,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   badge: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#B23A48',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 18,
   },
   badgeText: {
-    color: '#4A0B17',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     width: '100%',
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
     borderRadius: 14,
     padding: 18,
     marginTop: 16,
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   balanceLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#E8DAB2',
+    color: '#FFFFFF',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   balanceValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F4D03F',
+    color: '#FFFFFF',
   },
   profileActionButton: {
     width: '100%',
@@ -414,13 +414,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileActionButtonPrimary: {
-    backgroundColor: '#4A0B17',
+    backgroundColor: '#263B80',
   },
   profileActionButtonSecondary: {
-    backgroundColor: '#6A2030',
+    backgroundColor: '#3C46C7',
   },
   profileActionButtonTertiary: {
-    backgroundColor: '#8D3C4B',
+    backgroundColor: '#7A80E8',
   },
   profileActionButtonText: {
     color: 'white',
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   establishmentActive: {
     marginTop: 4,
     fontSize: 12,
-    color: '#8E6C17',
+    color: '#B23A48',
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -445,11 +445,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#4A0B17',
+    borderColor: '#263B80',
     alignItems: 'center',
   },
   reportButtonText: {
-    color: '#4A0B17',
+    color: '#263B80',
     fontSize: 15,
     fontWeight: '700',
   },
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#2C3E50',
+    color: '#263B80',
   },
   qrWrapper: {
     padding: 15,
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   closeButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#B23A48',
     padding: 15,
     borderRadius: 8,
     width: '100%',

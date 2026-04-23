@@ -508,7 +508,7 @@ export function AuthProvider({ children }) {
 
       const shouldRetryTrimmedPassword =
         normalizedPassword !== trimmedPassword &&
-        (data?.respuesta === 'Usuario o contraseÃƒÂ±a incorrectos' || data?.error === true);
+          (data?.respuesta === 'Usuario o contrasena incorrectos' || data?.error === true);
 
       if (shouldRetryTrimmedPassword) {
         console.log('Reintentando login con password trimmed');

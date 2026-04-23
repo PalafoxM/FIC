@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import AccessDenied from '../AccessDenied';
 const PayHistory = () => {
   const { user, getConsumptionPayments } = useAuth();
   const { createPaymentReport } = useApi();
+  const router = useRouter();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,6 +33,7 @@ const PayHistory = () => {
   );
   const canCreateReport = [ROLE_IDS.CLIENT, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
   const isClient = Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
+  const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   const reportOptions = [
     'Cobro duplicado',
@@ -282,7 +284,7 @@ const PayHistory = () => {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#263B80" />
         <Text style={styles.loadingText}>Cargando consumos...</Text>
       </View>
     );
@@ -290,6 +292,12 @@ const PayHistory = () => {
 
   return (
     <View style={styles.container}>
+      {showBackButton ? (
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
+          <Text style={styles.backButtonText}>Regresar</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <View style={styles.header}>
         <Text style={styles.title}>Historial de consumo</Text>
         <Text style={styles.subtitle}>
@@ -318,7 +326,7 @@ const PayHistory = () => {
           String(item.id_pagos ?? item.id_detalle_movimiento ?? item.id ?? item._id ?? `pay-${index}`)
         }
         contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#263B80']} />}
         ListFooterComponent={
           canShowMore ? (
             <TouchableOpacity
@@ -387,7 +395,22 @@ const PayHistory = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  backButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#263B80',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginLeft: 15,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  backButtonText: {
+    color: '#263B80',
+    fontWeight: '700',
+  },
   header: { backgroundColor: 'white', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
   subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
@@ -418,7 +441,7 @@ const styles = StyleSheet.create({
   },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   saleId: { fontSize: 16, fontWeight: '600', color: '#333' },
-  saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
+  saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#263B80' },
   saleDetails: { marginBottom: 8 },
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
   saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
@@ -431,7 +454,7 @@ const styles = StyleSheet.create({
   },
   reportButton: {
     width: '100%',
-    backgroundColor: '#C62828',
+    backgroundColor: '#B23A48',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -443,14 +466,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
   loadingText: { marginTop: 10, fontSize: 16, color: '#666' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#666', textAlign: 'center' },
   emptySubtext: { fontSize: 14, color: '#999', textAlign: 'center', marginTop: 5 },
   loadMoreButton: {
     alignItems: 'center',
-    backgroundColor: '#E8F1FB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginHorizontal: 10,
     marginTop: 8,
@@ -458,7 +481,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loadMoreButtonText: {
-    color: '#1C5D99',
+    color: '#263B80',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -485,7 +508,7 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6B4F0F',
+    color: '#B23A48',
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,

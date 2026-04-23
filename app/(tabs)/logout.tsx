@@ -50,7 +50,7 @@ export default function LogoutScreen() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#4A0B17" />
+      <ActivityIndicator size="large" color="#263B80" />
       <Text style={styles.text}>Preparando cierre de sesion...</Text>
     </View>
   );
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     padding: 24,
   },
   text: {
