@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, InteractionManager, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import AccessDenied from '../AccessDenied';
 import { hasPermission, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
+import AccessDenied from '../AccessDenied';
 
 const getStatusText = (status) => {
   const statusMap = {
@@ -333,7 +333,7 @@ export default function EnterAmountScreen() {
         </View>
         <Text style={styles.methodHelpText}>
           {paymentMethod === 'app'
-            ? 'El cliente recibira una solicitud para aceptar o declinar el pago.'
+            ? 'El cliente recibirá una solicitud para aceptar o declinar el pago.'
             : 'Usa esta opcion cuando el cliente no tenga datos, wifi o celular disponible.'}
         </Text>
       </View>
