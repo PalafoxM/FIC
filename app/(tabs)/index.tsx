@@ -250,6 +250,7 @@ export default function HomeScreen() {
     setActiveEstablecimiento,
     getClientAvailableBalance,
     getTable,
+    saveDepositoCredito,
     saveTable,
   } = useAuth();
   const { getPaymentReports, updatePaymentReportStatus } = useApi();
@@ -852,10 +853,29 @@ export default function HomeScreen() {
   };
 
   const handleDepositCredits = async () => {
-    const amountValue = Number.parseFloat(depositAmount);
+    const trimmedAmount = String(depositAmount ?? '').trim();
+    const amountValue = trimmedAmount === '' ? 0 : Number.parseFloat(trimmedAmount);
+    const hasAmount = trimmedAmount !== '' && !Number.isNaN(amountValue) && amountValue > 0;
+    const hasAnyVigencia = Boolean(depositVigenteDesde.trim() || depositVigenteHasta.trim());
+    const hasQrDisponible = Boolean(depositQrRowId || String(depositQrCode ?? '').trim());
 
-    if (!depositTarget?.id_usuario || Number.isNaN(amountValue) || amountValue <= 0) {
+    if (!depositTarget?.id_usuario) {
+      Alert.alert('Atenci\u00f3n', 'Selecciona un usuario valido.');
+      return;
+    }
+
+    if (trimmedAmount !== '' && (Number.isNaN(amountValue) || amountValue < 0)) {
       Alert.alert('Atenci\u00f3n', 'Captura un monto valido para depositar creditos.');
+      return;
+    }
+
+    if (!hasAmount && !hasAnyVigencia) {
+      Alert.alert('Atenci\u00f3n', 'Captura un monto o al menos una vigencia para guardar.');
+      return;
+    }
+
+    if (!hasAmount && hasAnyVigencia && !hasQrDisponible) {
+      Alert.alert('Atenci\u00f3n', 'Genera un QR antes de asignar vigencia.');
       return;
     }
 
@@ -877,85 +897,14 @@ export default function HomeScreen() {
         ? normalizeDateTimeValue(depositVigenteHasta)
         : null;
 
-      const previousBalance = Number(depositTarget?.monto_deposito ?? 0);
-      const nextBalance = previousBalance + amountValue;
-
-      if (depositQrRowId) {
-        await saveTable({
-          data: {
-            vigente_desde: vigenteDesdeSql,
-            vigente_hasta: vigenteHastaSql,
-            usu_act: user?.id_usuario ?? 0,
-          },
-          config: {
-            tabla: 'qr_cliente',
-            editar: true,
-            idEditar: { id_qr_cliente: Number(depositQrRowId) },
-          },
-          bitacora: {
-            script: 'App.home.depositCredits.qr',
-          },
-        });
-      }
-
-      const paymentResponse = await saveTable({
-        data: {
-          id_tipo_pago: 1,
-          id_usuario: Number(depositTarget.id_usuario),
-          id_establecimiento: depositTarget.id_establecimiento ? Number(depositTarget.id_establecimiento) : null,
-          monto: amountValue.toFixed(2),
-          propina: '0.00',
-          total: amountValue.toFixed(2),
-          visible: 0,
-          usu_reg: user?.id_usuario ?? 0,
-          usu_act: user?.id_usuario ?? 0,
-        },
-        config: {
-          tabla: 'pagos',
-          editar: false,
-        },
-        bitacora: {
-          script: 'App.home.depositCredits.payment',
-        },
-      });
-
-      await saveTable({
-        data: {
-          id_pagos: Number(paymentResponse?.idRegistro ?? 0) || null,
-          id_usuario: Number(depositTarget.id_usuario),
-          id_establecimiento: depositTarget.id_establecimiento ? Number(depositTarget.id_establecimiento) : null,
-          tipo_movimiento: 'abono',
-          tipo_origen: 'deposito_credito',
-          creditos: amountValue.toFixed(2),
-          saldo_anterior: previousBalance.toFixed(2),
-          saldo_nuevo: nextBalance.toFixed(2),
-          descripcion: 'Deposito de creditos desde la app TI',
-          visible: 1,
-          usu_reg: user?.id_usuario ?? 0,
-          usu_act: user?.id_usuario ?? 0,
-        },
-        config: {
-          tabla: 'detalle_movimiento',
-          editar: false,
-        },
-        bitacora: {
-          script: 'App.home.depositCredits.movement',
-        },
-      });
-
-      await saveTable({
-        data: {
-          monto_deposito: nextBalance.toFixed(2),
-          usu_act: user?.id_usuario ?? 0,
-        },
-        config: {
-          tabla: 'usuario',
-          editar: true,
-          idEditar: { id_usuario: Number(depositTarget.id_usuario) },
-        },
-        bitacora: {
-          script: 'App.home.depositCredits.userBalance',
-        },
+      const response = await saveDepositoCredito({
+        id_usuario: Number(depositTarget.id_usuario),
+        monto_deposito:
+          trimmedAmount === ''
+            ? ''
+            : amountValue.toFixed(2),
+        vigente_desde: vigenteDesdeSql,
+        vigente_hasta: vigenteHastaSql,
       });
 
       closeDepositModal();
@@ -963,7 +912,10 @@ export default function HomeScreen() {
         loadUsersView(),
         loadPaymentsView(),
       ]);
-      Alert.alert('Creditos depositados', 'El deposito fue registrado correctamente.');
+      Alert.alert(
+        response?.data?.solo_vigencia ? 'Vigencia actualizada' : 'Creditos depositados',
+        response?.respuesta || response?.message || 'El deposito fue registrado correctamente.'
+      );
     } catch (error) {
       console.error('Error depositing credits:', error);
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo registrar el deposito.');

@@ -4,6 +4,9 @@ import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 const AUTH_BASE_URL = API_BASE_URL;
+const PHP_BASE_URL = API_BASE_URL.endsWith('/api')
+  ? `${API_BASE_URL.slice(0, -4)}/index.php`
+  : `${API_BASE_URL}/index.php`;
 const LEGACY_AUTH_BASE_URL = API_BASE_URL.endsWith('/api')
   ? `${API_BASE_URL.slice(0, -4)}/index.php/Login`
   : `${API_BASE_URL}/index.php/Login`;
@@ -292,6 +295,14 @@ export function AuthProvider({ children }) {
       rawLabel: 'saveTabla',
     }), [getApiJsonResponse]);
 
+  const getDepositoCreditoResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/Inicio/guardarDepositoCreditoUsuarioFic`,
+      token,
+      body: payload,
+      rawLabel: 'guardarDepositoCreditoUsuarioFic',
+    }), [getApiJsonResponse]);
+
   const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
     if (!baseUser?.id_usuario || !token) {
       return baseUser;
@@ -477,6 +488,36 @@ export function AuthProvider({ children }) {
 
     return responseData;
   }, [getSaveTableResponse, user?.id_usuario]);
+
+  const saveDepositoCredito = useCallback(async ({
+    id_usuario,
+    monto_deposito,
+    vigente_desde,
+    vigente_hasta,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(id_usuario ?? 0),
+      monto_deposito:
+        monto_deposito !== undefined && monto_deposito !== null
+          ? String(monto_deposito)
+          : '',
+      vigente_desde: vigente_desde ?? '',
+      vigente_hasta: vigente_hasta ?? '',
+    };
+
+    const { response, data } = await getDepositoCreditoResponse(payload, token);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo guardar el deposito.');
+    }
+
+    return data;
+  }, [getDepositoCreditoResponse]);
 
   const login = useCallback(async (username, password) => {
     try {
@@ -853,6 +894,7 @@ export function AuthProvider({ children }) {
       logout,
       getTable,
       saveTable,
+      saveDepositoCredito,
       setActiveEstablecimiento,
       getSalesByProvider,
       getSalesByClient,
@@ -869,6 +911,7 @@ export function AuthProvider({ children }) {
       getSalesByProvider,
       getTable,
       getClientQrData,
+      saveDepositoCredito,
       saveTable,
       loading,
       login,
