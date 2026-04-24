@@ -140,7 +140,7 @@ export default function NotificationsScreen() {
 
   const navigateClientHome = useCallback(() => {
     DeviceEventEmitter.emit('closeClientQrModal');
-    router.replace('/(tabs)/index');
+    router.replace('/(tabs)');
   }, [router]);
 
   const approvePayment = useCallback(async (transactionId) => {
@@ -148,6 +148,7 @@ export default function NotificationsScreen() {
       const data = await approvePaymentRequest(transactionId);
 
       if (data?.success) {
+        DeviceEventEmitter.emit('refreshClientBalanceNow');
         Alert.alert(
           'Operaci\u00f3n exitosa',
           'El pago ha sido aprobado exitosamente. Volveras a Inicio para ver tu saldo actualizado.'

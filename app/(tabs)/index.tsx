@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  DeviceEventEmitter,
   Modal,
   RefreshControl,
   ScrollView,
@@ -591,6 +592,26 @@ export default function HomeScreen() {
       setReportsEndpointUnavailable(false);
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('refreshClientBalanceNow', async () => {
+      if (!isClient || !user?.id_usuario) {
+        return;
+      }
+
+      try {
+        const balance = await getClientAvailableBalanceRef.current(user.id_usuario);
+        setClientBalance(balance);
+        lastClientBalanceRefreshRef.current = Date.now();
+      } catch (balanceError) {
+        console.error('Error refreshing client balance from event:', balanceError);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isClient, user?.id_usuario]);
 
   useFocusEffect(
     useCallback(() => {

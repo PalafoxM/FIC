@@ -127,8 +127,8 @@ export default function EnterAmountScreen() {
   const showPaymentApproved = (transaction) => {
     scheduleRedirectAfterPayment(2000);
     Alert.alert(
-      'Operaci\u00f3n exitosa',
-      `El cliente aprobo el pago de $${transaction.total}. Redirigiendo en breve.`,
+      'Operación exitosa',
+      `El cliente aprobó el pago de $${transaction.total}. Redirigiendo en breve.`,
       [
         {
           text: 'OK',
@@ -140,8 +140,8 @@ export default function EnterAmountScreen() {
 
   const showPaymentRejected = (transaction) => {
     Alert.alert(
-      'Atenci\u00f3n',
-      `El cliente rechazo el pago de $${transaction.total}.`,
+      'Atención',
+      `El cliente rechazó el pago de $${transaction.total}.`,
       [
         {
           text: 'Intentar nuevamente',
@@ -161,8 +161,8 @@ export default function EnterAmountScreen() {
 
   const showPaymentExpired = () => {
     Alert.alert(
-      'Atenci\u00f3n',
-      'La solicitud de pago expiro.',
+      'Atención',
+      'La solicitud de pago expiró.',
       [
         {
           text: 'Intentar nuevamente',
@@ -215,17 +215,17 @@ export default function EnterAmountScreen() {
 
   const requestPaymentApproval = async () => {
     if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-    Alert.alert('Atenci\u00f3n', 'Por favor ingresa un monto valido');
+    Alert.alert('Atención', 'Por favor ingresa un monto valido');
       return;
     }
 
     if (!clientId && !qrCode) {
-      Alert.alert('Atenci\u00f3n', 'No se pudo identificar al cliente');
+      Alert.alert('Atención', 'No se pudo identificar al cliente');
       return;
     }
 
     if (paymentMethod === 'nip' && String(nip || '').trim().length < 4) {
-      Alert.alert('Atenci\u00f3n', 'Captura un NIP valido para continuar con el cobro sin app.');
+      Alert.alert('Atención', 'Captura un NIP válido para continuar con el cobro sin app.');
       return;
     }
 
@@ -265,7 +265,7 @@ export default function EnterAmountScreen() {
         : await createTransaction(transactionData);
 
       if (!response.success) {
-        throw new Error(response.message || 'Error creando transaccion');
+        throw new Error(response.message || 'Error creando transacción');
       }
 
       const transaction = response.data;
@@ -276,8 +276,8 @@ export default function EnterAmountScreen() {
         startPolling(transaction.id);
         scheduleRedirectAfterPayment(5000);
         Alert.alert(
-          'Operaci\u00f3n exitosa',
-          `Se envio una solicitud de pago de $${transaction.total} a ${clientName}. Redirigiendo en breve.`,
+          'Operación exitosa',
+          `Se envió una solicitud de pago de $${transaction.total} a ${clientName}. Redirigiendo en breve.`,
           [
             {
               text: 'OK',
@@ -289,8 +289,8 @@ export default function EnterAmountScreen() {
         setIsProcessing(false);
         scheduleRedirectAfterPayment(2000);
         Alert.alert(
-          'Operaci\u00f3n exitosa',
-          `${response.message || `Se registro el pago de $${transaction.total} para ${clientName}.`} Redirigiendo en breve.`,
+          'Operación exitosa',
+          `${response.message || `Se registró el pago de $${transaction.total} para ${clientName}.`} Redirigiendo en breve.`,
           [
             {
               text: 'OK',
@@ -302,7 +302,7 @@ export default function EnterAmountScreen() {
       }
     } catch (error) {
       console.error('Error enviando solicitud REAL:', error);
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo enviar la solicitud de pago');
+      Alert.alert('Atención', error.message || 'No se pudo enviar la solicitud de pago');
       setIsProcessing(false);
     }
   };
@@ -360,7 +360,7 @@ export default function EnterAmountScreen() {
         <Text style={styles.methodHelpText}>
           {paymentMethod === 'app'
             ? 'El cliente recibirá una solicitud para aceptar o declinar el pago.'
-            : 'Usa esta opcion cuando el cliente no tenga datos, wifi o celular disponible.'}
+            : 'Usa esta opción cuando el cliente no tenga datos, wifi o celular disponible.'}
         </Text>
       </View>
 
@@ -406,7 +406,7 @@ export default function EnterAmountScreen() {
           />
         </View>
 
-            <Text style={styles.quickAmountsTitle}>Propina rapida</Text>
+            <Text style={styles.quickAmountsTitle}>Propina rápida</Text>
         <View style={styles.quickButtons}>
           {quickTips.map((tipPercent) => (
             <TouchableOpacity
@@ -423,7 +423,7 @@ export default function EnterAmountScreen() {
       </View>
 
       <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Descripcion</Text>
+          <Text style={styles.sectionTitle}>Descripción</Text>
         <TextInput
           style={styles.descriptionInput}
           placeholder="Ej: Producto X, Servicio Y..."
@@ -476,15 +476,15 @@ export default function EnterAmountScreen() {
                 ? 'Enviando solicitud...'
                 : 'Registrando pago...'
               : currentTransaction
-                ? 'Operaci\u00f3n exitosa'
+                ? 'Operación exitosa'
                 : paymentMethod === 'app'
                   ? `Solicitar pago $${total.toFixed(2)}`
                   : `Registrar pago $${total.toFixed(2)}`}
           </Text>
           <Text style={styles.processButtonSubtext}>
             {paymentMethod === 'app'
-              ? '(El cliente debera aceptar o declinar el cobro)'
-              : '(El proveedor registrara el pago usando el NIP del cliente)'}
+              ? '(El cliente deberá aceptar o declinar el cobro)'
+              : '(El proveedor registrará el pago usando el NIP del cliente)'}
           </Text>
         </TouchableOpacity>
 

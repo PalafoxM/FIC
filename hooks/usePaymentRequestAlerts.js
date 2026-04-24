@@ -57,13 +57,14 @@ export const usePaymentRequestAlerts = () => {
               try {
                 const response = await approvePaymentRequest(notificationData.transactionId);
                 if (response?.success) {
+                  DeviceEventEmitter.emit('refreshClientBalanceNow');
                   Alert.alert(
                     'Operaci\u00f3n exitosa',
                     'El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.'
                   );
                   setTimeout(() => {
                     DeviceEventEmitter.emit('closeClientQrModal');
-                    router.replace('/(tabs)/index');
+                    router.replace('/(tabs)');
                   }, 1200);
                   return;
                 }
@@ -90,42 +91,6 @@ export const usePaymentRequestAlerts = () => {
               } catch (error) {
                 Alert.alert('Atenci\u00f3n', error.message || 'No se pudo rechazar el pago.');
               }
-            },
-          },
-        ],
-        {
-          cancelable: false,
-          onDismiss: () => {
-            alertOpenRef.current = false;
-          },
-        }
-      );
-    };
-
-    const showPaymentRequestAlert = (notificationData) => {
-      alertOpenRef.current = true;
-
-      const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
-      const vendorName = notificationData?.vendorName || 'Proveedor';
-
-      Alert.alert(
-        'Pago requerido',
-        `Tienes una solicitud por $${amount.toFixed(2)} de ${vendorName}.`,
-        [
-          {
-            text: 'Despues',
-            style: 'cancel',
-            onPress: () => {
-              alertOpenRef.current = false;
-            },
-          },
-          {
-            text: 'Ver solicitud',
-            onPress: () => {
-              alertOpenRef.current = false;
-              setTimeout(() => {
-                showPaymentDecisionAlert(notificationData);
-              }, 150);
             },
           },
         ],
@@ -195,7 +160,7 @@ export const usePaymentRequestAlerts = () => {
               continue;
             }
 
-            showPaymentRequestAlert(notificationData);
+            showPaymentDecisionAlert(notificationData);
             break;
           } catch {
             if (notificationId) {
