@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, DeviceEventEmitter, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
 import { hasPermission, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
@@ -18,6 +18,7 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { approvePaymentRequest, rejectPaymentRequest, getTransactionStatus } = useApi();
   const transactionStatusRef = useRef(getTransactionStatus);
+  const autoOpenedTransactionsRef = useRef(new Set());
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   useEffect(() => {
@@ -137,22 +138,24 @@ export default function NotificationsScreen() {
     return () => subscription.remove();
   }, [loadNotifications]);
 
-  if (!hasPermission(user?.id_perfil, 'notifications')) {
-    return (
-      <AccessDenied
-        title="Notificaciones restringidas"
-        message="Tu perfil no tiene acceso a las notificaciones operativas."
-      />
-    );
-  }
+  const navigateClientHome = useCallback(() => {
+    DeviceEventEmitter.emit('closeClientQrModal');
+    router.replace('/(tabs)/index');
+  }, [router]);
 
-  const approvePayment = async (transactionId) => {
+  const approvePayment = useCallback(async (transactionId) => {
     try {
       const data = await approvePaymentRequest(transactionId);
 
       if (data?.success) {
-        Alert.alert('Operaci\u00f3n exitosa', 'El pago ha sido aprobado exitosamente');
+        Alert.alert(
+          'Operaci\u00f3n exitosa',
+          'El pago ha sido aprobado exitosamente. Volveras a Inicio para ver tu saldo actualizado.'
+        );
         loadNotifications();
+        setTimeout(() => {
+          navigateClientHome();
+        }, 1200);
         return;
       }
 
@@ -161,9 +164,9 @@ export default function NotificationsScreen() {
       console.error('Error aprobando pago:', error);
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar la aprobacion');
     }
-  };
+  }, [approvePaymentRequest, loadNotifications, navigateClientHome]);
 
-  const rejectPayment = async (transactionId) => {
+  const rejectPayment = useCallback(async (transactionId) => {
     try {
       const data = await rejectPaymentRequest(transactionId);
 
@@ -178,7 +181,29 @@ export default function NotificationsScreen() {
       console.error('Error rechazando pago:', error);
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar el rechazo');
     }
-  };
+  }, [loadNotifications, rejectPaymentRequest]);
+
+  const openPaymentRequestDialog = useCallback((notificationData) => {
+    if (!notificationData?.transactionId) {
+      return;
+    }
+
+    Alert.alert(
+      'Solicitud de pago',
+      `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
+      [
+        {
+          text: 'Aprobar',
+          onPress: () => approvePayment(notificationData.transactionId),
+        },
+        {
+          text: 'Rechazar',
+          style: 'destructive',
+          onPress: () => rejectPayment(notificationData.transactionId),
+        },
+      ]
+    );
+  }, [approvePayment, rejectPayment]);
 
   const handleNotificationPress = async (notification) => {
     try {
@@ -221,6 +246,45 @@ export default function NotificationsScreen() {
       console.error('Error procesando notificacion:', error);
     }
   };
+
+  useEffect(() => {
+    if (Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT || notifications.length === 0) {
+      return;
+    }
+
+    const firstPendingPayment = notifications.find((notification) => {
+      const notificationData = notification.parsedData ?? parseNotificationData(notification);
+      return notificationData?.type === 'PAYMENT_REQUEST' && notification.resolvedStatus === 'pending';
+    });
+
+    if (!firstPendingPayment) {
+      return;
+    }
+
+    const firstPendingData =
+      firstPendingPayment.parsedData ?? parseNotificationData(firstPendingPayment);
+    const transactionKey = String(firstPendingData?.transactionId ?? '');
+
+    if (!transactionKey || autoOpenedTransactionsRef.current.has(transactionKey)) {
+      return;
+    }
+
+    autoOpenedTransactionsRef.current.add(transactionKey);
+    const openTimeout = setTimeout(() => {
+      openPaymentRequestDialog(firstPendingData);
+    }, 250);
+
+    return () => clearTimeout(openTimeout);
+  }, [notifications, openPaymentRequestDialog, parseNotificationData, user?.id_perfil]);
+
+  if (!hasPermission(user?.id_perfil, 'notifications')) {
+    return (
+      <AccessDenied
+        title="Notificaciones restringidas"
+        message="Tu perfil no tiene acceso a las notificaciones operativas."
+      />
+    );
+  }
 
   const visibleNotifications = notifications.slice(0, visibleCount);
   const canShowMore = notifications.length > visibleCount;

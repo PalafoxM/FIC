@@ -33,6 +33,7 @@ export default function EnterAmountScreen() {
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [transactionStatus, setTransactionStatus] = useState('pending');
   const pollingIntervalRef = useRef(null);
+  const redirectTimeoutRef = useRef(null);
 
   const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const clientName = params.clientName || 'Cliente';
@@ -51,21 +52,43 @@ export default function EnterAmountScreen() {
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
-  const historyRoute =
-    user?.id_perfil === ROLE_IDS.CLIENT ? '/(modals)/historyPay' : '/(modals)/historyStore';
+  const postPaymentRoute =
+    user?.id_perfil === ROLE_IDS.CLIENT ? '/(modals)/historyPay' : '/profile';
 
-  const navigateToHistory = () => {
+  const navigateAfterPayment = () => {
     router.replace('/(tabs)');
     InteractionManager.runAfterInteractions(() => {
       setTimeout(() => {
-        router.push(historyRoute);
+        router.push(postPaymentRoute);
       }, 150);
     });
+  };
+
+  const scheduleRedirectAfterPayment = (delayMs = 5000) => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+
+    redirectTimeoutRef.current = setTimeout(() => {
+      navigateAfterPayment();
+    }, delayMs);
+  };
+
+  const navigateAfterPaymentImmediately = () => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+      redirectTimeoutRef.current = null;
+    }
+
+    navigateAfterPayment();
   };
 
   useEffect(() => () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
+    }
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
     }
   }, []);
 
@@ -102,13 +125,14 @@ export default function EnterAmountScreen() {
   };
 
   const showPaymentApproved = (transaction) => {
+    scheduleRedirectAfterPayment(2000);
     Alert.alert(
       'Operaci\u00f3n exitosa',
-      `El cliente aprobo el pago de $${transaction.total}.`,
+      `El cliente aprobo el pago de $${transaction.total}. Redirigiendo en breve.`,
       [
         {
-          text: 'Ir al historial',
-          onPress: navigateToHistory,
+          text: 'OK',
+          onPress: navigateAfterPaymentImmediately,
         },
       ]
     );
@@ -250,25 +274,27 @@ export default function EnterAmountScreen() {
 
       if (transaction.supportsStatusPolling && transaction.id) {
         startPolling(transaction.id);
+        scheduleRedirectAfterPayment(5000);
         Alert.alert(
           'Operaci\u00f3n exitosa',
-      `Se envio una solicitud de pago de $${transaction.total} a ${clientName}.`,
+          `Se envio una solicitud de pago de $${transaction.total} a ${clientName}. Redirigiendo en breve.`,
           [
             {
-              text: 'Ir al historial',
-              onPress: navigateToHistory,
+              text: 'OK',
+              onPress: navigateAfterPaymentImmediately,
             },
           ]
         );
       } else {
         setIsProcessing(false);
+        scheduleRedirectAfterPayment(2000);
         Alert.alert(
           'Operaci\u00f3n exitosa',
-      response.message || `Se registro el pago de $${transaction.total} para ${clientName}.`,
+          `${response.message || `Se registro el pago de $${transaction.total} para ${clientName}.`} Redirigiendo en breve.`,
           [
             {
-              text: 'Ir al historial',
-              onPress: navigateToHistory,
+              text: 'OK',
+              onPress: navigateAfterPaymentImmediately,
             },
           ]
         );

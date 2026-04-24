@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, DeviceEventEmitter, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
@@ -50,6 +50,16 @@ const ClientQRGenerator = () => {
     setShowQR(false);
     setQrData(null);
   };
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('closeClientQrModal', () => {
+      handleCloseQR();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   return (
     <>

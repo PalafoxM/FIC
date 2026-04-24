@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import { ENV } from '../constants/env';
 import { ROLE_IDS } from '../constants/roles';
 import { useApi } from './useApi';
@@ -27,7 +27,7 @@ const parseNotificationData = (notification) => {
 
 export const usePaymentRequestAlerts = () => {
   const { user } = useAuth();
-  const { getTransactionStatus } = useApi();
+  const { approvePaymentRequest, getTransactionStatus, rejectPaymentRequest } = useApi();
   const router = useRouter();
   const shownNotificationIdsRef = useRef(new Set());
   const alertOpenRef = useRef(false);
@@ -40,7 +40,69 @@ export const usePaymentRequestAlerts = () => {
     let isMounted = true;
     let intervalId = null;
 
-    const showPaymentRequestAlert = (notification, notificationData) => {
+    const showPaymentDecisionAlert = (notificationData) => {
+      const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
+      const vendorName = notificationData?.vendorName || 'Proveedor';
+
+      alertOpenRef.current = true;
+
+      Alert.alert(
+        'Solicitud de pago',
+        `Monto: $${amount.toFixed(2)}\nDe: ${vendorName}`,
+        [
+          {
+            text: 'Aprobar',
+            onPress: async () => {
+              alertOpenRef.current = false;
+              try {
+                const response = await approvePaymentRequest(notificationData.transactionId);
+                if (response?.success) {
+                  Alert.alert(
+                    'Operaci\u00f3n exitosa',
+                    'El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.'
+                  );
+                  setTimeout(() => {
+                    DeviceEventEmitter.emit('closeClientQrModal');
+                    router.replace('/(tabs)/index');
+                  }, 1200);
+                  return;
+                }
+
+                Alert.alert('Atenci\u00f3n', response?.respuesta || 'No se pudo aprobar el pago.');
+              } catch (error) {
+                Alert.alert('Atenci\u00f3n', error.message || 'No se pudo aprobar el pago.');
+              }
+            },
+          },
+          {
+            text: 'Rechazar',
+            style: 'destructive',
+            onPress: async () => {
+              alertOpenRef.current = false;
+              try {
+                const response = await rejectPaymentRequest(notificationData.transactionId);
+                if (response?.success) {
+                  Alert.alert('Atenci\u00f3n', 'La solicitud fue rechazada.');
+                  return;
+                }
+
+                Alert.alert('Atenci\u00f3n', response?.respuesta || 'No se pudo rechazar el pago.');
+              } catch (error) {
+                Alert.alert('Atenci\u00f3n', error.message || 'No se pudo rechazar el pago.');
+              }
+            },
+          },
+        ],
+        {
+          cancelable: false,
+          onDismiss: () => {
+            alertOpenRef.current = false;
+          },
+        }
+      );
+    };
+
+    const showPaymentRequestAlert = (notificationData) => {
       alertOpenRef.current = true;
 
       const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
@@ -61,7 +123,9 @@ export const usePaymentRequestAlerts = () => {
             text: 'Ver solicitud',
             onPress: () => {
               alertOpenRef.current = false;
-              router.push('/alerts');
+              setTimeout(() => {
+                showPaymentDecisionAlert(notificationData);
+              }, 150);
             },
           },
         ],
@@ -131,7 +195,7 @@ export const usePaymentRequestAlerts = () => {
               continue;
             }
 
-            showPaymentRequestAlert(notification, notificationData);
+            showPaymentRequestAlert(notificationData);
             break;
           } catch {
             if (notificationId) {
@@ -161,6 +225,13 @@ export const usePaymentRequestAlerts = () => {
       }
       alertOpenRef.current = false;
     };
-  }, [getTransactionStatus, router, user?.id_perfil, user?.id_usuario]);
+  }, [
+    approvePaymentRequest,
+    getTransactionStatus,
+    rejectPaymentRequest,
+    router,
+    user?.id_perfil,
+    user?.id_usuario,
+  ]);
 };
 
