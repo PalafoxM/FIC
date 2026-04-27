@@ -71,10 +71,12 @@ export default function ProfileScreen() {
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
   const isProviderOrClient = isProvider || isClient;
   const isAdminOrManager =
     user?.id_perfil === ROLE_IDS.ADMIN || user?.id_perfil === ROLE_IDS.MANAGER;
-  const showInternalMeta = !isProviderOrClient && !isAdminOrManager;
+  const canManageOwnWalletView = isAdminOrManager || isCashier;
+  const showInternalMeta = !isProviderOrClient && !isAdminOrManager && !isCashier;
   const showsAssignedEstablishments =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const assignedEstablishments = getAssignedEstablishments(user);
@@ -86,7 +88,7 @@ export default function ProfileScreen() {
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
 
   const loadOwnBalance = useCallback(async (showLoader = true) => {
-    if (!isAdminOrManager || !user?.id_usuario) {
+    if (!canManageOwnWalletView || !user?.id_usuario) {
       return;
     }
 
@@ -101,7 +103,7 @@ export default function ProfileScreen() {
     } finally {
       setLoadingBalance(false);
     }
-  }, [getClientAvailableBalance, isAdminOrManager, user?.id_usuario]);
+  }, [canManageOwnWalletView, getClientAvailableBalance, user?.id_usuario]);
 
   useEffect(() => {
     loadOwnBalance();
@@ -205,7 +207,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {isAdminOrManager && (
+        {canManageOwnWalletView && (
           <>
             <View style={styles.balanceCard}>
               <Text style={styles.balanceLabel}>Saldo disponible</Text>
@@ -226,15 +228,20 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.profileActionButton, styles.profileActionButtonSecondary]}
-              onPress={() => router.push('/alerts')}
-            >
-              <Text style={styles.profileActionButtonText}>Notificaciones</Text>
-            </TouchableOpacity>
+            {isAdminOrManager ? (
+              <TouchableOpacity
+                style={[styles.profileActionButton, styles.profileActionButtonSecondary]}
+                onPress={() => router.push('/alerts')}
+              >
+                <Text style={styles.profileActionButtonText}>Notificaciones</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
-              style={[styles.profileActionButton, styles.profileActionButtonTertiary]}
+              style={[
+                styles.profileActionButton,
+                isCashier ? styles.profileActionButtonSecondary : styles.profileActionButtonTertiary,
+              ]}
               onPress={() => router.push('/consumption')}
             >
               <Text style={styles.profileActionButtonText}>Consumo</Text>

@@ -546,7 +546,11 @@ export function AuthProvider({ children }) {
       throw new Error('Captura un folio valido.');
     }
 
+    console.log('Cajero resumen URL:', `${PHP_BASE_URL}/api/cajero/resumen?folio=${encodeURIComponent(normalizedFolio)}`);
+    console.log('Cajero resumen token encontrado:', Boolean(token));
     const { response, data } = await getCashierSummaryResponse(normalizedFolio, token);
+    console.log('Cajero resumen status:', response.status);
+    console.log('Cajero resumen respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
       throw new Error(data?.respuesta || data?.message || 'No se pudo consultar el resumen del interesado.');
@@ -575,7 +579,17 @@ export function AuthProvider({ children }) {
       firma_base64: firma_base64 ?? '',
     };
 
+    console.log('Guardar expediente URL:', `${PHP_BASE_URL}/api/cajero/guardar-expediente`);
+    console.log('Guardar expediente payload:', {
+      folio: payload.folio,
+      id_usuario: payload.id_usuario,
+      hasAnverso: Boolean(payload.anverso_base64),
+      hasReverso: Boolean(payload.reverso_base64),
+      hasFirma: Boolean(payload.firma_base64),
+    });
     const { response, data } = await getCashierSaveExpedienteResponse(payload, token);
+    console.log('Guardar expediente status:', response.status);
+    console.log('Guardar expediente respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
       throw new Error(data?.respuesta || data?.message || 'No se pudo guardar el expediente.');

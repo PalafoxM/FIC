@@ -91,6 +91,7 @@ export default function CashierProcessScreen() {
       const summary = await getCashierDeliverySummary(folio);
       setDeliverySummary(summary);
     } catch (error) {
+      console.error('Error validating cashier folio:', error);
       Alert.alert('Atencion', error.message || 'No se pudo validar el folio del interesado.');
       return;
     } finally {
@@ -239,6 +240,7 @@ export default function CashierProcessScreen() {
         ]
       );
     } catch (error) {
+      console.error('Error saving cashier expediente:', error);
       Alert.alert('Atencion', error.message || 'No se pudo guardar el expediente.');
     } finally {
       setIsSavingExpediente(false);
