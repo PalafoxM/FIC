@@ -4,6 +4,7 @@ export const ROLE_IDS = {
   CLIENT: 3,
   MANAGER: 4,
   BUSINESS_MANAGER: 5,
+  CASHIER: 6,
 };
 
 const ROLE_CONFIG = {
@@ -85,6 +86,24 @@ const ROLE_CONFIG = {
       salesHistory: false,
       clientQr: false,
       payHistory: false,
+      cashierProcess: false,
+    },
+  },
+  [ROLE_IDS.CASHIER]: {
+    label: 'Cajero',
+    homeTitle: 'Centro de entrega',
+    homeSubtitle: 'Captura identificaciones, valida folios y prepara la entrega del QR al interesado.',
+    permissions: {
+      dashboard: false,
+      manageUsers: false,
+      manageEstablishments: false,
+      reports: false,
+      notifications: false,
+      scanner: false,
+      salesHistory: false,
+      clientQr: false,
+      payHistory: false,
+      cashierProcess: true,
     },
   },
 };
@@ -103,6 +122,7 @@ const DEFAULT_ROLE = {
     salesHistory: false,
     clientQr: false,
     payHistory: false,
+    cashierProcess: false,
   },
 };
 

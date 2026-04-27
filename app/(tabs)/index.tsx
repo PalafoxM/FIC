@@ -298,6 +298,7 @@ export default function HomeScreen() {
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isAdmin = user?.id_perfil === ROLE_IDS.ADMIN;
   const isManagerProfile = user?.id_perfil === ROLE_IDS.MANAGER;
+  const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
   const isAdminOrManager = isAdmin || isManagerProfile;
   const baseProviderEstablishments = useMemo(() => {
     const rawList = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
@@ -1016,6 +1017,27 @@ export default function HomeScreen() {
               <Text style={styles.cardTitle}>Escanear QR para cobrar</Text>
               <Text style={styles.cardDescription}>Inicia una solicitud de pago para un cliente.</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {isCashier && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Proceso de entrega</Text>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Entrega documentada de QR</Text>
+              <Text style={styles.cardDescription}>
+                Captura el folio del interesado, toma foto del anverso y reverso de su identificacion oficial y prepara el siguiente paso del tramite.
+              </Text>
+              <Text style={styles.cardMeta}>Fases 1 y 2 listas en app</Text>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { marginTop: 16 }]}
+                onPress={() => router.push('/cashier-process')}
+              >
+                <Text style={styles.primaryButtonText}>Iniciar tramite</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 

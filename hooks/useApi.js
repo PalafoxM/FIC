@@ -404,23 +404,23 @@ export const useApi = () => {
         reportData?.id_pago ??
         reportData?.paymentId ??
         reportData?.idPago ??
-        0
+        1
       );
 
       payload = {
         id_pagos: paymentId,
         id_pago: paymentId,
         paymentId,
-        id_usuario: Number(reportData?.id_usuario ?? 0),
+        id_usuario: Number(reportData?.id_usuario ?? 1),
         id_establecimiento:
           reportData?.id_establecimiento !== undefined && reportData?.id_establecimiento !== null
             ? Number(reportData.id_establecimiento)
             : null,
         tipo_reporte: String(reportData?.tipo_reporte ?? '').trim(),
         descripcion: String(reportData?.descripcion ?? '').trim(),
-        monto: Number(reportData?.monto ?? 0),
-        propina: Number(reportData?.propina ?? 0),
-        total: Number(reportData?.total ?? 0),
+        monto: Number(reportData?.monto ?? 1),
+        propina: Number(reportData?.propina ?? 1),
+        total: Number(reportData?.total ?? 1),
         fecha_movimiento: reportData?.fecha_movimiento ?? null,
       };
 

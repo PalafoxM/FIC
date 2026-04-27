@@ -303,6 +303,22 @@ export function AuthProvider({ children }) {
       rawLabel: 'guardarDepositoCreditoUsuarioFic',
     }), [getApiJsonResponse]);
 
+  const getCashierSummaryResponse = useCallback(async (folio, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/resumen?folio=${encodeURIComponent(String(folio ?? '').trim())}`,
+      method: 'GET',
+      token,
+      rawLabel: 'cajeroResumen',
+    }), [getApiJsonResponse]);
+
+  const getCashierSaveExpedienteResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/guardar-expediente`,
+      token,
+      body: payload,
+      rawLabel: 'cajeroGuardarExpediente',
+    }), [getApiJsonResponse]);
+
   const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
     if (!baseUser?.id_usuario || !token) {
       return baseUser;
@@ -518,6 +534,55 @@ export function AuthProvider({ children }) {
 
     return data;
   }, [getDepositoCreditoResponse]);
+
+  const getCashierDeliverySummary = useCallback(async (folio) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const normalizedFolio = String(folio ?? '').trim();
+    if (!normalizedFolio) {
+      throw new Error('Captura un folio valido.');
+    }
+
+    const { response, data } = await getCashierSummaryResponse(normalizedFolio, token);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo consultar el resumen del interesado.');
+    }
+
+    return data?.data ?? null;
+  }, [getCashierSummaryResponse]);
+
+  const saveCashierDeliveryExpediente = useCallback(async ({
+    folio,
+    id_usuario,
+    anverso_base64,
+    reverso_base64,
+    firma_base64,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      folio: String(folio ?? '').trim(),
+      id_usuario: Number(id_usuario ?? 0),
+      anverso_base64: anverso_base64 ?? '',
+      reverso_base64: reverso_base64 ?? '',
+      firma_base64: firma_base64 ?? '',
+    };
+
+    const { response, data } = await getCashierSaveExpedienteResponse(payload, token);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo guardar el expediente.');
+    }
+
+    return data;
+  }, [getCashierSaveExpedienteResponse]);
 
   const login = useCallback(async (username, password) => {
     try {
@@ -901,16 +966,20 @@ export function AuthProvider({ children }) {
       getConsumptionPayments,
       getClientAvailableBalance,
       getClientQrData,
+      getCashierDeliverySummary,
+      saveCashierDeliveryExpediente,
     }),
     [
       activeEstablecimientoId,
       error,
       getClientAvailableBalance,
+      getCashierDeliverySummary,
       getConsumptionPayments,
       getSalesByClient,
       getSalesByProvider,
       getTable,
       getClientQrData,
+      saveCashierDeliveryExpediente,
       saveDepositoCredito,
       saveTable,
       loading,
