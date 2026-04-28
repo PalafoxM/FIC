@@ -691,11 +691,19 @@ export function AuthProvider({ children }) {
 
     console.log('Presign expediente URL:', `${PHP_BASE_URL}/api/cajero/presign-expediente`);
     console.log('Presign expediente payload:', payload);
-    const { response, data } = await getCashierPresignExpedienteResponse(payload, token);
+    const { response, data, rawResponse } = await getCashierPresignExpedienteResponse(payload, token);
     console.log('Presign expediente status:', response.status);
     console.log('Presign expediente respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
+      if (!data && rawResponse) {
+        console.error('Presign expediente raw response:', rawResponse);
+      }
+
+      if (response.status === 403) {
+        throw new Error('No tienes permisos para generar las URLs firmadas del expediente.');
+      }
+
       throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas.');
     }
 
@@ -815,11 +823,19 @@ export function AuthProvider({ children }) {
 
     console.log('Presign activacion cliente URL:', `${PHP_BASE_URL}/api/cliente/presign-activacion-qr`);
     console.log('Presign activacion cliente payload:', payload);
-    const { response, data } = await getClientPresignActivationResponse(payload, token);
+    const { response, data, rawResponse } = await getClientPresignActivationResponse(payload, token);
     console.log('Presign activacion cliente status:', response.status);
     console.log('Presign activacion cliente respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
+      if (!data && rawResponse) {
+        console.error('Presign activacion cliente raw response:', rawResponse);
+      }
+
+      if (response.status === 403) {
+        throw new Error('No tienes permisos para generar las URLs firmadas de activacion.');
+      }
+
       throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas de activacion.');
     }
 

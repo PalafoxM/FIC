@@ -561,7 +561,7 @@ export default function CashierProcessScreen() {
       <View style={styles.signatureTopBar}>
         <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
         <Text style={styles.signatureTopSubtitle}>
-          Firma dentro del recuadro. Mantuvimos visibles las acciones de limpiar y guardar.
+          Firma dentro del recuadro. El lienzo queda fijo y las acciones de limpiar y guardar siguen visibles.
         </Text>
       </View>
 
@@ -588,11 +588,13 @@ export default function CashierProcessScreen() {
             .m-signature-pad--body {
               flex: 1;
               border: none;
+              touch-action: none;
             }
             .m-signature-pad--body canvas {
               width: 100% !important;
               height: 100% !important;
               border-radius: 18px 18px 0 0;
+              touch-action: none;
             }
             .m-signature-pad--footer {
               background: #FFFFFF;
@@ -615,6 +617,7 @@ export default function CashierProcessScreen() {
               overflow: hidden;
               position: fixed;
               width: 100%;
+              touch-action: none;
             }
           `}
           webviewProps={{
@@ -739,22 +742,6 @@ export default function CashierProcessScreen() {
           </View>
         )}
 
-        <Text style={styles.summarySectionTitle}>Desglose por dia</Text>
-        {Array.isArray(deliverySummary?.desglose_por_dia) && deliverySummary.desglose_por_dia.length > 0 ? (
-          <View style={styles.breakdownList}>
-            {deliverySummary.desglose_por_dia.map((item, index) => (
-              <View key={`${item?.fecha ?? 'fecha'}-${index}`} style={styles.breakdownRow}>
-                <Text style={styles.breakdownDate}>{item?.fecha || 'Sin fecha'}</Text>
-                <Text style={styles.breakdownAmount}>${Number(item?.monto ?? 0).toFixed(2)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.signaturePlaceholder}>
-            <Text style={styles.signaturePlaceholderText}>No hay desglose diario disponible.</Text>
-          </View>
-        )}
-
         <View style={styles.reviewActions}>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep(STEP_SIGNATURE)}>
             <Text style={styles.secondaryButtonText}>Repetir firma</Text>
@@ -795,7 +782,7 @@ export default function CashierProcessScreen() {
         <Text style={styles.subtitle}>
           {isClientActivation
             ? 'Completa tu expediente documental para solicitar la activacion de tu QR.'
-            : 'Fases 1, 2, 3 y 5 del proceso de entrega documentada de QR.'}
+            : 'Completa el expediente documental para la entrega segura del QR.'}
         </Text>
       </View>
 
@@ -1065,7 +1052,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#D7DEEE',
-    marginHorizontal: 20,
     marginTop: 4,
     shadowColor: '#0D1B2A',
     shadowOffset: { width: 0, height: 10 },
@@ -1102,33 +1088,6 @@ const styles = StyleSheet.create({
   signaturePlaceholderText: {
     color: '#5F6782',
     fontSize: 14,
-  },
-  breakdownList: {
-    borderWidth: 1,
-    borderColor: '#D7DEEE',
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF2FA',
-  },
-  breakdownDate: {
-    color: '#263B80',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  breakdownAmount: {
-    color: '#B23A48',
-    fontSize: 14,
-    fontWeight: '800',
   },
   centeredState: {
     flex: 1,
