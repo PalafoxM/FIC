@@ -7,6 +7,7 @@ import {
   DeviceEventEmitter,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -65,7 +66,7 @@ export default function CashierProcessScreen() {
   const [backPhoto, setBackPhoto] = useState(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [signatureDataUrl, setSignatureDataUrl] = useState(null);
-  const [isSavingSignature, setIsSavingSignature] = useState(false);
+  const [signatureModalVisible, setSignatureModalVisible] = useState(false);
   const [isValidatingFolio, setIsValidatingFolio] = useState(false);
   const [isSavingExpediente, setIsSavingExpediente] = useState(false);
   const [deliverySummary, setDeliverySummary] = useState(null);
@@ -221,7 +222,7 @@ export default function CashierProcessScreen() {
     }
 
     if (step === STEP_REVIEW) {
-      setStep(STEP_SIGNATURE);
+      setSignatureModalVisible(true);
       return;
     }
 
@@ -235,27 +236,16 @@ export default function CashierProcessScreen() {
 
   const handleSignatureConfirm = (signature) => {
     setSignatureDataUrl(signature);
-    setIsSavingSignature(false);
+    setSignatureModalVisible(false);
     setStep(STEP_SUMMARY);
   };
 
   const handleSignatureEmpty = () => {
-    setIsSavingSignature(false);
     Alert.alert('Atencion', 'La firma esta vacia. Solicita al interesado que firme antes de continuar.');
   };
 
   const handleSignatureError = (error) => {
-    setIsSavingSignature(false);
     Alert.alert('Atencion', error?.message || 'No se pudo procesar la firma.');
-  };
-
-  const saveSignature = () => {
-    if (!signatureRef.current || isSavingSignature) {
-      return;
-    }
-
-    setIsSavingSignature(true);
-    signatureRef.current.readSignature();
   };
 
   const uploadDataUrlToSignedUrl = async (uploadConfig, dataUrl) => {
@@ -549,15 +539,22 @@ export default function CashierProcessScreen() {
             <Text style={styles.secondaryButtonText}>Editar fotos</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={goToNextStep}>
-            <Text style={styles.primaryButtonText}>Continuar a firma</Text>
+            <Text style={styles.primaryButtonText}>Firmar</Text>
           </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
   );
 
-  const renderSignatureStep = () => (
-    <View style={styles.signatureScreen}>
+  const renderSignatureModal = () => (
+    <Modal
+      visible={signatureModalVisible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={() => setSignatureModalVisible(false)}
+    >
+      <SafeAreaView style={styles.signatureModalRoot}>
+        <View style={styles.signatureScreen}>
       <View style={styles.signatureTopBar}>
         <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
         <Text style={styles.signatureTopSubtitle}>
@@ -574,7 +571,7 @@ export default function CashierProcessScreen() {
           autoClear={false}
           descriptionText="Firma dentro del recuadro"
           clearText="Limpiar"
-          confirmText={isSavingSignature ? 'Guardando...' : 'Guardar'}
+          confirmText="Guardar"
           penColor="#263B80"
           backgroundColor="#FFFFFF"
           webStyle={`
@@ -633,20 +630,13 @@ export default function CashierProcessScreen() {
       </View>
 
       <View style={styles.signatureActions}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep(STEP_REVIEW)}>
-          <Text style={styles.secondaryButtonText}>Volver</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.primaryButton, isSavingSignature && styles.disabledButton]}
-          onPress={saveSignature}
-          disabled={isSavingSignature}
-        >
-          <Text style={styles.primaryButtonText}>
-            {isSavingSignature ? 'Guardando firma...' : 'Continuar'}
-          </Text>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => setSignatureModalVisible(false)}>
+          <Text style={styles.secondaryButtonText}>Cancelar</Text>
         </TouchableOpacity>
       </View>
-    </View>
+        </View>
+      </SafeAreaView>
+    </Modal>
   );
 
   const renderSummaryStep = () => (
@@ -789,7 +779,7 @@ export default function CashierProcessScreen() {
       {step === STEP_FOLIO ? renderFolioStep() : null}
       {(step === STEP_FRONT || step === STEP_BACK) ? renderCaptureStep() : null}
       {step === STEP_REVIEW ? renderReviewStep() : null}
-      {step === STEP_SIGNATURE ? renderSignatureStep() : null}
+      {renderSignatureModal()}
       {step === STEP_SUMMARY ? renderSummaryStep() : null}
     </SafeAreaView>
   );
@@ -1019,6 +1009,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  signatureModalRoot: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   signatureTopBar: {
     backgroundColor: '#FFFFFF',
