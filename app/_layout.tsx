@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, DeviceEventEmitter, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { usePaymentRequestAlerts } from '../hooks/usePaymentRequestAlerts';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -45,6 +45,9 @@ function RootLayoutContent() {
       if (data.type === 'PAYMENT_REQUEST') {
         router.push('/alerts');
       } else if (data.type === 'PAYMENT_APPROVED') {
+        router.push('/(tabs)');
+      } else if (data.type === 'QR_READY' || data.type === 'QR_ACTIVATION_REJECTED') {
+        DeviceEventEmitter.emit('refreshClientQrActivationState');
         router.push('/(tabs)');
       }
     });

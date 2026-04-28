@@ -1,14 +1,61 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, DeviceEventEmitter, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useRouter } from 'expo-router';
 import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
 const ClientQRGenerator = () => {
-  const { user, getClientQrData } = useAuth();
+  const router = useRouter();
+  const { user, getClientQrData, getClientQrActivationStatus } = useAuth();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [loadingQr, setLoadingQr] = useState(false);
+  const [qrStatus, setQrStatus] = useState(null);
+
+  const refreshClientQrState = useCallback(async () => {
+    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
+      return null;
+    }
+
+    const [qrRecord, activationStatus] = await Promise.all([
+      getClientQrData(user.id_usuario, { includeInactive: true }),
+      getClientQrActivationStatus(user.id_usuario),
+    ]);
+
+    const mergedStatus = {
+      ...(qrRecord ?? {}),
+      ...(activationStatus ?? {}),
+      qr_activo: Number(
+        activationStatus?.qr_activo ??
+        qrRecord?.qr_activo ??
+        user?.qr_activo ??
+        0
+      ),
+    };
+
+    setQrStatus(mergedStatus);
+    return mergedStatus;
+  }, [getClientQrActivationStatus, getClientQrData, user]);
+
+  const getPrimaryCtaLabel = useCallback((status) => {
+    const resolvedStatus = status?.solicitud_activacion_estatus;
+    const qrActivo = Number(status?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+
+    if (qrActivo) {
+      return 'Generar QR para pagar';
+    }
+
+    if (resolvedStatus === 'pendiente') {
+      return 'Solicitud en revision';
+    }
+
+    if (resolvedStatus === 'rechazada') {
+      return 'Reintenta tu activacion';
+    }
+
+    return 'Comienza tu activacion';
+  }, [user?.qr_activo]);
 
   const generateClientQR = async () => {
     if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
@@ -17,15 +64,39 @@ const ClientQRGenerator = () => {
 
     try {
       setLoadingQr(true);
-
-      const qrRecord = await getClientQrData(user.id_usuario);
+      const qrRecord = await refreshClientQrState();
       const qrCode = qrRecord?.codigo_qr ?? null;
 
       if (!qrCode) {
         Alert.alert(
           'Atenci\u00f3n',
-          'No tienes un QR vigente para cobrar. Revisa la vigencia con el area de TI.'
+          'No tienes un codigo QR disponible. Revisa tu proceso de activacion con el area de TI.'
         );
+        return;
+      }
+
+      if (Number(qrRecord?.qr_activo ?? 0) !== 1) {
+        if (qrRecord?.solicitud_activacion_estatus === 'pendiente') {
+          Alert.alert(
+            'Atenci\u00f3n',
+            'Tu solicitud de activacion ya fue enviada y se encuentra en revision por TI.'
+          );
+          return;
+        }
+
+        if (qrRecord?.solicitud_activacion_estatus === 'rechazada' && String(qrRecord?.motivo_rechazo ?? '').trim()) {
+          Alert.alert(
+            'Atenci\u00f3n',
+            `Tu solicitud fue rechazada.\n\nMotivo: ${String(qrRecord.motivo_rechazo).trim()}`
+          );
+        }
+
+        router.push({
+          pathname: '/cashier-process',
+          params: {
+            mode: 'client',
+          },
+        });
         return;
       }
 
@@ -52,14 +123,24 @@ const ClientQRGenerator = () => {
   };
 
   useEffect(() => {
+    refreshClientQrState().catch((error) => {
+      console.error('Error refreshing client QR activation state:', error);
+    });
+
     const subscription = DeviceEventEmitter.addListener('closeClientQrModal', () => {
       handleCloseQR();
+    });
+    const refreshSubscription = DeviceEventEmitter.addListener('refreshClientQrActivationState', () => {
+      refreshClientQrState().catch((error) => {
+        console.error('Error refreshing client QR activation state:', error);
+      });
     });
 
     return () => {
       subscription.remove();
+      refreshSubscription.remove();
     };
-  }, []);
+  }, [refreshClientQrState]);
 
   return (
     <>
@@ -69,9 +150,51 @@ const ClientQRGenerator = () => {
         disabled={!hasPermission(user?.id_perfil, 'clientQr') || loadingQr}
       >
         <Text style={styles.menuItemText}>
-          {loadingQr ? 'Consultando QR vigente...' : 'Generar QR para pagar'}
+          {loadingQr
+            ? 'Consultando estado del QR...'
+            : getPrimaryCtaLabel(qrStatus)}
         </Text>
       </TouchableOpacity>
+
+      {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) !== 1 && String(qrStatus?.codigo_qr ?? user?.codigo_qr ?? '').trim() ? (
+        <TouchableOpacity
+          style={styles.secondaryAction}
+          onPress={() => {
+            const qrCode =
+              qrStatus?.codigo_qr ??
+              user?.codigo_qr ??
+              null;
+
+            if (!qrCode) {
+              return;
+            }
+
+            setQrData({
+              type: 'client_payment',
+              codigo_qr: qrCode,
+              qr_code: qrCode,
+              clientQrCode: qrCode,
+              timestamp: new Date().toISOString(),
+            });
+            setShowQR(true);
+          }}
+        >
+          <Text style={styles.secondaryActionText}>Ver QR actual</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {qrStatus?.solicitud_activacion_estatus === 'pendiente' ? (
+        <View style={styles.statusNote}>
+          <Text style={styles.statusNoteText}>Tu expediente ya fue enviado y esta en revision por TI.</Text>
+        </View>
+      ) : null}
+
+      {qrStatus?.solicitud_activacion_estatus === 'rechazada' && String(qrStatus?.motivo_rechazo ?? '').trim() ? (
+        <View style={styles.rejectionNote}>
+          <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
+          <Text style={styles.rejectionText}>{String(qrStatus.motivo_rechazo).trim()}</Text>
+        </View>
+      ) : null}
 
       <Modal
         visible={showQR}
@@ -103,10 +226,21 @@ const ClientQRGenerator = () => {
                 </View>
 
                 <View style={styles.instructions}>
-                  <Text style={styles.instructionTitle}>Como usar:</Text>
-                  <Text style={styles.instructionText}>1. Muestra este QR al vendedor</Text>
-                  <Text style={styles.instructionText}>2. El vendedor escaneara el codigo</Text>
-                  <Text style={styles.instructionText}>3. Confirma el pago en tu dispositivo</Text>
+                  <Text style={styles.instructionTitle}>
+                    {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1 ? 'Como usar:' : 'QR visible pero inactivo'}
+                  </Text>
+                  {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1 ? (
+                    <>
+                      <Text style={styles.instructionText}>1. Muestra este QR al vendedor</Text>
+                      <Text style={styles.instructionText}>2. El vendedor escaneara el codigo</Text>
+                      <Text style={styles.instructionText}>3. Confirma el pago en tu dispositivo</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.instructionText}>Tu QR ya no esta operativo para pagos.</Text>
+                      <Text style={styles.instructionText}>Completa tu activacion documental para solicitar revision a TI.</Text>
+                    </>
+                  )}
                 </View>
 
                 <TouchableOpacity style={styles.closeButton} onPress={handleCloseQR}>
@@ -137,6 +271,53 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
+  },
+  secondaryAction: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#263B80',
+    padding: 16,
+    borderRadius: 10,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  secondaryActionText: {
+    color: '#263B80',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  statusNote: {
+    backgroundColor: '#F7F9FE',
+    borderWidth: 1,
+    borderColor: '#D7DEEE',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 15,
+  },
+  statusNoteText: {
+    color: '#263B80',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  rejectionNote: {
+    backgroundColor: '#FFF4F5',
+    borderWidth: 1,
+    borderColor: '#E9BBC2',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 15,
+  },
+  rejectionTitle: {
+    color: '#B23A48',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  rejectionText: {
+    color: '#7B3943',
+    fontSize: 14,
+    lineHeight: 20,
   },
   modalContainer: {
     flex: 1,

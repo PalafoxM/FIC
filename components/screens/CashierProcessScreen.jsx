@@ -1,9 +1,10 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Image,
   SafeAreaView,
   ScrollView,
@@ -43,8 +44,16 @@ const buildStepTitle = (step) => {
 };
 
 export default function CashierProcessScreen() {
+  const params = useLocalSearchParams();
   const router = useRouter();
-  const { user, getCashierDeliverySummary, saveCashierDeliveryExpediente } = useAuth();
+  const {
+    user,
+    getCashierDeliverySummary,
+    getClientQrActivationStatus,
+    getClientQrData,
+    requestClientQrActivation,
+    saveCashierDeliveryExpediente,
+  } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [folio, setFolio] = useState('');
   const [step, setStep] = useState(STEP_FOLIO);
@@ -58,6 +67,8 @@ export default function CashierProcessScreen() {
   const [deliverySummary, setDeliverySummary] = useState(null);
   const cameraRef = useRef(null);
   const signatureRef = useRef(null);
+  const activationMode = params?.mode === 'client' ? 'client' : 'cashier';
+  const isClientActivation = activationMode === 'client' && Number(user?.id_perfil ?? 0) === 3;
 
   const currentPhotoUri = useMemo(() => {
     if (step === STEP_FRONT) {
@@ -71,25 +82,64 @@ export default function CashierProcessScreen() {
     return null;
   }, [backPhoto, frontPhoto, step]);
 
-  if (!hasPermission(user?.id_perfil, 'cashierProcess')) {
+  if (!hasPermission(user?.id_perfil, 'cashierProcess') && !isClientActivation) {
     return (
       <AccessDenied
         title="Proceso restringido"
-        message="Solo el perfil de cajero puede iniciar la entrega documentada del QR."
+        message="Solo el perfil de cajero o el cliente en activacion pueden iniciar este proceso documental."
       />
     );
   }
 
   const startDocumentCapture = async () => {
-    if (!folio.trim()) {
+    if (!isClientActivation && !folio.trim()) {
       Alert.alert('Atencion', 'Captura el folio del interesado para continuar.');
       return;
     }
 
     try {
       setIsValidatingFolio(true);
-      const summary = await getCashierDeliverySummary(folio);
-      setDeliverySummary(summary);
+      if (isClientActivation) {
+        const [activationStatus, qrRecord] = await Promise.all([
+          getClientQrActivationStatus(user?.id_usuario),
+          getClientQrData(user?.id_usuario, { includeInactive: true }),
+        ]);
+
+        if (Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1) {
+          Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
+          router.back();
+          return;
+        }
+
+        if (activationStatus?.solicitud_activacion_estatus === 'pendiente') {
+          Alert.alert('Atencion', 'Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.');
+          router.back();
+          return;
+        }
+
+        setDeliverySummary({
+          folio: activationStatus?.folio ?? '',
+          id_usuario: user?.id_usuario,
+          nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
+            .filter(Boolean)
+            .join(' '),
+          codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
+          monto_total: Number(user?.monto_deposito ?? user?.saldo ?? 0),
+          vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
+          vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
+          nip: null,
+          nip_legado_hash: false,
+          qr_activo: Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
+          expediente_completo: activationStatus?.expediente_completo,
+          solicitud_activacion_estatus: activationStatus?.solicitud_activacion_estatus ?? null,
+          expediente_estatus: activationStatus?.expediente_estatus ?? null,
+          motivo_rechazo: activationStatus?.motivo_rechazo ?? '',
+          desglose_por_dia: [],
+        });
+      } else {
+        const summary = await getCashierDeliverySummary(folio);
+        setDeliverySummary(summary);
+      }
     } catch (error) {
       console.error('Error validating cashier folio:', error);
       Alert.alert('Atencion', error.message || 'No se pudo validar el folio del interesado.');
@@ -174,7 +224,7 @@ export default function CashierProcessScreen() {
     if (step === STEP_SUMMARY) {
       Alert.alert(
         'Fase 3 completada',
-        'Ya tenemos folio, identificacion y firma. El siguiente paso sera ligar backend para mostrar QR, vigencia, NIP y desglose diario.'
+        'Ya tenemos folio, identificacion y firma. El siguiente paso es guardar o enviar el expediente segun el perfil.'
       );
     }
   };
@@ -219,6 +269,40 @@ export default function CashierProcessScreen() {
       return;
     }
 
+    if (isClientActivation) {
+      try {
+        setIsSavingExpediente(true);
+        const response = await requestClientQrActivation({
+          folio: deliverySummary.folio,
+          id_usuario: deliverySummary.id_usuario,
+          anverso_base64: frontPhoto.dataUrl,
+          reverso_base64: backPhoto.dataUrl,
+          firma_base64: signatureDataUrl,
+        });
+
+        Alert.alert(
+          'Operacion exitosa',
+          response?.respuesta || 'Solicitud de activacion enviada correctamente.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                DeviceEventEmitter.emit('refreshClientQrActivationState');
+                router.back();
+              },
+            },
+          ]
+        );
+      } catch (error) {
+        console.error('Error sending client activation request:', error);
+        Alert.alert('Atencion', error.message || 'No se pudo enviar la solicitud de activacion.');
+      } finally {
+        setIsSavingExpediente(false);
+      }
+
+      return;
+    }
+
     try {
       setIsSavingExpediente(true);
       const response = await saveCashierDeliveryExpediente({
@@ -249,20 +333,35 @@ export default function CashierProcessScreen() {
 
   const renderFolioStep = () => (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Folio del interesado</Text>
-      <Text style={styles.cardDescription}>
-        El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega.
+      <Text style={styles.cardTitle}>
+        {isClientActivation ? 'Comienza tu activacion' : 'Folio del interesado'}
       </Text>
+        <Text style={styles.cardDescription}>
+          {isClientActivation
+            ? 'Completa tu expediente documental para que TI revise y active tu QR.'
+            : 'El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega.'}
+        </Text>
 
-      <Text style={styles.inputLabel}>Folio</Text>
-      <TextInput
-        style={styles.input}
-        value={folio}
-        onChangeText={setFolio}
-        placeholder="Captura el folio"
-        placeholderTextColor="#7A7A7A"
-        autoCapitalize="characters"
-      />
+      {isClientActivation && String(deliverySummary?.motivo_rechazo ?? '').trim() ? (
+        <View style={styles.rejectionHint}>
+          <Text style={styles.rejectionHintTitle}>Motivo del rechazo anterior</Text>
+          <Text style={styles.rejectionHintText}>{String(deliverySummary.motivo_rechazo).trim()}</Text>
+        </View>
+      ) : null}
+
+      {!isClientActivation ? (
+        <>
+          <Text style={styles.inputLabel}>Folio</Text>
+          <TextInput
+            style={styles.input}
+            value={folio}
+            onChangeText={setFolio}
+            placeholder="Captura el folio"
+            placeholderTextColor="#7A7A7A"
+            autoCapitalize="characters"
+          />
+        </>
+      ) : null}
 
       <TouchableOpacity
         style={[styles.primaryButton, isValidatingFolio && styles.disabledButton]}
@@ -270,7 +369,9 @@ export default function CashierProcessScreen() {
         disabled={isValidatingFolio}
       >
         <Text style={styles.primaryButtonText}>
-          {isValidatingFolio ? 'Validando folio...' : 'Continuar'}
+          {isValidatingFolio
+            ? (isClientActivation ? 'Preparando activacion...' : 'Validando folio...')
+            : 'Continuar'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -329,7 +430,7 @@ export default function CashierProcessScreen() {
 
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Folio</Text>
-          <Text style={styles.summaryValue}>{folio.trim()}</Text>
+          <Text style={styles.summaryValue}>{deliverySummary?.folio || folio.trim()}</Text>
         </View>
 
         <Text style={styles.summarySectionTitle}>Anverso</Text>
@@ -486,6 +587,17 @@ export default function CashierProcessScreen() {
           </View>
         </View>
 
+        {isClientActivation ? (
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryMetricCard}>
+              <Text style={styles.summaryMetricLabel}>Estatus de expediente</Text>
+              <Text style={styles.summaryMetricValue}>
+                {deliverySummary?.expediente_estatus || 'Sin estatus disponible'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.summarySectionTitle}>Anverso</Text>
         {frontPhoto?.uri ? (
           <Image source={{ uri: frontPhoto.uri }} style={styles.reviewImage} resizeMode="cover" />
@@ -531,7 +643,11 @@ export default function CashierProcessScreen() {
             disabled={isSavingExpediente}
           >
             <Text style={styles.primaryButtonText}>
-              {isSavingExpediente ? 'Guardando expediente...' : 'Guardar expediente'}
+              {isSavingExpediente
+                ? 'Guardando expediente...'
+                : isClientActivation
+                  ? 'Enviar solicitud'
+                  : 'Guardar expediente'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -550,10 +666,14 @@ export default function CashierProcessScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Perfil cajero</Text>
+        <Text style={styles.eyebrow}>
+          {isClientActivation ? 'Activacion de cliente' : 'Perfil cajero'}
+        </Text>
         <Text style={styles.title}>{buildStepTitle(step)}</Text>
         <Text style={styles.subtitle}>
-          Fases 1, 2, 3 y 5 del proceso de entrega documentada de QR.
+          {isClientActivation
+            ? 'Completa tu expediente documental para solicitar la activacion de tu QR.'
+            : 'Fases 1, 2, 3 y 5 del proceso de entrega documentada de QR.'}
         </Text>
       </View>
 
@@ -619,6 +739,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 18,
+  },
+  rejectionHint: {
+    backgroundColor: '#FFF4F5',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E9BBC2',
+    marginBottom: 18,
+  },
+  rejectionHintTitle: {
+    color: '#B23A48',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  rejectionHintText: {
+    color: '#7B3943',
+    fontSize: 14,
+    lineHeight: 20,
   },
   inputLabel: {
     color: '#263B80',

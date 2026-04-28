@@ -176,6 +176,31 @@ const isQrCurrentlyValid = (qrRow) => {
   return true;
 };
 
+const normalizeQrStatus = (qrRow) => {
+  if (!qrRow) {
+    return {
+      qr_activo: 0,
+      qr_operativo: false,
+      qr_vencido: false,
+    };
+  }
+
+  const vigenteHasta = parseSqlDate(qrRow?.vigente_hasta);
+  const now = new Date();
+  const qrVencido = Boolean(vigenteHasta && vigenteHasta < now);
+  const qrActivo = Number(
+    qrRow?.qr_activo ??
+    qrRow?.activo ??
+    0
+  ) === 1 ? 1 : 0;
+
+  return {
+    qr_activo: qrActivo,
+    qr_operativo: qrActivo === 1 && isQrCurrentlyValid(qrRow),
+    qr_vencido: qrVencido,
+  };
+};
+
 const getTipoPagoLabel = (paymentRow, tipoPagoMap) =>
   paymentRow?.tipo_pago ??
   paymentRow?.dsc_tipo_pago ??
@@ -319,6 +344,22 @@ export function AuthProvider({ children }) {
       rawLabel: 'cajeroGuardarExpediente',
     }), [getApiJsonResponse]);
 
+  const getClientActivationStatusResponse = useCallback(async (userId, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
+      method: 'GET',
+      token,
+      rawLabel: 'clienteActivacionQrStatus',
+    }), [getApiJsonResponse]);
+
+  const getClientRequestActivationResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr`,
+      token,
+      body: payload,
+      rawLabel: 'clienteSolicitarActivacionQr',
+    }), [getApiJsonResponse]);
+
   const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
     if (!baseUser?.id_usuario || !token) {
       return baseUser;
@@ -361,12 +402,14 @@ export function AuthProvider({ children }) {
           null,
         codigo_qr:
           validQrRow?.codigo_qr ??
+          qrRows?.[0]?.codigo_qr ??
           baseUser?.codigo_qr ??
           baseUser?.qr_code ??
           baseUser?.clientQrCode ??
           null,
-        vigente_desde: validQrRow?.vigente_desde ?? null,
-        vigente_hasta: validQrRow?.vigente_hasta ?? null,
+        vigente_desde: validQrRow?.vigente_desde ?? qrRows?.[0]?.vigente_desde ?? null,
+        vigente_hasta: validQrRow?.vigente_hasta ?? qrRows?.[0]?.vigente_hasta ?? null,
+        ...normalizeQrStatus(validQrRow ?? qrRows?.[0] ?? null),
       };
     } catch (currentError) {
       console.error('Error hydrating authenticated user:', currentError);
@@ -597,6 +640,68 @@ export function AuthProvider({ children }) {
 
     return data;
   }, [getCashierSaveExpedienteResponse]);
+
+  const getClientQrActivationStatus = useCallback(async (clientId = user?.id_usuario) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const normalizedClientId = Number(clientId ?? 0);
+    if (normalizedClientId <= 0) {
+      throw new Error('No se pudo identificar al cliente.');
+    }
+
+    console.log('Cliente activacion status URL:', `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${normalizedClientId}`);
+    const { response, data } = await getClientActivationStatusResponse(normalizedClientId, token);
+    console.log('Cliente activacion status:', response.status);
+    console.log('Cliente activacion respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo consultar el estatus de activacion.');
+    }
+
+    return data?.data ?? null;
+  }, [getClientActivationStatusResponse, user?.id_usuario]);
+
+  const requestClientQrActivation = useCallback(async ({
+    id_usuario,
+    folio,
+    anverso_base64,
+    reverso_base64,
+    firma_base64,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(id_usuario ?? 0),
+      folio: String(folio ?? '').trim(),
+      anverso_base64: anverso_base64 ?? '',
+      reverso_base64: reverso_base64 ?? '',
+      firma_base64: firma_base64 ?? '',
+    };
+
+    console.log('Solicitar activacion QR URL:', `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr`);
+    console.log('Solicitar activacion payload:', {
+      id_usuario: payload.id_usuario,
+      folio: payload.folio,
+      hasAnverso: Boolean(payload.anverso_base64),
+      hasReverso: Boolean(payload.reverso_base64),
+      hasFirma: Boolean(payload.firma_base64),
+    });
+    const { response, data } = await getClientRequestActivationResponse(payload, token);
+    console.log('Solicitar activacion status:', response.status);
+    console.log('Solicitar activacion respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion.');
+    }
+
+    return data;
+  }, [getClientRequestActivationResponse]);
 
   const login = useCallback(async (username, password) => {
     try {
@@ -899,24 +1004,36 @@ export function AuthProvider({ children }) {
     }
   }, [getPaymentTypesCatalog, getTable]);
 
-  const getClientQrData = useCallback(async (clientId = user?.id_usuario) => {
+  const getClientQrData = useCallback(async (clientId = user?.id_usuario, options = {}) => {
     try {
       const normalizedClientId = Number(clientId ?? 0);
       if (normalizedClientId <= 0) {
         return null;
       }
 
+      const includeInactive = Boolean(options?.includeInactive);
+
       const qrRows = await getTable({
         tabla: 'qr_cliente',
         where: {
           id_usuario: normalizedClientId,
-          activo: 1,
           visible: 1,
         },
         order: 'id_qr_cliente DESC',
       });
 
-      return qrRows.find((row) => isQrCurrentlyValid(row)) ?? null;
+      const latestVisibleQr = qrRows?.[0] ?? null;
+      const validQr = qrRows.find((row) => isQrCurrentlyValid(row)) ?? null;
+      const resolvedQr = includeInactive ? (latestVisibleQr ?? validQr) : (validQr ?? latestVisibleQr);
+
+      if (!resolvedQr) {
+        return null;
+      }
+
+      return {
+        ...resolvedQr,
+        ...normalizeQrStatus(resolvedQr),
+      };
     } catch (currentError) {
       console.error('Error fetching client QR data:', currentError);
       throw currentError;
@@ -980,19 +1097,23 @@ export function AuthProvider({ children }) {
       getConsumptionPayments,
       getClientAvailableBalance,
       getClientQrData,
+      getClientQrActivationStatus,
       getCashierDeliverySummary,
+      requestClientQrActivation,
       saveCashierDeliveryExpediente,
     }),
     [
       activeEstablecimientoId,
       error,
       getClientAvailableBalance,
+      getClientQrActivationStatus,
       getCashierDeliverySummary,
       getConsumptionPayments,
       getSalesByClient,
       getSalesByProvider,
       getTable,
       getClientQrData,
+      requestClientQrActivation,
       saveCashierDeliveryExpediente,
       saveDepositoCredito,
       saveTable,
