@@ -6,7 +6,8 @@ import {
   Alert,
   DeviceEventEmitter,
   Image,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import SignatureCanvas from 'react-native-signature-canvas';
 import AccessDenied from '../AccessDenied';
 import { hasPermission } from '../../constants/roles';
@@ -51,8 +53,10 @@ export default function CashierProcessScreen() {
     getCashierDeliverySummary,
     getClientQrActivationStatus,
     getClientQrData,
-    requestClientQrActivation,
-    saveCashierDeliveryExpediente,
+    presignClientQrActivation,
+    presignCashierDeliveryExpediente,
+    requestClientQrActivationS3,
+    saveCashierDeliveryExpedienteS3,
   } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [folio, setFolio] = useState('');
@@ -254,6 +258,30 @@ export default function CashierProcessScreen() {
     signatureRef.current.readSignature();
   };
 
+  const uploadDataUrlToSignedUrl = async (uploadConfig, dataUrl) => {
+    if (!uploadConfig?.upload_url || !dataUrl) {
+      throw new Error('Falta informacion para subir un archivo a S3.');
+    }
+
+    const localResponse = await fetch(dataUrl);
+    const blob = await localResponse.blob();
+    const uploadHeaders = uploadConfig?.headers && typeof uploadConfig.headers === 'object'
+      ? uploadConfig.headers
+      : {};
+
+    const uploadResponse = await fetch(uploadConfig.upload_url, {
+      method: 'PUT',
+      headers: uploadHeaders,
+      body: blob,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`No se pudo subir ${uploadConfig.tipo || 'el archivo'} a S3.`);
+    }
+
+    return uploadConfig.file_key;
+  };
+
   const saveExpediente = async () => {
     if (isSavingExpediente) {
       return;
@@ -272,12 +300,42 @@ export default function CashierProcessScreen() {
     if (isClientActivation) {
       try {
         setIsSavingExpediente(true);
-        const response = await requestClientQrActivation({
+        const presignResponse = await presignClientQrActivation({
           folio: deliverySummary.folio,
           id_usuario: deliverySummary.id_usuario,
-          anverso_base64: frontPhoto.dataUrl,
-          reverso_base64: backPhoto.dataUrl,
-          firma_base64: signatureDataUrl,
+          archivos: [
+            { tipo: 'anverso', mime_type: 'image/jpeg' },
+            { tipo: 'reverso', mime_type: 'image/jpeg' },
+            { tipo: 'firma', mime_type: 'image/png' },
+          ],
+        });
+
+        const uploads = Array.isArray(presignResponse?.data?.uploads)
+          ? presignResponse.data.uploads
+          : Array.isArray(presignResponse?.uploads)
+            ? presignResponse.uploads
+            : [];
+
+        const anversoUpload = uploads.find((item) => item?.tipo === 'anverso');
+        const reversoUpload = uploads.find((item) => item?.tipo === 'reverso');
+        const firmaUpload = uploads.find((item) => item?.tipo === 'firma');
+
+        if (!anversoUpload || !reversoUpload || !firmaUpload) {
+          throw new Error('El backend no devolvio las URLs firmadas completas para la activacion.');
+        }
+
+        await Promise.all([
+          uploadDataUrlToSignedUrl(anversoUpload, frontPhoto.dataUrl),
+          uploadDataUrlToSignedUrl(reversoUpload, backPhoto.dataUrl),
+          uploadDataUrlToSignedUrl(firmaUpload, signatureDataUrl),
+        ]);
+
+        const response = await requestClientQrActivationS3({
+          folio: deliverySummary.folio,
+          id_usuario: deliverySummary.id_usuario,
+          anverso_key: anversoUpload.file_key,
+          reverso_key: reversoUpload.file_key,
+          firma_key: firmaUpload.file_key,
         });
 
         Alert.alert(
@@ -305,12 +363,42 @@ export default function CashierProcessScreen() {
 
     try {
       setIsSavingExpediente(true);
-      const response = await saveCashierDeliveryExpediente({
+      const presignResponse = await presignCashierDeliveryExpediente({
         folio: deliverySummary.folio,
         id_usuario: deliverySummary.id_usuario,
-        anverso_base64: frontPhoto.dataUrl,
-        reverso_base64: backPhoto.dataUrl,
-        firma_base64: signatureDataUrl,
+        archivos: [
+          { tipo: 'anverso', mime_type: 'image/jpeg' },
+          { tipo: 'reverso', mime_type: 'image/jpeg' },
+          { tipo: 'firma', mime_type: 'image/png' },
+        ],
+      });
+
+      const uploads = Array.isArray(presignResponse?.data?.uploads)
+        ? presignResponse.data.uploads
+        : Array.isArray(presignResponse?.uploads)
+          ? presignResponse.uploads
+          : [];
+
+      const anversoUpload = uploads.find((item) => item?.tipo === 'anverso');
+      const reversoUpload = uploads.find((item) => item?.tipo === 'reverso');
+      const firmaUpload = uploads.find((item) => item?.tipo === 'firma');
+
+      if (!anversoUpload || !reversoUpload || !firmaUpload) {
+        throw new Error('El backend no devolvio las URLs firmadas completas para el expediente.');
+      }
+
+      await Promise.all([
+        uploadDataUrlToSignedUrl(anversoUpload, frontPhoto.dataUrl),
+        uploadDataUrlToSignedUrl(reversoUpload, backPhoto.dataUrl),
+        uploadDataUrlToSignedUrl(firmaUpload, signatureDataUrl),
+      ]);
+
+      const response = await saveCashierDeliveryExpedienteS3({
+        folio: deliverySummary.folio,
+        id_usuario: deliverySummary.id_usuario,
+        anverso_key: anversoUpload.file_key,
+        reverso_key: reversoUpload.file_key,
+        firma_key: firmaUpload.file_key,
       });
 
       Alert.alert(
@@ -332,49 +420,62 @@ export default function CashierProcessScreen() {
   };
 
   const renderFolioStep = () => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>
-        {isClientActivation ? 'Comienza tu activacion' : 'Folio del interesado'}
-      </Text>
-        <Text style={styles.cardDescription}>
-          {isClientActivation
-            ? 'Completa tu expediente documental para que TI revise y active tu QR.'
-            : 'El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega.'}
-        </Text>
-
-      {isClientActivation && String(deliverySummary?.motivo_rechazo ?? '').trim() ? (
-        <View style={styles.rejectionHint}>
-          <Text style={styles.rejectionHintTitle}>Motivo del rechazo anterior</Text>
-          <Text style={styles.rejectionHintText}>{String(deliverySummary.motivo_rechazo).trim()}</Text>
-        </View>
-      ) : null}
-
-      {!isClientActivation ? (
-        <>
-          <Text style={styles.inputLabel}>Folio</Text>
-          <TextInput
-            style={styles.input}
-            value={folio}
-            onChangeText={setFolio}
-            placeholder="Captura el folio"
-            placeholderTextColor="#7A7A7A"
-            autoCapitalize="characters"
-          />
-        </>
-      ) : null}
-
-      <TouchableOpacity
-        style={[styles.primaryButton, isValidatingFolio && styles.disabledButton]}
-        onPress={startDocumentCapture}
-        disabled={isValidatingFolio}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.formStepWrapper}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.formStepContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
-        <Text style={styles.primaryButtonText}>
-          {isValidatingFolio
-            ? (isClientActivation ? 'Preparando activacion...' : 'Validando folio...')
-            : 'Continuar'}
-        </Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {isClientActivation ? 'Comienza tu activacion' : 'Folio del interesado'}
+          </Text>
+          <Text style={styles.cardDescription}>
+            {isClientActivation
+              ? 'Completa tu expediente documental para que TI revise y active tu QR.'
+              : 'El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega.'}
+          </Text>
+
+          {isClientActivation && String(deliverySummary?.motivo_rechazo ?? '').trim() ? (
+            <View style={styles.rejectionHint}>
+              <Text style={styles.rejectionHintTitle}>Motivo del rechazo anterior</Text>
+              <Text style={styles.rejectionHintText}>{String(deliverySummary.motivo_rechazo).trim()}</Text>
+            </View>
+          ) : null}
+
+          {!isClientActivation ? (
+            <>
+              <Text style={styles.inputLabel}>Folio</Text>
+              <TextInput
+                style={styles.input}
+                value={folio}
+                onChangeText={setFolio}
+                placeholder="Captura el folio"
+                placeholderTextColor="#7A7A7A"
+                autoCapitalize="characters"
+                returnKeyType="done"
+              />
+            </>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.primaryButton, isValidatingFolio && styles.disabledButton]}
+            onPress={startDocumentCapture}
+            disabled={isValidatingFolio}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isValidatingFolio
+                ? (isClientActivation ? 'Preparando activacion...' : 'Validando folio...')
+                : 'Continuar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 
   const renderCaptureStep = () => (
@@ -457,10 +558,10 @@ export default function CashierProcessScreen() {
 
   const renderSignatureStep = () => (
     <View style={styles.signatureScreen}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Firma del interesado</Text>
-        <Text style={styles.cardDescription}>
-          Solicita al interesado que firme con su dedo dentro del recuadro. Esta firma quedara ligada al folio y a las fotografias del documento.
+      <View style={styles.signatureTopBar}>
+        <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
+        <Text style={styles.signatureTopSubtitle}>
+          Firma dentro del recuadro. Mantuvimos visibles las acciones de limpiar y guardar.
         </Text>
       </View>
 
@@ -479,12 +580,24 @@ export default function CashierProcessScreen() {
           webStyle={`
             .m-signature-pad {
               box-shadow: none;
-              border: 1px solid #D7DEEE;
-              border-radius: 18px;
+              border: none;
+              display: flex;
+              flex-direction: column;
+              height: 100%;
+            }
+            .m-signature-pad--body {
+              flex: 1;
+              border: none;
+            }
+            .m-signature-pad--body canvas {
+              width: 100% !important;
+              height: 100% !important;
+              border-radius: 18px 18px 0 0;
             }
             .m-signature-pad--footer {
               background: #FFFFFF;
               border-top: 1px solid #E7ECF7;
+              padding: 10px 12px;
             }
             .m-signature-pad--footer .button {
               background-color: #263B80;
@@ -498,11 +611,20 @@ export default function CashierProcessScreen() {
             }
             body, html {
               background-color: #FFFFFF;
+              height: 100%;
+              overflow: hidden;
+              position: fixed;
+              width: 100%;
             }
           `}
           webviewProps={{
             cacheEnabled: true,
             androidLayerType: 'hardware',
+            nestedScrollEnabled: false,
+            scrollEnabled: false,
+            showsVerticalScrollIndicator: false,
+            overScrollMode: 'never',
+            bounces: false,
           }}
         />
       </View>
@@ -690,6 +812,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  formStepWrapper: {
+    flex: 1,
+  },
+  formStepContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   header: {
     paddingHorizontal: 20,
@@ -904,9 +1033,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
+  signatureTopBar: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D7DEEE',
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 12,
+    shadowColor: '#0D1B2A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  signatureTopTitle: {
+    color: '#263B80',
+    fontSize: 21,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  signatureTopSubtitle: {
+    color: '#49516A',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   signatureWrapper: {
     flex: 1,
-    minHeight: 340,
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     overflow: 'hidden',

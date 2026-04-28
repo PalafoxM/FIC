@@ -1,6 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, InteractionManager, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  InteractionManager,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { hasPermission, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
@@ -310,7 +321,17 @@ export default function EnterAmountScreen() {
   const total = calculateTotal();
 
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
       <View style={styles.header}>
         <Text style={styles.title}>Cobrar a</Text>
         <Text style={styles.clientName}>{clientName}</Text>
@@ -501,7 +522,8 @@ export default function EnterAmountScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -509,7 +531,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 36,
   },
   header: {
     alignItems: 'center',

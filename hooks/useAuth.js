@@ -344,6 +344,22 @@ export function AuthProvider({ children }) {
       rawLabel: 'cajeroGuardarExpediente',
     }), [getApiJsonResponse]);
 
+  const getCashierPresignExpedienteResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/presign-expediente`,
+      token,
+      body: payload,
+      rawLabel: 'cajeroPresignExpediente',
+    }), [getApiJsonResponse]);
+
+  const getCashierSaveExpedienteS3Response = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/guardar-expediente-s3`,
+      token,
+      body: payload,
+      rawLabel: 'cajeroGuardarExpedienteS3',
+    }), [getApiJsonResponse]);
+
   const getClientActivationStatusResponse = useCallback(async (userId, token) =>
     await getApiJsonResponse({
       url: `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
@@ -358,6 +374,22 @@ export function AuthProvider({ children }) {
       token,
       body: payload,
       rawLabel: 'clienteSolicitarActivacionQr',
+    }), [getApiJsonResponse]);
+
+  const getClientPresignActivationResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cliente/presign-activacion-qr`,
+      token,
+      body: payload,
+      rawLabel: 'clientePresignActivacionQr',
+    }), [getApiJsonResponse]);
+
+  const getClientRequestActivationS3Response = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`,
+      token,
+      body: payload,
+      rawLabel: 'clienteSolicitarActivacionQrS3',
     }), [getApiJsonResponse]);
 
   const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
@@ -641,6 +673,68 @@ export function AuthProvider({ children }) {
     return data;
   }, [getCashierSaveExpedienteResponse]);
 
+  const presignCashierDeliveryExpediente = useCallback(async ({
+    folio,
+    id_usuario,
+    archivos,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      folio: String(folio ?? '').trim(),
+      id_usuario: Number(id_usuario ?? 0),
+      archivos: Array.isArray(archivos) ? archivos : [],
+    };
+
+    console.log('Presign expediente URL:', `${PHP_BASE_URL}/api/cajero/presign-expediente`);
+    console.log('Presign expediente payload:', payload);
+    const { response, data } = await getCashierPresignExpedienteResponse(payload, token);
+    console.log('Presign expediente status:', response.status);
+    console.log('Presign expediente respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas.');
+    }
+
+    return data;
+  }, [getCashierPresignExpedienteResponse]);
+
+  const saveCashierDeliveryExpedienteS3 = useCallback(async ({
+    folio,
+    id_usuario,
+    anverso_key,
+    reverso_key,
+    firma_key,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      folio: String(folio ?? '').trim(),
+      id_usuario: Number(id_usuario ?? 0),
+      anverso_key: String(anverso_key ?? '').trim(),
+      reverso_key: String(reverso_key ?? '').trim(),
+      firma_key: String(firma_key ?? '').trim(),
+    };
+
+    console.log('Guardar expediente S3 URL:', `${PHP_BASE_URL}/api/cajero/guardar-expediente-s3`);
+    console.log('Guardar expediente S3 payload:', payload);
+    const { response, data } = await getCashierSaveExpedienteS3Response(payload, token);
+    console.log('Guardar expediente S3 status:', response.status);
+    console.log('Guardar expediente S3 respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo confirmar el expediente en S3.');
+    }
+
+    return data;
+  }, [getCashierSaveExpedienteS3Response]);
+
   const getClientQrActivationStatus = useCallback(async (clientId = user?.id_usuario) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
@@ -702,6 +796,68 @@ export function AuthProvider({ children }) {
 
     return data;
   }, [getClientRequestActivationResponse]);
+
+  const presignClientQrActivation = useCallback(async ({
+    id_usuario,
+    folio,
+    archivos,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(id_usuario ?? 0),
+      folio: String(folio ?? '').trim(),
+      archivos: Array.isArray(archivos) ? archivos : [],
+    };
+
+    console.log('Presign activacion cliente URL:', `${PHP_BASE_URL}/api/cliente/presign-activacion-qr`);
+    console.log('Presign activacion cliente payload:', payload);
+    const { response, data } = await getClientPresignActivationResponse(payload, token);
+    console.log('Presign activacion cliente status:', response.status);
+    console.log('Presign activacion cliente respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas de activacion.');
+    }
+
+    return data;
+  }, [getClientPresignActivationResponse]);
+
+  const requestClientQrActivationS3 = useCallback(async ({
+    id_usuario,
+    folio,
+    anverso_key,
+    reverso_key,
+    firma_key,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(id_usuario ?? 0),
+      folio: String(folio ?? '').trim(),
+      anverso_key: String(anverso_key ?? '').trim(),
+      reverso_key: String(reverso_key ?? '').trim(),
+      firma_key: String(firma_key ?? '').trim(),
+    };
+
+    console.log('Solicitar activacion QR S3 URL:', `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`);
+    console.log('Solicitar activacion QR S3 payload:', payload);
+    const { response, data } = await getClientRequestActivationS3Response(payload, token);
+    console.log('Solicitar activacion QR S3 status:', response.status);
+    console.log('Solicitar activacion QR S3 respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion por S3.');
+    }
+
+    return data;
+  }, [getClientRequestActivationS3Response]);
 
   const login = useCallback(async (username, password) => {
     try {
@@ -1099,8 +1255,12 @@ export function AuthProvider({ children }) {
       getClientQrData,
       getClientQrActivationStatus,
       getCashierDeliverySummary,
+      presignClientQrActivation,
+      presignCashierDeliveryExpediente,
       requestClientQrActivation,
+      requestClientQrActivationS3,
       saveCashierDeliveryExpediente,
+      saveCashierDeliveryExpedienteS3,
     }),
     [
       activeEstablecimientoId,
@@ -1113,8 +1273,12 @@ export function AuthProvider({ children }) {
       getSalesByProvider,
       getTable,
       getClientQrData,
+      presignClientQrActivation,
+      presignCashierDeliveryExpediente,
       requestClientQrActivation,
+      requestClientQrActivationS3,
       saveCashierDeliveryExpediente,
+      saveCashierDeliveryExpedienteS3,
       saveDepositoCredito,
       saveTable,
       loading,

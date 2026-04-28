@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   DeviceEventEmitter,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -1296,8 +1298,16 @@ export default function HomeScreen() {
       </ScrollView>
 
       <Modal visible={depositModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <ScrollView contentContainerStyle={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             <Text style={styles.modalTitle}>Depositar creditos</Text>
 
             <View style={styles.formBlock}>
@@ -1368,7 +1378,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
