@@ -694,6 +694,11 @@ export function AuthProvider({ children }) {
     const { response, data, rawResponse } = await getCashierPresignExpedienteResponse(payload, token);
     console.log('Presign expediente status:', response.status);
     console.log('Presign expediente respuesta:', data?.respuesta ?? data?.message ?? data);
+    console.log('Presign expediente body:', data);
+    console.log(
+      'Presign expediente uploads count:',
+      Array.isArray(data?.data?.uploads) ? data.data.uploads.length : 0
+    );
 
     if (!response.ok || data?.error) {
       if (!data && rawResponse) {
@@ -735,6 +740,7 @@ export function AuthProvider({ children }) {
     const { response, data } = await getCashierSaveExpedienteS3Response(payload, token);
     console.log('Guardar expediente S3 status:', response.status);
     console.log('Guardar expediente S3 respuesta:', data?.respuesta ?? data?.message ?? data);
+    console.log('Guardar expediente S3 body:', data);
 
     if (!response.ok || data?.error) {
       throw new Error(data?.respuesta || data?.message || 'No se pudo confirmar el expediente en S3.');
