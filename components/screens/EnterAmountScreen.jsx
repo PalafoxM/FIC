@@ -34,11 +34,16 @@ export default function EnterAmountScreen() {
   const router = useRouter();
   const { user, activeEstablecimientoId } = useAuth();
   const { createPaymentRequest, createTransaction, getTransactionStatus } = useApi();
+  const forcedPaymentMethod =
+    params.forcedPaymentMethod ||
+    (clientData?.forcedPaymentMethod ?? null);
 
   const [amount, setAmount] = useState('');
   const [tip, setTip] = useState('');
   const [description, setDescription] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('app');
+  const [paymentMethod, setPaymentMethod] = useState(
+    forcedPaymentMethod === 'nip' ? 'nip' : 'app'
+  );
   const [nip, setNip] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
@@ -60,6 +65,7 @@ export default function EnterAmountScreen() {
     clientData?.qr_code ||
     clientData?.clientQrCode ||
     null;
+  const canUseAppPayment = forcedPaymentMethod !== 'nip';
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
@@ -358,11 +364,25 @@ export default function EnterAmountScreen() {
         <Text style={styles.sectionTitle}>Metodo de cobro</Text>
         <View style={styles.methodSelector}>
           <TouchableOpacity
-            style={[styles.methodButton, paymentMethod === 'app' && styles.methodButtonActive]}
-            onPress={() => setPaymentMethod('app')}
+            style={[
+              styles.methodButton,
+              paymentMethod === 'app' && styles.methodButtonActive,
+              !canUseAppPayment && styles.methodButtonDisabled,
+            ]}
+            onPress={() => {
+              if (!canUseAppPayment) {
+                Alert.alert('Atención', 'Este QR no está operativo para cobro por app. Usa cobro con NIP.');
+                return;
+              }
+              setPaymentMethod('app');
+            }}
           >
             <Text
-              style={[styles.methodButtonText, paymentMethod === 'app' && styles.methodButtonTextActive]}
+              style={[
+                styles.methodButtonText,
+                paymentMethod === 'app' && styles.methodButtonTextActive,
+                !canUseAppPayment && styles.methodButtonTextDisabled,
+              ]}
             >
               Cobro por app
             </Text>
@@ -602,6 +622,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#263B80',
     borderColor: '#263B80',
   },
+  methodButtonDisabled: {
+    backgroundColor: '#F1F3F5',
+    borderColor: '#DADFE5',
+  },
   methodButtonText: {
     fontSize: 14,
     fontWeight: '600',
@@ -609,6 +633,9 @@ const styles = StyleSheet.create({
   },
   methodButtonTextActive: {
     color: '#FFFFFF',
+  },
+  methodButtonTextDisabled: {
+    color: '#9AA4AF',
   },
   methodHelpText: {
     marginTop: 12,

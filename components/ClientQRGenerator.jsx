@@ -1,9 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, DeviceEventEmitter, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
+
+const hasOwnProperty = (object, propertyName) =>
+  Boolean(object) && Object.prototype.hasOwnProperty.call(object, propertyName);
+
+const resolveActivationStatus = (status) => {
+  const solicitud = String(status?.solicitud_activacion_estatus ?? '').trim().toLowerCase();
+  const expediente = String(status?.expediente_estatus ?? '').trim().toLowerCase();
+
+  if (solicitud === 'pendiente' || expediente === 'solicitado_ti') {
+    return 'pendiente';
+  }
+
+  if (solicitud === 'rechazada' || expediente === 'cancelado') {
+    return 'rechazada';
+  }
+
+  if (solicitud === 'aprobada' || expediente === 'entregado') {
+    return 'aprobada';
+  }
+
+  return '';
+};
 
 const ClientQRGenerator = () => {
   const router = useRouter();
@@ -12,6 +34,7 @@ const ClientQRGenerator = () => {
   const [qrData, setQrData] = useState(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [qrStatus, setQrStatus] = useState(null);
+  const [statusResolved, setStatusResolved] = useState(false);
 
   const refreshClientQrState = useCallback(async () => {
     if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
@@ -23,26 +46,41 @@ const ClientQRGenerator = () => {
       getClientQrActivationStatus(user.id_usuario),
     ]);
 
+    const resolvedQrActivo = hasOwnProperty(activationStatus, 'qr_activo')
+      ? Number(activationStatus?.qr_activo ?? 0)
+      : Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0);
+    const resolvedQrOperativo = hasOwnProperty(qrRecord, 'qr_operativo')
+      ? Boolean(qrRecord?.qr_operativo)
+      : resolvedQrActivo === 1;
+    const resolvedQrVencido = hasOwnProperty(qrRecord, 'qr_vencido')
+      ? Boolean(qrRecord?.qr_vencido)
+      : false;
+
     const mergedStatus = {
       ...(qrRecord ?? {}),
       ...(activationStatus ?? {}),
-      qr_activo: Number(
-        activationStatus?.qr_activo ??
-        qrRecord?.qr_activo ??
-        user?.qr_activo ??
-        0
-      ),
+      qr_activo: resolvedQrActivo,
+      qr_operativo: resolvedQrActivo === 1 && resolvedQrOperativo,
+      qr_vencido: resolvedQrVencido,
     };
 
     setQrStatus(mergedStatus);
+    setStatusResolved(true);
     return mergedStatus;
   }, [getClientQrActivationStatus, getClientQrData, user]);
 
   const getPrimaryCtaLabel = useCallback((status) => {
-    const resolvedStatus = status?.solicitud_activacion_estatus;
-    const qrActivo = Number(status?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+    if (!statusResolved) {
+      return 'Consultando estado del QR...';
+    }
 
-    if (qrActivo) {
+    const resolvedStatus = resolveActivationStatus(status);
+    const qrOperativo =
+      typeof status?.qr_operativo === 'boolean'
+        ? status.qr_operativo
+        : Number(status?.qr_activo ?? 0) === 1;
+
+    if (qrOperativo) {
       return 'Generar QR para pagar';
     }
 
@@ -55,7 +93,7 @@ const ClientQRGenerator = () => {
     }
 
     return 'Comienza tu activacion';
-  }, [user?.qr_activo]);
+  }, [statusResolved]);
 
   const generateClientQR = async () => {
     if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
@@ -66,6 +104,10 @@ const ClientQRGenerator = () => {
       setLoadingQr(true);
       const qrRecord = await refreshClientQrState();
       const qrCode = qrRecord?.codigo_qr ?? null;
+      const qrOperativo =
+        typeof qrRecord?.qr_operativo === 'boolean'
+          ? qrRecord.qr_operativo
+          : Number(qrRecord?.qr_activo ?? 0) === 1;
 
       if (!qrCode) {
         Alert.alert(
@@ -75,8 +117,8 @@ const ClientQRGenerator = () => {
         return;
       }
 
-      if (Number(qrRecord?.qr_activo ?? 0) !== 1) {
-        if (qrRecord?.solicitud_activacion_estatus === 'pendiente') {
+      if (!qrOperativo) {
+        if (resolveActivationStatus(qrRecord) === 'pendiente') {
           Alert.alert(
             'Atenci\u00f3n',
             'Tu solicitud de activacion ya fue enviada y se encuentra en revision por TI.'
@@ -84,7 +126,7 @@ const ClientQRGenerator = () => {
           return;
         }
 
-        if (qrRecord?.solicitud_activacion_estatus === 'rechazada' && String(qrRecord?.motivo_rechazo ?? '').trim()) {
+        if (resolveActivationStatus(qrRecord) === 'rechazada' && String(qrRecord?.motivo_rechazo ?? '').trim()) {
           Alert.alert(
             'Atenci\u00f3n',
             `Tu solicitud fue rechazada.\n\nMotivo: ${String(qrRecord.motivo_rechazo).trim()}`
@@ -102,9 +144,14 @@ const ClientQRGenerator = () => {
 
       const clientPaymentInfo = {
         type: 'client_payment',
+        id: user?.id_usuario ?? null,
+        clientId: user?.id_usuario ?? null,
+        clientUserId: user?.id_usuario ?? null,
+        clientName: [user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' '),
         codigo_qr: qrCode,
         qr_code: qrCode,
         clientQrCode: qrCode,
+        qr_operativo: true,
         timestamp: new Date().toISOString(),
       };
 
@@ -125,6 +172,7 @@ const ClientQRGenerator = () => {
   useEffect(() => {
     refreshClientQrState().catch((error) => {
       console.error('Error refreshing client QR activation state:', error);
+      setStatusResolved(true);
     });
 
     const subscription = DeviceEventEmitter.addListener('closeClientQrModal', () => {
@@ -133,6 +181,7 @@ const ClientQRGenerator = () => {
     const refreshSubscription = DeviceEventEmitter.addListener('refreshClientQrActivationState', () => {
       refreshClientQrState().catch((error) => {
         console.error('Error refreshing client QR activation state:', error);
+        setStatusResolved(true);
       });
     });
 
@@ -141,6 +190,15 @@ const ClientQRGenerator = () => {
       refreshSubscription.remove();
     };
   }, [refreshClientQrState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshClientQrState().catch((error) => {
+        console.error('Error refreshing client QR activation state on focus:', error);
+        setStatusResolved(true);
+      });
+    }, [refreshClientQrState])
+  );
 
   return (
     <>
@@ -156,7 +214,10 @@ const ClientQRGenerator = () => {
         </Text>
       </TouchableOpacity>
 
-      {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) !== 1 && String(qrStatus?.codigo_qr ?? user?.codigo_qr ?? '').trim() ? (
+      {(typeof qrStatus?.qr_operativo === 'boolean'
+        ? !qrStatus.qr_operativo
+        : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) !== 1) &&
+      String(qrStatus?.codigo_qr ?? user?.codigo_qr ?? '').trim() ? (
         <TouchableOpacity
           style={styles.secondaryAction}
           onPress={() => {
@@ -171,9 +232,15 @@ const ClientQRGenerator = () => {
 
             setQrData({
               type: 'client_payment',
+              id: user?.id_usuario ?? null,
+              clientId: user?.id_usuario ?? null,
+              clientUserId: user?.id_usuario ?? null,
+              clientName: [user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' '),
               codigo_qr: qrCode,
               qr_code: qrCode,
               clientQrCode: qrCode,
+              qr_operativo: false,
+              forDisplayOnly: true,
               timestamp: new Date().toISOString(),
             });
             setShowQR(true);
@@ -183,13 +250,13 @@ const ClientQRGenerator = () => {
         </TouchableOpacity>
       ) : null}
 
-      {qrStatus?.solicitud_activacion_estatus === 'pendiente' ? (
+      {resolveActivationStatus(qrStatus) === 'pendiente' ? (
         <View style={styles.statusNote}>
           <Text style={styles.statusNoteText}>Tu expediente ya fue enviado y esta en revision por TI.</Text>
         </View>
       ) : null}
 
-      {qrStatus?.solicitud_activacion_estatus === 'rechazada' && String(qrStatus?.motivo_rechazo ?? '').trim() ? (
+      {resolveActivationStatus(qrStatus) === 'rechazada' && String(qrStatus?.motivo_rechazo ?? '').trim() ? (
         <View style={styles.rejectionNote}>
           <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
           <Text style={styles.rejectionText}>{String(qrStatus.motivo_rechazo).trim()}</Text>
@@ -227,9 +294,15 @@ const ClientQRGenerator = () => {
 
                 <View style={styles.instructions}>
                   <Text style={styles.instructionTitle}>
-                    {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1 ? 'Como usar:' : 'QR visible pero inactivo'}
+                    {(typeof qrStatus?.qr_operativo === 'boolean'
+                      ? qrStatus.qr_operativo
+                      : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1)
+                      ? 'Como usar:'
+                      : 'QR visible pero inactivo'}
                   </Text>
-                  {Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1 ? (
+                  {(typeof qrStatus?.qr_operativo === 'boolean'
+                    ? qrStatus.qr_operativo
+                    : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1) ? (
                     <>
                       <Text style={styles.instructionText}>1. Muestra este QR al vendedor</Text>
                       <Text style={styles.instructionText}>2. El vendedor escaneara el codigo</Text>
@@ -237,7 +310,11 @@ const ClientQRGenerator = () => {
                     </>
                   ) : (
                     <>
-                      <Text style={styles.instructionText}>Tu QR ya no esta operativo para pagos.</Text>
+                      <Text style={styles.instructionText}>
+                        {qrStatus?.qr_vencido
+                          ? 'Tu QR vencio y ya no esta operativo para pagos.'
+                          : 'Tu QR no esta operativo para pagos.'}
+                      </Text>
                       <Text style={styles.instructionText}>Completa tu activacion documental para solicitar revision a TI.</Text>
                     </>
                   )}

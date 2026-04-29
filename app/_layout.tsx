@@ -38,6 +38,14 @@ function RootLayoutContent() {
   }, [user, loading, segments, router]);
 
   useEffect(() => {
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data;
+
+      if (data?.type === 'QR_READY' || data?.type === 'QR_ACTIVATION_REJECTED') {
+        DeviceEventEmitter.emit('refreshClientQrActivationState');
+      }
+    });
+
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data;
       console.log('Notificacion tocada:', data);
@@ -52,7 +60,10 @@ function RootLayoutContent() {
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      receivedSubscription.remove();
+      subscription.remove();
+    };
   }, [router]);
 
   if (loading) {

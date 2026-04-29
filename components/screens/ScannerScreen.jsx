@@ -96,6 +96,10 @@ export default function ScannerScreen() {
       const resolvedClientId = clientData.clientId ?? clientData.clientUserId ?? clientData.id;
       const resolvedQrCode =
         clientData.codigo_qr ?? clientData.qr_code ?? clientData.clientQrCode ?? null;
+      const qrOperativo =
+        typeof clientData?.qr_operativo === 'boolean'
+          ? clientData.qr_operativo
+          : true;
 
       if (!resolvedClientId && !resolvedQrCode) {
         Alert.alert('Atenci\u00f3n', 'El codigo no contiene un identificador de cliente valido.');
@@ -106,6 +110,13 @@ export default function ScannerScreen() {
         return;
       }
 
+      if (!qrOperativo) {
+        Alert.alert(
+          'Atenci\u00f3n',
+          'Este QR no esta operativo para cobro por app. Continua con cobro por NIP.'
+        );
+      }
+
       router.replace({
         pathname: '/enter-amount',
         params: {
@@ -113,6 +124,7 @@ export default function ScannerScreen() {
           clientId: resolvedClientId,
           qrCode: resolvedQrCode,
           clientName: clientData.clientName ?? clientData.name,
+          forcedPaymentMethod: qrOperativo ? 'app' : 'nip',
         },
       });
     } catch (_error) {

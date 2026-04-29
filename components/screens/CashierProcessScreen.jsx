@@ -46,6 +46,25 @@ const buildStepTitle = (step) => {
   }
 };
 
+const resolveActivationStatus = (status) => {
+  const solicitud = String(status?.solicitud_activacion_estatus ?? '').trim().toLowerCase();
+  const expediente = String(status?.expediente_estatus ?? '').trim().toLowerCase();
+
+  if (solicitud === 'pendiente' || expediente === 'solicitado_ti') {
+    return 'pendiente';
+  }
+
+  if (solicitud === 'rechazada' || expediente === 'cancelado') {
+    return 'rechazada';
+  }
+
+  if (solicitud === 'aprobada' || expediente === 'entregado') {
+    return 'aprobada';
+  }
+
+  return '';
+};
+
 export default function CashierProcessScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -111,13 +130,18 @@ export default function CashierProcessScreen() {
           getClientQrData(user?.id_usuario, { includeInactive: true }),
         ]);
 
-        if (Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1) {
+        const qrOperativo =
+          typeof qrRecord?.qr_operativo === 'boolean'
+            ? qrRecord.qr_operativo
+            : Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+
+        if (qrOperativo) {
           Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
           router.back();
           return;
         }
 
-        if (activationStatus?.solicitud_activacion_estatus === 'pendiente') {
+        if (resolveActivationStatus(activationStatus) === 'pendiente') {
           Alert.alert('Atencion', 'Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.');
           router.back();
           return;
