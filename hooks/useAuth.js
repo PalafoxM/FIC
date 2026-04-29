@@ -360,6 +360,14 @@ export function AuthProvider({ children }) {
       rawLabel: 'cajeroGuardarExpedienteS3',
     }), [getApiJsonResponse]);
 
+  const getCashierActivateQrResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/activar-qr`,
+      token,
+      body: payload,
+      rawLabel: 'cajeroActivarQr',
+    }), [getApiJsonResponse]);
+
   const getClientActivationStatusResponse = useCallback(async (userId, token) =>
     await getApiJsonResponse({
       url: `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
@@ -748,6 +756,36 @@ export function AuthProvider({ children }) {
 
     return data;
   }, [getCashierSaveExpedienteS3Response]);
+
+  const activateCashierQr = useCallback(async ({
+    folio,
+    id_usuario,
+    activo = 1,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      folio: String(folio ?? '').trim(),
+      id_usuario: Number(id_usuario ?? 0),
+      activo: Number(activo ?? 1) === 1 ? 1 : 0,
+    };
+
+    console.log('Activar QR cajero URL:', `${PHP_BASE_URL}/api/cajero/activar-qr`);
+    console.log('Activar QR cajero payload:', payload);
+    const { response, data } = await getCashierActivateQrResponse(payload, token);
+    console.log('Activar QR cajero status:', response.status);
+    console.log('Activar QR cajero respuesta:', data?.respuesta ?? data?.message ?? data);
+    console.log('Activar QR cajero body:', data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo activar el QR del interesado.');
+    }
+
+    return data;
+  }, [getCashierActivateQrResponse]);
 
   const getClientQrActivationStatus = useCallback(async (clientId = user?.id_usuario) => {
     const token = await AsyncStorage.getItem('token');
@@ -1277,6 +1315,7 @@ export function AuthProvider({ children }) {
       getClientQrData,
       getClientQrActivationStatus,
       getCashierDeliverySummary,
+      activateCashierQr,
       presignClientQrActivation,
       presignCashierDeliveryExpediente,
       requestClientQrActivation,
@@ -1290,6 +1329,7 @@ export function AuthProvider({ children }) {
       getClientAvailableBalance,
       getClientQrActivationStatus,
       getCashierDeliverySummary,
+      activateCashierQr,
       getConsumptionPayments,
       getSalesByClient,
       getSalesByProvider,

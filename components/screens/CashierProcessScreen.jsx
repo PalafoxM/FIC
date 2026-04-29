@@ -51,6 +51,7 @@ export default function CashierProcessScreen() {
   const router = useRouter();
   const {
     user,
+    activateCashierQr,
     getCashierDeliverySummary,
     getClientQrActivationStatus,
     getClientQrData,
@@ -253,16 +254,42 @@ export default function CashierProcessScreen() {
       throw new Error('Falta informacion para subir un archivo a S3.');
     }
 
-    const localResponse = await fetch(dataUrl);
-    const blob = await localResponse.blob();
+    const base64Payload = String(dataUrl).split(',')[1] ?? '';
+    if (!base64Payload) {
+      throw new Error('No se pudo convertir el archivo local para subirlo a S3.');
+    }
+
+    const normalizedBase64 = base64Payload.replace(/\s/g, '');
+    const binaryString =
+      typeof atob === 'function'
+        ? atob(normalizedBase64)
+        : global?.atob?.(normalizedBase64);
+
+    if (!binaryString) {
+      throw new Error('El entorno no pudo decodificar el archivo para S3.');
+    }
+
+    const bytes = new Uint8Array(binaryString.length);
+    for (let index = 0; index < binaryString.length; index += 1) {
+      bytes[index] = binaryString.charCodeAt(index);
+    }
+
     const uploadHeaders = uploadConfig?.headers && typeof uploadConfig.headers === 'object'
-      ? uploadConfig.headers
+      ? { 'Content-Type': uploadConfig.headers['Content-Type'] || uploadConfig.headers['content-type'] }
       : {};
+
+    console.log('S3 upload target:', {
+      tipo: uploadConfig.tipo,
+      file_key: uploadConfig.file_key,
+      localUriSize: bytes.length,
+      headers: uploadHeaders,
+      method: 'PUT',
+    });
 
     const uploadResponse = await fetch(uploadConfig.upload_url, {
       method: 'PUT',
       headers: uploadHeaders,
-      body: blob,
+      body: bytes,
     });
 
     if (!uploadResponse.ok) {
@@ -391,9 +418,24 @@ export default function CashierProcessScreen() {
         firma_key: firmaUpload.file_key,
       });
 
+      const shouldActivateQr =
+        Number(response?.data?.puede_activar_qr ?? response?.puede_activar_qr ?? 0) === 1 ||
+        response?.data?.puede_activar_qr === true ||
+        response?.puede_activar_qr === true;
+
+      let finalResponse = response;
+
+      if (shouldActivateQr) {
+        finalResponse = await activateCashierQr({
+          folio: deliverySummary.folio,
+          id_usuario: deliverySummary.id_usuario,
+          activo: 1,
+        });
+      }
+
       Alert.alert(
         'Operacion exitosa',
-        response?.respuesta || 'Expediente de entrega guardado correctamente.',
+        finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
         [
           {
             text: 'OK',
@@ -555,85 +597,85 @@ export default function CashierProcessScreen() {
     >
       <SafeAreaView style={styles.signatureModalRoot}>
         <View style={styles.signatureScreen}>
-      <View style={styles.signatureTopBar}>
-        <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
-        <Text style={styles.signatureTopSubtitle}>
-          Firma dentro del recuadro. El lienzo queda fijo y las acciones de limpiar y guardar siguen visibles.
-        </Text>
-      </View>
+          <View style={styles.signatureTopBar}>
+            <View style={styles.signatureTopCopy}>
+              <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
+              <Text style={styles.signatureTopSubtitle}>
+                Toca Firmar para usar el lienzo completo. Guardar te llevara al resumen.
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.signatureCloseButton} onPress={() => setSignatureModalVisible(false)}>
+              <Text style={styles.signatureCloseButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles.signatureWrapper}>
-        <SignatureCanvas
-          ref={signatureRef}
-          onOK={handleSignatureConfirm}
-          onEmpty={handleSignatureEmpty}
-          onError={handleSignatureError}
-          autoClear={false}
-          descriptionText="Firma dentro del recuadro"
-          clearText="Limpiar"
-          confirmText="Guardar"
-          penColor="#263B80"
-          backgroundColor="#FFFFFF"
-          webStyle={`
-            .m-signature-pad {
-              box-shadow: none;
-              border: none;
-              display: flex;
-              flex-direction: column;
-              height: 100%;
-            }
-            .m-signature-pad--body {
-              flex: 1;
-              border: none;
-              touch-action: none;
-            }
-            .m-signature-pad--body canvas {
-              width: 100% !important;
-              height: 100% !important;
-              border-radius: 18px 18px 0 0;
-              touch-action: none;
-            }
-            .m-signature-pad--footer {
-              background: #FFFFFF;
-              border-top: 1px solid #E7ECF7;
-              padding: 10px 12px;
-            }
-            .m-signature-pad--footer .button {
-              background-color: #263B80;
-              color: #FFFFFF;
-              border-radius: 10px;
-              box-shadow: none;
-            }
-            .m-signature-pad--description {
-              color: #263B80;
-              font-size: 14px;
-            }
-            body, html {
-              background-color: #FFFFFF;
-              height: 100%;
-              overflow: hidden;
-              position: fixed;
-              width: 100%;
-              touch-action: none;
-            }
-          `}
-          webviewProps={{
-            cacheEnabled: true,
-            androidLayerType: 'hardware',
-            nestedScrollEnabled: false,
-            scrollEnabled: false,
-            showsVerticalScrollIndicator: false,
-            overScrollMode: 'never',
-            bounces: false,
-          }}
-        />
-      </View>
-
-      <View style={styles.signatureActions}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => setSignatureModalVisible(false)}>
-          <Text style={styles.secondaryButtonText}>Cancelar</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.signatureWrapper}>
+            <SignatureCanvas
+              ref={signatureRef}
+              onOK={handleSignatureConfirm}
+              onEmpty={handleSignatureEmpty}
+              onError={handleSignatureError}
+              autoClear={false}
+              descriptionText="Firma dentro del recuadro"
+              clearText="Limpiar"
+              confirmText="Guardar"
+              penColor="#263B80"
+              backgroundColor="#FFFFFF"
+              webStyle={`
+                .m-signature-pad {
+                  box-shadow: none;
+                  border: none;
+                  display: flex;
+                  flex-direction: column;
+                  height: 100vh;
+                }
+                .m-signature-pad--body {
+                  flex: 1;
+                  border: none;
+                  touch-action: none;
+                  overscroll-behavior: contain;
+                }
+                .m-signature-pad--body canvas {
+                  width: 100% !important;
+                  height: 100% !important;
+                  touch-action: none;
+                }
+                .m-signature-pad--footer {
+                  background: #FFFFFF;
+                  border-top: 1px solid #E7ECF7;
+                  padding: 10px 12px;
+                }
+                .m-signature-pad--footer .button {
+                  background-color: #263B80;
+                  color: #FFFFFF;
+                  border-radius: 10px;
+                  box-shadow: none;
+                }
+                .m-signature-pad--description {
+                  color: #263B80;
+                  font-size: 14px;
+                }
+                body, html {
+                  background-color: #FFFFFF;
+                  height: 100%;
+                  overflow: hidden;
+                  position: fixed;
+                  width: 100%;
+                  touch-action: none;
+                  overscroll-behavior: contain;
+                }
+              `}
+              webviewProps={{
+                cacheEnabled: true,
+                androidLayerType: 'hardware',
+                nestedScrollEnabled: false,
+                scrollEnabled: false,
+                showsVerticalScrollIndicator: false,
+                overScrollMode: 'never',
+                bounces: false,
+              }}
+            />
+          </View>
         </View>
       </SafeAreaView>
     </Modal>
@@ -795,7 +837,7 @@ const styles = StyleSheet.create({
   },
   formStepContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    paddingVertical: 20,
   },
   header: {
     paddingHorizontal: 20,
@@ -1027,6 +1069,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 18,
     elevation: 3,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  signatureTopCopy: {
+    flex: 1,
   },
   signatureTopTitle: {
     color: '#263B80',
@@ -1038,6 +1086,19 @@ const styles = StyleSheet.create({
     color: '#49516A',
     fontSize: 14,
     lineHeight: 20,
+  },
+  signatureCloseButton: {
+    borderWidth: 1,
+    borderColor: '#263B80',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  signatureCloseButtonText: {
+    color: '#263B80',
+    fontSize: 13,
+    fontWeight: '700',
   },
   signatureWrapper: {
     flex: 1,
@@ -1052,13 +1113,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 4,
-  },
-  signatureActions: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
   },
   signaturePreview: {
     width: '100%',
