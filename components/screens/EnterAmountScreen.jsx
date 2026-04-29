@@ -121,6 +121,14 @@ export default function EnterAmountScreen() {
           : null;
       const resolvedClientId = clientId ? parseInt(clientId, 10) : null;
 
+      if (explicitQrOperativo === true) {
+        if (isMounted) {
+          setIsClientQrEligible(true);
+          setIsCheckingClientQr(false);
+        }
+        return;
+      }
+
       if (explicitQrOperativo === false) {
         if (!isMounted) {
           return;
@@ -163,6 +171,16 @@ export default function EnterAmountScreen() {
         }
       } catch (error) {
         if (!isMounted) {
+          return;
+        }
+
+        const isForbiddenStatusError =
+          Number(error?.status ?? 0) === 403 ||
+          String(error?.message || '').includes('No tienes permisos para consultar este estatus.');
+
+        if (isForbiddenStatusError) {
+          setIsClientQrEligible(true);
+          setIsCheckingClientQr(false);
           return;
         }
 

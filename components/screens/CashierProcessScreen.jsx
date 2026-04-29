@@ -799,11 +799,16 @@ export default function CashierProcessScreen() {
         )}
 
         <View style={styles.reviewActions}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep(STEP_SIGNATURE)}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              setSignatureModalVisible(true);
+            }}
+          >
             <Text style={styles.secondaryButtonText}>Repetir firma</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.primaryButton, isSavingExpediente && styles.disabledButton]}
+            style={[styles.primaryButton, styles.summaryPrimaryAction, isSavingExpediente && styles.disabledButton]}
             onPress={saveExpediente}
             disabled={isSavingExpediente}
           >
@@ -1067,9 +1072,13 @@ const styles = StyleSheet.create({
   },
   reviewActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     justifyContent: 'space-between',
     marginTop: 8,
+  },
+  summaryPrimaryAction: {
+    minWidth: 180,
   },
   signatureScreen: {
     flex: 1,
