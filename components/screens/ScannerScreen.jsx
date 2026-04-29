@@ -113,8 +113,13 @@ export default function ScannerScreen() {
       if (!qrOperativo) {
         Alert.alert(
           'Atenci\u00f3n',
-          'Este QR no esta operativo para cobro por app. Continua con cobro por NIP.'
+          'Este QR no esta operativo para cobro. El cliente debe completar o concluir su activacion.'
         );
+        setTimeout(() => {
+          setScanned(false);
+          navigatingRef.current = false;
+        }, 2000);
+        return;
       }
 
       router.replace({
@@ -124,7 +129,7 @@ export default function ScannerScreen() {
           clientId: resolvedClientId,
           qrCode: resolvedQrCode,
           clientName: clientData.clientName ?? clientData.name,
-          forcedPaymentMethod: qrOperativo ? 'app' : 'nip',
+          forcedPaymentMethod: 'app',
         },
       });
     } catch (_error) {

@@ -32,8 +32,9 @@ const getStatusText = (status) => {
 export default function EnterAmountScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { user, activeEstablecimientoId } = useAuth();
+  const { user, activeEstablecimientoId, getClientQrActivationStatus } = useAuth();
   const { createPaymentRequest, createTransaction, getTransactionStatus } = useApi();
+  const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const forcedPaymentMethod =
     params.forcedPaymentMethod ||
     (clientData?.forcedPaymentMethod ?? null);
@@ -48,10 +49,11 @@ export default function EnterAmountScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [transactionStatus, setTransactionStatus] = useState('pending');
+  const [isCheckingClientQr, setIsCheckingClientQr] = useState(true);
+  const [isClientQrEligible, setIsClientQrEligible] = useState(true);
   const pollingIntervalRef = useRef(null);
   const redirectTimeoutRef = useRef(null);
 
-  const clientData = params.clientData ? JSON.parse(params.clientData) : null;
   const clientName = params.clientName || 'Cliente';
   const clientId =
     params.clientId ||
@@ -65,7 +67,7 @@ export default function EnterAmountScreen() {
     clientData?.qr_code ||
     clientData?.clientQrCode ||
     null;
-  const canUseAppPayment = forcedPaymentMethod !== 'nip';
+  const canUseAppPayment = isClientQrEligible && forcedPaymentMethod !== 'nip';
 
   const quickAmounts = [10, 20, 50, 100, 200, 500];
   const quickTips = [0, 5, 10, 15, 20];
@@ -108,6 +110,78 @@ export default function EnterAmountScreen() {
       clearTimeout(redirectTimeoutRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const validateClientQrEligibility = async () => {
+      const explicitQrOperativo =
+        typeof clientData?.qr_operativo === 'boolean'
+          ? clientData.qr_operativo
+          : null;
+      const resolvedClientId = clientId ? parseInt(clientId, 10) : null;
+
+      if (explicitQrOperativo === false) {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsClientQrEligible(false);
+        setIsCheckingClientQr(false);
+        Alert.alert(
+          'Atención',
+          'Este QR no está operativo para cobro. El cliente debe completar o concluir su activación.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+        return;
+      }
+
+      if (!resolvedClientId) {
+        if (isMounted) {
+          setIsCheckingClientQr(false);
+        }
+        return;
+      }
+
+      try {
+        const activationStatus = await getClientQrActivationStatus(resolvedClientId);
+        const qrActivo = Number(activationStatus?.qr_activo ?? 0) === 1;
+
+        if (!isMounted) {
+          return;
+        }
+
+        setIsClientQrEligible(qrActivo);
+        setIsCheckingClientQr(false);
+
+        if (!qrActivo) {
+          Alert.alert(
+            'Atención',
+            'Este cliente aún no tiene su QR activo. No es posible realizar cobros hasta que concluya su activación.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsClientQrEligible(false);
+        setIsCheckingClientQr(false);
+        Alert.alert(
+          'Atención',
+          error?.message || 'No se pudo validar el estado del QR del cliente.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
+    };
+
+    validateClientQrEligibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clientData?.qr_operativo, clientId, getClientQrActivationStatus, router]);
 
   if (!hasPermission(user?.id_perfil, 'scanner')) {
     return (
@@ -231,6 +305,16 @@ export default function EnterAmountScreen() {
   };
 
   const requestPaymentApproval = async () => {
+    if (isCheckingClientQr) {
+      Alert.alert('Atención', 'Estamos validando el estado del QR del cliente. Intenta nuevamente en un momento.');
+      return;
+    }
+
+    if (!isClientQrEligible) {
+      Alert.alert('Atención', 'Este cliente aún no tiene su QR activo para cobro.');
+      return;
+    }
+
     if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
     Alert.alert('Atención', 'Por favor ingresa un monto valido');
       return;
@@ -344,6 +428,11 @@ export default function EnterAmountScreen() {
         <Text style={styles.clientId}>
           {clientId ? `ID: ${clientId}` : `QR: ${String(qrCode ?? '').slice(0, 16)}`}
         </Text>
+        {isCheckingClientQr ? (
+          <Text style={styles.clientValidationNote}>Validando estado operativo del QR...</Text>
+        ) : !isClientQrEligible ? (
+          <Text style={styles.clientValidationBlocked}>QR no operativo. No es posible cobrar a este cliente.</Text>
+        ) : null}
 
         {currentTransaction && (
           <View style={styles.transactionInfo}>
@@ -371,7 +460,7 @@ export default function EnterAmountScreen() {
             ]}
             onPress={() => {
               if (!canUseAppPayment) {
-                Alert.alert('Atención', 'Este QR no está operativo para cobro por app. Usa cobro con NIP.');
+                Alert.alert('Atención', 'Este QR no está operativo para cobro.');
                 return;
               }
               setPaymentMethod('app');
@@ -388,11 +477,25 @@ export default function EnterAmountScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.methodButton, paymentMethod === 'nip' && styles.methodButtonActive]}
-            onPress={() => setPaymentMethod('nip')}
+            style={[
+              styles.methodButton,
+              paymentMethod === 'nip' && styles.methodButtonActive,
+              !isClientQrEligible && styles.methodButtonDisabled,
+            ]}
+            onPress={() => {
+              if (!isClientQrEligible) {
+                Alert.alert('Atención', 'Este QR no está operativo para cobro.');
+                return;
+              }
+              setPaymentMethod('nip');
+            }}
           >
             <Text
-              style={[styles.methodButtonText, paymentMethod === 'nip' && styles.methodButtonTextActive]}
+              style={[
+                styles.methodButtonText,
+                paymentMethod === 'nip' && styles.methodButtonTextActive,
+                !isClientQrEligible && styles.methodButtonTextDisabled,
+              ]}
             >
               Cobro con NIP
             </Text>
@@ -509,7 +612,7 @@ export default function EnterAmountScreen() {
         <TouchableOpacity
           style={[styles.processButton, isProcessing && styles.processButtonDisabled]}
           onPress={requestPaymentApproval}
-          disabled={isProcessing || Boolean(currentTransaction)}
+          disabled={isProcessing || Boolean(currentTransaction) || isCheckingClientQr || !isClientQrEligible}
         >
           <Text style={styles.processButtonText}>
             {isProcessing

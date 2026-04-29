@@ -400,6 +400,30 @@ export function AuthProvider({ children }) {
       rawLabel: 'clienteSolicitarActivacionQrS3',
     }), [getApiJsonResponse]);
 
+  const getTiActivationRequestsResponse = useCallback(async (token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr`,
+      method: 'GET',
+      token,
+      rawLabel: 'tiSolicitudesActivacionQr',
+    }), [getApiJsonResponse]);
+
+  const approveTiActivationRequestResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr/aprobar`,
+      token,
+      body: payload,
+      rawLabel: 'tiAprobarSolicitudActivacionQr',
+    }), [getApiJsonResponse]);
+
+  const rejectTiActivationRequestResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr/rechazar`,
+      token,
+      body: payload,
+      rawLabel: 'tiRechazarSolicitudActivacionQr',
+    }), [getApiJsonResponse]);
+
   const hydrateAuthenticatedUser = useCallback(async (baseUser, token) => {
     if (!baseUser?.id_usuario || !token) {
       return baseUser;
@@ -919,6 +943,71 @@ export function AuthProvider({ children }) {
     return data;
   }, [getClientRequestActivationS3Response]);
 
+  const getTiQrActivationRequests = useCallback(async () => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    console.log('TI solicitudes activacion QR URL:', `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr`);
+    const { response, data } = await getTiActivationRequestsResponse(token);
+    console.log('TI solicitudes activacion QR status:', response.status);
+    console.log('TI solicitudes activacion QR respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudieron consultar las solicitudes de activacion.');
+    }
+
+    return Array.isArray(data?.data) ? data.data : [];
+  }, [getTiActivationRequestsResponse]);
+
+  const approveTiQrActivationRequest = useCallback(async (idUsuario) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(idUsuario ?? 0),
+    };
+
+    console.log('TI aprobar activacion QR URL:', `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr/aprobar`);
+    console.log('TI aprobar activacion QR payload:', payload);
+    const { response, data } = await approveTiActivationRequestResponse(payload, token);
+    console.log('TI aprobar activacion QR status:', response.status);
+    console.log('TI aprobar activacion QR respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo aprobar la solicitud.');
+    }
+
+    return data;
+  }, [approveTiActivationRequestResponse]);
+
+  const rejectTiQrActivationRequest = useCallback(async (idUsuario, motivo) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      id_usuario: Number(idUsuario ?? 0),
+      motivo: String(motivo ?? '').trim(),
+    };
+
+    console.log('TI rechazar activacion QR URL:', `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr/rechazar`);
+    console.log('TI rechazar activacion QR payload:', payload);
+    const { response, data } = await rejectTiActivationRequestResponse(payload, token);
+    console.log('TI rechazar activacion QR status:', response.status);
+    console.log('TI rechazar activacion QR respuesta:', data?.respuesta ?? data?.message ?? data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo rechazar la solicitud.');
+    }
+
+    return data;
+  }, [rejectTiActivationRequestResponse]);
+
   const login = useCallback(async (username, password) => {
     try {
       authActionRef.current = true;
@@ -1314,6 +1403,9 @@ export function AuthProvider({ children }) {
       getClientAvailableBalance,
       getClientQrData,
       getClientQrActivationStatus,
+      getTiQrActivationRequests,
+      approveTiQrActivationRequest,
+      rejectTiQrActivationRequest,
       getCashierDeliverySummary,
       activateCashierQr,
       presignClientQrActivation,
@@ -1328,6 +1420,9 @@ export function AuthProvider({ children }) {
       error,
       getClientAvailableBalance,
       getClientQrActivationStatus,
+      getTiQrActivationRequests,
+      approveTiQrActivationRequest,
+      rejectTiQrActivationRequest,
       getCashierDeliverySummary,
       activateCashierQr,
       getConsumptionPayments,

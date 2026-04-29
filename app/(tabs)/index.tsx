@@ -32,9 +32,8 @@ const buildAdminCards = () => [
   {
     key: 'reports',
     title: 'Reportes',
-    description: 'Consulta reportes y seguimiento de actividad.',
-    actionLabel: 'Disponible en siguiente etapa',
-    onPress: () => Alert.alert('Reportes', 'La relacion de reportes en app se implementara en una etapa posterior.'),
+    description: 'Consulta reportes de pagos, pagos registrados y solicitudes de activacion QR.',
+    actionLabel: 'Vista administrativa disponible',
   },
 ];
 
@@ -253,6 +252,9 @@ export default function HomeScreen() {
     setActiveEstablecimiento,
     getClientAvailableBalance,
     getTable,
+    getTiQrActivationRequests,
+    approveTiQrActivationRequest,
+    rejectTiQrActivationRequest,
     saveDepositoCredito,
     saveTable,
   } = useAuth();
@@ -276,6 +278,14 @@ export default function HomeScreen() {
   const [reportsView, setReportsView] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [reportsEndpointUnavailable, setReportsEndpointUnavailable] = useState(false);
+  const [activationRequestsView, setActivationRequestsView] = useState([]);
+  const [loadingActivationRequests, setLoadingActivationRequests] = useState(false);
+  const [activationRequestsSearch, setActivationRequestsSearch] = useState('');
+  const [visibleActivationRequestsCount, setVisibleActivationRequestsCount] = useState(10);
+  const [rejectActivationModalVisible, setRejectActivationModalVisible] = useState(false);
+  const [rejectActivationTarget, setRejectActivationTarget] = useState(null);
+  const [rejectActivationReason, setRejectActivationReason] = useState('');
+  const [savingActivationDecision, setSavingActivationDecision] = useState(false);
   const [providerEstablishmentsView, setProviderEstablishmentsView] = useState([]);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
   const [visibleUsersCount, setVisibleUsersCount] = useState(10);
@@ -573,6 +583,33 @@ export default function HomeScreen() {
     }
   }, [getPaymentReports, getTable, isAdmin]);
 
+  const loadActivationRequestsView = useCallback(async () => {
+    if (!isAdmin) {
+      return;
+    }
+
+    try {
+      setLoadingActivationRequests(true);
+
+      const requestRows = await getTiQrActivationRequests();
+
+      setActivationRequestsView(
+        requestRows.map((requestRecord) => ({
+          ...requestRecord,
+          fullName:
+            String(requestRecord?.nombre_completo ?? '').trim() ||
+            buildFullName(requestRecord),
+        }))
+      );
+      setVisibleActivationRequestsCount(10);
+    } catch (error) {
+      console.error('Error loading activation requests view:', error);
+      setActivationRequestsView([]);
+    } finally {
+      setLoadingActivationRequests(false);
+    }
+  }, [getTiQrActivationRequests, isAdmin]);
+
   useEffect(() => {
     getClientAvailableBalanceRef.current = getClientAvailableBalance;
   }, [getClientAvailableBalance]);
@@ -588,6 +625,12 @@ export default function HomeScreen() {
   useEffect(() => {
     loadReportsViewRef.current = loadReportsView;
   }, [loadReportsView]);
+
+  const loadActivationRequestsViewRef = useRef(null);
+
+  useEffect(() => {
+    loadActivationRequestsViewRef.current = loadActivationRequestsView;
+  }, [loadActivationRequestsView]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -661,6 +704,7 @@ export default function HomeScreen() {
 
       if (isAdmin) {
         loadReportsViewRef.current?.();
+        loadActivationRequestsViewRef.current?.();
       }
 
       return () => {
@@ -691,7 +735,10 @@ export default function HomeScreen() {
       }
 
       if (isAdmin) {
-        await loadReportsViewRef.current?.();
+        await Promise.all([
+          loadReportsViewRef.current?.(),
+          loadActivationRequestsViewRef.current?.(),
+        ]);
       }
     } catch (error) {
       console.error('Error refreshing home data:', error);
@@ -769,6 +816,35 @@ export default function HomeScreen() {
   const visibleReports = useMemo(
     () => filteredReports.slice(0, visibleReportsCount),
     [filteredReports, visibleReportsCount]
+  );
+
+  const filteredActivationRequests = useMemo(() => {
+    const normalizedSearch = activationRequestsSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return activationRequestsView;
+    }
+
+    return activationRequestsView.filter((record) =>
+      [
+        record?.id_usuario,
+        record?.folio,
+        record?.fullName,
+        record?.solicitud_activacion_estatus,
+        record?.expediente_estatus,
+        record?.motivo_rechazo,
+        record?.fec_reg,
+        record?.fec_act,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [activationRequestsSearch, activationRequestsView]);
+
+  const visibleActivationRequests = useMemo(
+    () => filteredActivationRequests.slice(0, visibleActivationRequestsCount),
+    [filteredActivationRequests, visibleActivationRequestsCount]
   );
   const hasClientBalanceValue = clientBalance !== null && clientBalance !== undefined;
 
@@ -955,6 +1031,61 @@ export default function HomeScreen() {
       Alert.alert('Reporte actualizado', 'El estatus del reporte fue actualizado correctamente.');
     } catch (error) {
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo actualizar el reporte.');
+    }
+  };
+
+  const closeRejectActivationModal = () => {
+    setRejectActivationModalVisible(false);
+    setRejectActivationTarget(null);
+    setRejectActivationReason('');
+    setSavingActivationDecision(false);
+  };
+
+  const handleApproveActivationRequest = async (userId) => {
+    try {
+      setSavingActivationDecision(true);
+      await approveTiQrActivationRequest(userId);
+      await Promise.all([
+        loadActivationRequestsView(),
+        loadUsersView(),
+      ]);
+      Alert.alert('Solicitud aprobada', 'El QR del cliente ya quedo operativo.');
+    } catch (error) {
+      Alert.alert('Atención', error.message || 'No se pudo aprobar la solicitud.');
+    } finally {
+      setSavingActivationDecision(false);
+    }
+  };
+
+  const openRejectActivationModal = (record) => {
+    setRejectActivationTarget(record);
+    setRejectActivationReason(String(record?.motivo_rechazo ?? '').trim());
+    setRejectActivationModalVisible(true);
+  };
+
+  const submitRejectActivationRequest = async () => {
+    const trimmedReason = String(rejectActivationReason ?? '').trim();
+
+    if (!rejectActivationTarget?.id_usuario) {
+      Alert.alert('Atención', 'No se identificó la solicitud a rechazar.');
+      return;
+    }
+
+    if (!trimmedReason) {
+      Alert.alert('Atención', 'Captura un motivo de rechazo para continuar.');
+      return;
+    }
+
+    try {
+      setSavingActivationDecision(true);
+      await rejectTiQrActivationRequest(rejectActivationTarget.id_usuario, trimmedReason);
+      closeRejectActivationModal();
+      await loadActivationRequestsView();
+      Alert.alert('Solicitud rechazada', 'La solicitud fue rechazada correctamente.');
+    } catch (error) {
+      Alert.alert('Atención', error.message || 'No se pudo rechazar la solicitud.');
+    } finally {
+      setSavingActivationDecision(false);
     }
   };
 
@@ -1202,6 +1333,87 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Solicitudes de activación QR</Text>
+              <Text style={styles.sectionDescription}>
+                Revisa, aprueba o rechaza las solicitudes documentales enviadas por clientes.
+              </Text>
+
+              <View style={styles.searchBlock}>
+                <Text style={styles.inputLabel}>Buscar solicitudes</Text>
+                <TextInput
+                  style={styles.input}
+                  value={activationRequestsSearch}
+                  onChangeText={setActivationRequestsSearch}
+                  placeholder="Buscar por usuario, folio, estatus o motivo"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              {loadingActivationRequests ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyBoxText}>Cargando solicitudes...</Text>
+                </View>
+              ) : visibleActivationRequests.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyBoxText}>No hay solicitudes de activación para mostrar.</Text>
+                </View>
+              ) : (
+                <>
+                  {visibleActivationRequests.map((record) => (
+                    <View key={`${record.id_usuario}-${record.folio}`} style={styles.reportCard}>
+                      <View style={styles.userCardHeader}>
+                        <Text style={styles.userCardTitle}>{record.fullName || 'Sin usuario'}</Text>
+                        <Text style={styles.userCardId}>{record.solicitud_activacion_estatus || 'pendiente'}</Text>
+                      </View>
+
+                      <Text style={styles.userCardMeta}>Usuario: #{record.id_usuario}</Text>
+                      <Text style={styles.userCardMeta}>Folio: {record.folio || 'Sin folio'}</Text>
+                      <Text style={styles.userCardMeta}>QR activo: {Number(record.qr_activo ?? 0) === 1 ? 'Sí' : 'No'}</Text>
+                      <Text style={styles.userCardMeta}>
+                        Expediente completo: {record.expediente_completo ? 'Sí' : 'No'}
+                      </Text>
+                      <Text style={styles.userCardMeta}>
+                        Expediente: {record.expediente_estatus || 'Sin estatus'}
+                      </Text>
+                      <Text style={styles.userCardMeta}>Fecha solicitud: {record.fec_reg || 'Sin fecha'}</Text>
+                      {String(record?.motivo_rechazo ?? '').trim() ? (
+                        <Text style={styles.userCardMeta}>Motivo: {String(record.motivo_rechazo).trim()}</Text>
+                      ) : null}
+
+                      {String(record?.solicitud_activacion_estatus ?? '').toLowerCase() === 'pendiente' ? (
+                        <View style={styles.reportActions}>
+                          <TouchableOpacity
+                            style={[styles.reportStatusButton, savingActivationDecision && styles.disabledButton]}
+                            disabled={savingActivationDecision}
+                            onPress={() => handleApproveActivationRequest(record.id_usuario)}
+                          >
+                            <Text style={styles.reportStatusButtonText}>Aprobar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.reportStatusButton, styles.reportStatusButtonDanger, savingActivationDecision && styles.disabledButton]}
+                            disabled={savingActivationDecision}
+                            onPress={() => openRejectActivationModal(record)}
+                          >
+                            <Text style={styles.reportStatusButtonText}>Rechazar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+
+                  {filteredActivationRequests.length > visibleActivationRequestsCount ? (
+                    <TouchableOpacity
+                      style={styles.loadMoreButton}
+                      onPress={() => setVisibleActivationRequestsCount((current) => current + 10)}
+                    >
+                      <Text style={styles.loadMoreButtonText}>Ver mas solicitudes</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              )}
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Usuarios</Text>
               <Text style={styles.sectionDescription}>
                 {isAdmin
@@ -1374,6 +1586,68 @@ export default function HomeScreen() {
               >
                 <Text style={styles.primaryButtonText}>
                   {savingDeposit ? 'Guardando...' : 'Guardar deposito'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={rejectActivationModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
+            <Text style={styles.modalTitle}>Rechazar solicitud</Text>
+
+            <View style={styles.formBlock}>
+              <Text style={styles.inputLabel}>Usuario</Text>
+              <TextInput
+                style={styles.input}
+                value={rejectActivationTarget?.fullName || ''}
+                editable={false}
+              />
+            </View>
+
+            <View style={styles.formBlock}>
+              <Text style={styles.inputLabel}>Folio</Text>
+              <TextInput
+                style={styles.input}
+                value={rejectActivationTarget?.folio || ''}
+                editable={false}
+              />
+            </View>
+
+            <View style={styles.formBlock}>
+              <Text style={styles.inputLabel}>Motivo de rechazo</Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={rejectActivationReason}
+                onChangeText={setRejectActivationReason}
+                placeholder="Describe el motivo del rechazo"
+                placeholderTextColor="#999"
+                multiline
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={closeRejectActivationModal}>
+                <Text style={styles.secondaryButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.dangerButton, savingActivationDecision && styles.disabledButton]}
+                onPress={submitRejectActivationRequest}
+                disabled={savingActivationDecision}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {savingActivationDecision ? 'Guardando...' : 'Confirmar rechazo'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1642,6 +1916,9 @@ const styles = StyleSheet.create({
   reportStatusButtonSuccess: {
     backgroundColor: '#263B80',
   },
+  reportStatusButtonDanger: {
+    backgroundColor: '#B23A48',
+  },
   reportStatusButtonText: {
     color: '#fff',
     fontSize: 12,
@@ -1704,6 +1981,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: '#222',
+  },
+  multilineInput: {
+    minHeight: 110,
+    textAlignVertical: 'top',
   },
   dateTimeSelector: {
     backgroundColor: '#fff',
@@ -1882,6 +2163,9 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  dangerButton: {
+    backgroundColor: '#B23A48',
   },
   disabledButton: {
     opacity: 0.6,
