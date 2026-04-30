@@ -89,6 +89,7 @@ export default function CashierProcessScreen() {
     presignCashierDeliveryExpediente,
     requestClientQrActivationS3,
     saveCashierDeliveryExpedienteS3,
+    sendCashierActivationRequest,
   } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const routeMode = normalizeRouteParam(params?.mode).toLowerCase();
@@ -623,17 +624,25 @@ export default function CashierProcessScreen() {
           id_usuario: deliverySummary.id_usuario,
           activo: 1,
         });
+      } else if (requiresTiReviewAfterSelfService) {
+        finalResponse = await sendCashierActivationRequest({
+          folio: deliverySummary.folio,
+          id_usuario: deliverySummary.id_usuario,
+        });
       }
 
       Alert.alert(
         'Operacion exitosa',
         requiresTiReviewAfterSelfService
-          ? 'Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo.'
+          ? finalResponse?.respuesta || 'Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo.'
           : finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => {
+              DeviceEventEmitter.emit('refreshClientQrActivationState');
+              router.back();
+            },
           },
         ]
       );

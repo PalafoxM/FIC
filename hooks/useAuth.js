@@ -368,6 +368,14 @@ export function AuthProvider({ children }) {
       rawLabel: 'cajeroActivarQr',
     }), [getApiJsonResponse]);
 
+  const getCashierSendActivationRequestResponse = useCallback(async (payload, token) =>
+    await getApiJsonResponse({
+      url: `${PHP_BASE_URL}/api/cajero/enviar-solicitud-activacion`,
+      token,
+      body: payload,
+      rawLabel: 'cajeroEnviarSolicitudActivacion',
+    }), [getApiJsonResponse]);
+
   const getClientActivationStatusResponse = useCallback(async (userId, token) =>
     await getApiJsonResponse({
       url: `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
@@ -810,6 +818,34 @@ export function AuthProvider({ children }) {
 
     return data;
   }, [getCashierActivateQrResponse]);
+
+  const sendCashierActivationRequest = useCallback(async ({
+    folio,
+    id_usuario,
+  }) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const payload = {
+      folio: String(folio ?? '').trim(),
+      id_usuario: Number(id_usuario ?? 0),
+    };
+
+    console.log('Enviar solicitud activacion URL:', `${PHP_BASE_URL}/api/cajero/enviar-solicitud-activacion`);
+    console.log('Enviar solicitud activacion payload:', payload);
+    const { response, data } = await getCashierSendActivationRequestResponse(payload, token);
+    console.log('Enviar solicitud activacion status:', response.status);
+    console.log('Enviar solicitud activacion respuesta:', data?.respuesta ?? data?.message ?? data);
+    console.log('Enviar solicitud activacion body:', data);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion.');
+    }
+
+    return data;
+  }, [getCashierSendActivationRequestResponse]);
 
   const getClientQrActivationStatus = useCallback(async (clientId = user?.id_usuario) => {
     const token = await AsyncStorage.getItem('token');
@@ -1408,6 +1444,7 @@ export function AuthProvider({ children }) {
       rejectTiQrActivationRequest,
       getCashierDeliverySummary,
       activateCashierQr,
+      sendCashierActivationRequest,
       presignClientQrActivation,
       presignCashierDeliveryExpediente,
       requestClientQrActivation,
@@ -1425,6 +1462,7 @@ export function AuthProvider({ children }) {
       rejectTiQrActivationRequest,
       getCashierDeliverySummary,
       activateCashierQr,
+      sendCashierActivationRequest,
       getConsumptionPayments,
       getSalesByClient,
       getSalesByProvider,
