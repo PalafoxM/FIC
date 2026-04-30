@@ -61,7 +61,6 @@ const isGenericEstablishmentLabel = (value) =>
   GENERIC_ESTABLISHMENT_LABELS.has(String(value ?? '').trim().toLowerCase());
 
 const isDepositoCreditosAllowedForPerfil = (idPerfil) => ![ROLE_IDS.PROVIDER, ROLE_IDS.BUSINESS_MANAGER].includes(Number(idPerfil ?? 0));
-const CLIENT_BALANCE_REFRESH_COOLDOWN_MS = 30000;
 const REPORTS_RETRY_COOLDOWN_MS = 60000;
 const CALENDAR_DAY_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
 const HOUR_VALUES = Array.from({ length: 24 }, (_, index) => index);
@@ -668,17 +667,6 @@ export default function HomeScreen() {
           return;
         }
 
-        const now = Date.now();
-        const hasCachedBalance =
-          clientBalance !== null && clientBalance !== undefined;
-
-        if (
-          hasCachedBalance &&
-          now - lastClientBalanceRefreshRef.current < CLIENT_BALANCE_REFRESH_COOLDOWN_MS
-        ) {
-          return;
-        }
-
         try {
           const balance = await getClientAvailableBalanceRef.current(user.id_usuario);
 
@@ -710,7 +698,7 @@ export default function HomeScreen() {
       return () => {
         isMounted = false;
       };
-    }, [clientBalance, isAdmin, isAdminOrManager, isClient, isProvider, loadProviderEstablishmentsView, user?.id_usuario])
+    }, [isAdmin, isAdminOrManager, isClient, isProvider, loadProviderEstablishmentsView, user?.id_usuario])
   );
 
   const refreshHomeData = useCallback(async () => {

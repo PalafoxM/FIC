@@ -43,6 +43,7 @@ function RootLayoutContent() {
 
       if (data?.type === 'QR_READY' || data?.type === 'QR_ACTIVATION_REJECTED') {
         DeviceEventEmitter.emit('refreshClientQrActivationState');
+        DeviceEventEmitter.emit('refreshClientBalanceNow');
       }
     });
 
@@ -56,6 +57,7 @@ function RootLayoutContent() {
         router.push('/(tabs)');
       } else if (data.type === 'QR_READY' || data.type === 'QR_ACTIVATION_REJECTED') {
         DeviceEventEmitter.emit('refreshClientQrActivationState');
+        DeviceEventEmitter.emit('refreshClientBalanceNow');
         router.push('/(tabs)');
       }
     });

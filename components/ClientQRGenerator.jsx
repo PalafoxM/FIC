@@ -29,7 +29,7 @@ const resolveActivationStatus = (status) => {
 
 const ClientQRGenerator = () => {
   const router = useRouter();
-  const { user, getClientQrData, getClientQrActivationStatus } = useAuth();
+  const { user, getClientAvailableBalance, getClientQrData, getClientQrActivationStatus } = useAuth();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [loadingQr, setLoadingQr] = useState(false);
@@ -41,9 +41,12 @@ const ClientQRGenerator = () => {
       return null;
     }
 
+    DeviceEventEmitter.emit('refreshClientBalanceNow');
+
     const [qrRecord, activationStatus] = await Promise.all([
       getClientQrData(user.id_usuario, { includeInactive: true }),
       getClientQrActivationStatus(user.id_usuario),
+      getClientAvailableBalance(user.id_usuario).catch(() => null),
     ]);
 
     const resolvedQrActivo = hasOwnProperty(activationStatus, 'qr_activo')
@@ -67,7 +70,7 @@ const ClientQRGenerator = () => {
     setQrStatus(mergedStatus);
     setStatusResolved(true);
     return mergedStatus;
-  }, [getClientQrActivationStatus, getClientQrData, user]);
+  }, [getClientAvailableBalance, getClientQrActivationStatus, getClientQrData, user]);
 
   const getPrimaryCtaLabel = useCallback((status) => {
     if (!statusResolved) {
