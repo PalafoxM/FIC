@@ -28,6 +28,7 @@ const STEP_BACK = 'back';
 const STEP_REVIEW = 'review';
 const STEP_SIGNATURE = 'signature';
 const STEP_SUMMARY = 'summary';
+const SELF_ACTIVATION_PROFILE_IDS = new Set([1, 3, 4, 6]);
 
 const buildStepTitle = (step) => {
   switch (step) {
@@ -93,7 +94,8 @@ export default function CashierProcessScreen() {
   const cameraRef = useRef(null);
   const signatureRef = useRef(null);
   const activationMode = params?.mode === 'client' ? 'client' : 'cashier';
-  const isClientActivation = activationMode === 'client' && Number(user?.id_perfil ?? 0) === 3;
+  const isClientActivation =
+    activationMode === 'client' && SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
 
   const currentPhotoUri = useMemo(() => {
     if (step === STEP_FRONT) {
@@ -111,7 +113,7 @@ export default function CashierProcessScreen() {
     return (
       <AccessDenied
         title="Proceso restringido"
-        message="Solo el perfil de cajero o el cliente en activacion pueden iniciar este proceso documental."
+        message="Solo cajero o los perfiles habilitados para autoactivación pueden iniciar este proceso documental."
       />
     );
   }

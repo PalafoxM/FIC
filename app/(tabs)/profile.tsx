@@ -59,7 +59,13 @@ const getAssignedEstablishments = (user) => {
 };
 
 export default function ProfileScreen() {
-  const { user, activeEstablecimientoId, getClientAvailableBalance, getClientQrData } = useAuth();
+  const {
+    user,
+    activeEstablecimientoId,
+    getClientAvailableBalance,
+    getClientQrData,
+    getTable,
+  } = useAuth();
   const router = useRouter();
   const [availableBalance, setAvailableBalance] = useState(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
@@ -67,6 +73,8 @@ export default function ProfileScreen() {
   const [loadingQr, setLoadingQr] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [qrPayload, setQrPayload] = useState(null);
+  const [ownQrStatus, setOwnQrStatus] = useState(null);
+  const [activatingOwnQr, setActivatingOwnQr] = useState(false);
 
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
@@ -133,7 +141,7 @@ export default function ProfileScreen() {
 
     try {
       setLoadingQr(true);
-      const qrRecord = await getClientQrData(user.id_usuario);
+      const qrRecord = await getClientQrData(user.id_usuario, { includeInactive: true });
       const qrCode = qrRecord?.codigo_qr ?? null;
 
       if (!qrCode) {
@@ -141,11 +149,18 @@ export default function ProfileScreen() {
         return;
       }
 
+      setOwnQrStatus(qrRecord);
+
       setQrPayload({
         type: 'client_payment',
+        id: user?.id_usuario ?? null,
+        clientId: user?.id_usuario ?? null,
+        clientUserId: user?.id_usuario ?? null,
+        clientName: [user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' '),
         codigo_qr: qrCode,
         qr_code: qrCode,
         clientQrCode: qrCode,
+        qr_operativo: Number(qrRecord?.qr_activo ?? 0) === 1,
         timestamp: new Date().toISOString(),
       });
       setQrVisible(true);
@@ -153,6 +168,60 @@ export default function ProfileScreen() {
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el codigo QR.');
     } finally {
       setLoadingQr(false);
+    }
+  };
+
+  const handleActivateOwnQr = async () => {
+    if (!user?.id_usuario) {
+      return;
+    }
+
+    try {
+      setActivatingOwnQr(true);
+
+      const folioRows = await getTable({
+        tabla: 'usuario_folio_entrega',
+        where: {
+          id_usuario: Number(user.id_usuario),
+          activo: 1,
+          visible: 1,
+          tipo_folio: 'titular',
+        },
+        order: 'id_usuario_folio_entrega DESC',
+        limit: 1,
+      });
+
+      const folio = String(folioRows?.[0]?.folio ?? '').trim();
+      if (!folio) {
+        throw new Error('No se encontro un folio activo para este usuario.');
+      }
+
+      Alert.alert(
+        'Atención',
+        'Tu activación seguirá la itineración del servicio. Debes completar tu expediente documental y esperar la confirmación de TI.',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Continuar',
+            onPress: () => {
+              setQrVisible(false);
+              router.push({
+                pathname: '/cashier-process',
+                params: {
+                  mode: 'client',
+                },
+              });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Atención', error.message || 'No se pudo iniciar el proceso de activación.');
+    } finally {
+      setActivatingOwnQr(false);
     }
   };
 
@@ -300,6 +369,29 @@ export default function ProfileScreen() {
                     backgroundColor="#FFFFFF"
                   />
                 </View>
+
+                <View style={styles.qrStatusBox}>
+                  <Text style={styles.qrStatusTitle}>
+                    {Number(ownQrStatus?.qr_activo ?? 0) === 1 ? 'QR operativo' : 'QR inactivo'}
+                  </Text>
+                  <Text style={styles.qrStatusText}>
+                    {Number(ownQrStatus?.qr_activo ?? 0) === 1
+                      ? 'Tu codigo ya puede utilizarse.'
+                      : 'Tu codigo existe pero aun no esta activado para operar.'}
+                  </Text>
+                </View>
+
+                {isAdminOrManager && Number(ownQrStatus?.qr_activo ?? 0) !== 1 ? (
+                  <TouchableOpacity
+                    style={[styles.activateQrButton, activatingOwnQr && styles.activateQrButtonDisabled]}
+                    onPress={handleActivateOwnQr}
+                    disabled={activatingOwnQr}
+                  >
+                    <Text style={styles.activateQrButtonText}>
+                      {activatingOwnQr ? 'Activando QR...' : 'Activar QR'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 <TouchableOpacity style={styles.closeButton} onPress={() => setQrVisible(false)}>
                   <Text style={styles.closeButtonText}>Cerrar</Text>
@@ -488,6 +580,42 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+  },
+  qrStatusBox: {
+    width: '100%',
+    backgroundColor: '#F7F9FE',
+    borderWidth: 1,
+    borderColor: '#D7DEEE',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 14,
+  },
+  qrStatusTitle: {
+    color: '#263B80',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  qrStatusText: {
+    color: '#4D5C7A',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  activateQrButton: {
+    width: '100%',
+    backgroundColor: '#263B80',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activateQrButtonDisabled: {
+    opacity: 0.6,
+  },
+  activateQrButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   closeButton: {
     backgroundColor: '#B23A48',
