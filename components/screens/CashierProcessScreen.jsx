@@ -155,6 +155,23 @@ export default function CashierProcessScreen() {
             .join(' '),
           codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
           monto_total: Number(user?.monto_deposito ?? user?.saldo ?? 0),
+          monto_diario:
+            activationStatus?.monto_diario ??
+            qrRecord?.monto_diario ??
+            user?.monto_diario ??
+            null,
+          dias_vigencia:
+            activationStatus?.dias_vigencia ??
+            qrRecord?.dias_vigencia ??
+            user?.dias_vigencia ??
+            null,
+          tarifa_total:
+            activationStatus?.tarifa_total ??
+            qrRecord?.tarifa_total ??
+            user?.tarifa_total ??
+            user?.monto_deposito ??
+            user?.saldo ??
+            0,
           vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
           vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
           nip: null,
@@ -726,9 +743,28 @@ export default function CashierProcessScreen() {
             </Text>
           </View>
           <View style={styles.summaryMetricCard}>
-            <Text style={styles.summaryMetricLabel}>Monto total</Text>
+            <Text style={styles.summaryMetricLabel}>Tarifa total</Text>
             <Text style={styles.summaryMetricValue}>
-              ${Number(deliverySummary?.monto_total ?? 0).toFixed(2)}
+              ${Number(deliverySummary?.tarifa_total ?? deliverySummary?.monto_total ?? 0).toFixed(2)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryMetricCard}>
+            <Text style={styles.summaryMetricLabel}>Monto diario</Text>
+            <Text style={styles.summaryMetricValue}>
+              {deliverySummary?.monto_diario !== null && deliverySummary?.monto_diario !== undefined
+                ? `$${Number(deliverySummary.monto_diario).toFixed(2)}`
+                : 'Sin definir'}
+            </Text>
+          </View>
+          <View style={styles.summaryMetricCard}>
+            <Text style={styles.summaryMetricLabel}>Dias de vigencia</Text>
+            <Text style={styles.summaryMetricValue}>
+              {deliverySummary?.dias_vigencia !== null && deliverySummary?.dias_vigencia !== undefined
+                ? String(deliverySummary.dias_vigencia)
+                : 'Sin definir'}
             </Text>
           </View>
         </View>
