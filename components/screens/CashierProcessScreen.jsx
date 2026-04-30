@@ -73,15 +73,17 @@ export default function CashierProcessScreen() {
     user,
     activateCashierQr,
     getCashierDeliverySummary,
+    getClientAvailableBalance,
     getClientQrActivationStatus,
     getClientQrData,
+    getTable,
     presignClientQrActivation,
     presignCashierDeliveryExpediente,
     requestClientQrActivationS3,
     saveCashierDeliveryExpedienteS3,
   } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
-  const [folio, setFolio] = useState('');
+  const [folio, setFolio] = useState(String(params?.folio ?? '').trim());
   const [step, setStep] = useState(STEP_FOLIO);
   const [frontPhoto, setFrontPhoto] = useState(null);
   const [backPhoto, setBackPhoto] = useState(null);
@@ -96,6 +98,9 @@ export default function CashierProcessScreen() {
   const activationMode = params?.mode === 'client' ? 'client' : 'cashier';
   const isClientActivation =
     activationMode === 'client' && SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
+  const isNativeClientProfile = Number(user?.id_perfil ?? 0) === 3;
+  const usesClientActivationEndpoints = isClientActivation && isNativeClientProfile;
+  const requiresTiReviewAfterSelfService = isClientActivation && !isNativeClientProfile;
 
   const currentPhotoUri = useMemo(() => {
     if (step === STEP_FRONT) {
@@ -127,64 +132,157 @@ export default function CashierProcessScreen() {
     try {
       setIsValidatingFolio(true);
       if (isClientActivation) {
-        const [activationStatus, qrRecord] = await Promise.all([
-          getClientQrActivationStatus(user?.id_usuario),
-          getClientQrData(user?.id_usuario, { includeInactive: true }),
-        ]);
+        if (isNativeClientProfile) {
+          const [qrRecord, balance, folioRows] = await Promise.all([
+            getClientQrData(user?.id_usuario, { includeInactive: true }),
+            getClientAvailableBalance(user?.id_usuario).catch(() => Number(user?.monto_deposito ?? user?.saldo ?? 0)),
+            getTable({
+              tabla: 'usuario_folio_entrega',
+              where: {
+                id_usuario: Number(user?.id_usuario ?? 0),
+                activo: 1,
+                visible: 1,
+                tipo_folio: 'titular',
+              },
+              order: 'id_usuario_folio_entrega DESC',
+              limit: 1,
+            }),
+          ]);
 
-        const qrOperativo =
-          typeof qrRecord?.qr_operativo === 'boolean'
-            ? qrRecord.qr_operativo
-            : Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+          let activationStatus = null;
+          try {
+            activationStatus = await getClientQrActivationStatus(user?.id_usuario);
+          } catch (statusError) {
+            const normalizedMessage = String(statusError?.message ?? '').toLowerCase();
+            if (normalizedMessage.includes('no tienes permisos')) {
+              console.warn('Cliente activacion status fallback:', statusError?.message ?? statusError);
+            } else {
+              throw statusError;
+            }
+          }
 
-        if (qrOperativo) {
-          Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
-          router.back();
-          return;
+          const qrOperativo =
+            typeof qrRecord?.qr_operativo === 'boolean'
+              ? qrRecord.qr_operativo
+              : Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+
+          if (qrOperativo) {
+            Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
+            router.back();
+            return;
+          }
+
+          if (activationStatus && resolveActivationStatus(activationStatus) === 'pendiente') {
+            Alert.alert('Atencion', 'Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.');
+            router.back();
+            return;
+          }
+
+          const resolvedFolio =
+            String(activationStatus?.folio ?? '').trim() ||
+            String(params?.folio ?? '').trim() ||
+            String(folioRows?.[0]?.folio ?? '').trim();
+
+          if (!resolvedFolio) {
+            throw new Error('No se encontro un folio activo para este usuario.');
+          }
+
+          setDeliverySummary({
+            folio: resolvedFolio,
+            id_usuario: user?.id_usuario,
+            nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
+              .filter(Boolean)
+              .join(' '),
+            codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
+            monto_total: Number(balance ?? user?.monto_deposito ?? user?.saldo ?? 0),
+            monto_diario:
+              activationStatus?.monto_diario ??
+              qrRecord?.monto_diario ??
+              user?.monto_diario ??
+              null,
+            dias_vigencia:
+              activationStatus?.dias_vigencia ??
+              qrRecord?.dias_vigencia ??
+              user?.dias_vigencia ??
+              null,
+            tarifa_total:
+              activationStatus?.tarifa_total ??
+              qrRecord?.tarifa_total ??
+              user?.tarifa_total ??
+              balance ??
+              user?.monto_deposito ??
+              user?.saldo ??
+              0,
+            vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
+            vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
+            nip: null,
+            nip_legado_hash: false,
+            qr_activo: Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
+            expediente_completo: activationStatus?.expediente_completo ?? false,
+            solicitud_activacion_estatus: activationStatus?.solicitud_activacion_estatus ?? null,
+            expediente_estatus: activationStatus?.expediente_estatus ?? null,
+            motivo_rechazo: activationStatus?.motivo_rechazo ?? '',
+            desglose_por_dia: [],
+          });
+        } else {
+          const [qrRecord, balance, folioRows] = await Promise.all([
+            getClientQrData(user?.id_usuario, { includeInactive: true }),
+            getClientAvailableBalance(user?.id_usuario).catch(() => Number(user?.monto_deposito ?? user?.saldo ?? 0)),
+            getTable({
+              tabla: 'usuario_folio_entrega',
+              where: {
+                id_usuario: Number(user?.id_usuario ?? 0),
+                activo: 1,
+                visible: 1,
+                tipo_folio: 'titular',
+              },
+              order: 'id_usuario_folio_entrega DESC',
+              limit: 1,
+            }),
+          ]);
+
+          const qrOperativo =
+            typeof qrRecord?.qr_operativo === 'boolean'
+              ? qrRecord.qr_operativo
+              : Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+
+          if (qrOperativo) {
+            Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
+            router.back();
+            return;
+          }
+
+          const resolvedFolio =
+            String(params?.folio ?? '').trim() ||
+            String(folioRows?.[0]?.folio ?? '').trim();
+
+          if (!resolvedFolio) {
+            throw new Error('No se encontro un folio activo para este usuario.');
+          }
+
+          setDeliverySummary({
+            folio: resolvedFolio,
+            id_usuario: user?.id_usuario,
+            nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
+              .filter(Boolean)
+              .join(' '),
+            codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
+            monto_total: Number(balance ?? user?.monto_deposito ?? user?.saldo ?? 0),
+            monto_diario: qrRecord?.monto_diario ?? user?.monto_diario ?? null,
+            dias_vigencia: qrRecord?.dias_vigencia ?? user?.dias_vigencia ?? null,
+            tarifa_total: qrRecord?.tarifa_total ?? user?.tarifa_total ?? balance ?? user?.monto_deposito ?? user?.saldo ?? 0,
+            vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
+            vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
+            nip: null,
+            nip_legado_hash: false,
+            qr_activo: Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
+            expediente_completo: false,
+            solicitud_activacion_estatus: null,
+            expediente_estatus: null,
+            motivo_rechazo: '',
+            desglose_por_dia: [],
+          });
         }
-
-        if (resolveActivationStatus(activationStatus) === 'pendiente') {
-          Alert.alert('Atencion', 'Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.');
-          router.back();
-          return;
-        }
-
-        setDeliverySummary({
-          folio: activationStatus?.folio ?? '',
-          id_usuario: user?.id_usuario,
-          nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
-            .filter(Boolean)
-            .join(' '),
-          codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
-          monto_total: Number(user?.monto_deposito ?? user?.saldo ?? 0),
-          monto_diario:
-            activationStatus?.monto_diario ??
-            qrRecord?.monto_diario ??
-            user?.monto_diario ??
-            null,
-          dias_vigencia:
-            activationStatus?.dias_vigencia ??
-            qrRecord?.dias_vigencia ??
-            user?.dias_vigencia ??
-            null,
-          tarifa_total:
-            activationStatus?.tarifa_total ??
-            qrRecord?.tarifa_total ??
-            user?.tarifa_total ??
-            user?.monto_deposito ??
-            user?.saldo ??
-            0,
-          vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
-          vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
-          nip: null,
-          nip_legado_hash: false,
-          qr_activo: Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
-          expediente_completo: activationStatus?.expediente_completo,
-          solicitud_activacion_estatus: activationStatus?.solicitud_activacion_estatus ?? null,
-          expediente_estatus: activationStatus?.expediente_estatus ?? null,
-          motivo_rechazo: activationStatus?.motivo_rechazo ?? '',
-          desglose_por_dia: [],
-        });
       } else {
         const summary = await getCashierDeliverySummary(folio);
         setDeliverySummary(summary);
@@ -357,7 +455,7 @@ export default function CashierProcessScreen() {
       return;
     }
 
-    if (isClientActivation) {
+    if (usesClientActivationEndpoints) {
       try {
         setIsSavingExpediente(true);
         const presignResponse = await presignClientQrActivation({
@@ -461,10 +559,11 @@ export default function CashierProcessScreen() {
         firma_key: firmaUpload.file_key,
       });
 
-      const shouldActivateQr =
+      const rawCanActivateQr =
         Number(response?.data?.puede_activar_qr ?? response?.puede_activar_qr ?? 0) === 1 ||
         response?.data?.puede_activar_qr === true ||
         response?.puede_activar_qr === true;
+      const shouldActivateQr = !requiresTiReviewAfterSelfService && rawCanActivateQr;
 
       let finalResponse = response;
 
@@ -478,7 +577,9 @@ export default function CashierProcessScreen() {
 
       Alert.alert(
         'Operacion exitosa',
-        finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
+        requiresTiReviewAfterSelfService
+          ? 'Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo.'
+          : finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
         [
           {
             text: 'OK',

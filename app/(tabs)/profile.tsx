@@ -212,6 +212,7 @@ export default function ProfileScreen() {
                 pathname: '/cashier-process',
                 params: {
                   mode: 'client',
+                  folio,
                 },
               });
             },
