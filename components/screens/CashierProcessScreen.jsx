@@ -66,6 +66,14 @@ const resolveActivationStatus = (status) => {
   return '';
 };
 
+const normalizeRouteParam = (value) => {
+  if (Array.isArray(value)) {
+    return String(value[0] ?? '').trim();
+  }
+
+  return String(value ?? '').trim();
+};
+
 export default function CashierProcessScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -83,7 +91,9 @@ export default function CashierProcessScreen() {
     saveCashierDeliveryExpedienteS3,
   } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
-  const [folio, setFolio] = useState(String(params?.folio ?? '').trim());
+  const routeMode = normalizeRouteParam(params?.mode).toLowerCase();
+  const routeFolio = normalizeRouteParam(params?.folio);
+  const [folio, setFolio] = useState(routeFolio);
   const [step, setStep] = useState(STEP_FOLIO);
   const [frontPhoto, setFrontPhoto] = useState(null);
   const [backPhoto, setBackPhoto] = useState(null);
@@ -95,7 +105,7 @@ export default function CashierProcessScreen() {
   const [deliverySummary, setDeliverySummary] = useState(null);
   const cameraRef = useRef(null);
   const signatureRef = useRef(null);
-  const activationMode = params?.mode === 'client' ? 'client' : 'cashier';
+  const activationMode = routeMode === 'client' ? 'client' : 'cashier';
   const isClientActivation =
     activationMode === 'client' && SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
   const isNativeClientProfile = Number(user?.id_perfil ?? 0) === 3;
@@ -180,7 +190,7 @@ export default function CashierProcessScreen() {
 
           const resolvedFolio =
             String(activationStatus?.folio ?? '').trim() ||
-            String(params?.folio ?? '').trim() ||
+            routeFolio ||
             String(folioRows?.[0]?.folio ?? '').trim();
 
           if (!resolvedFolio) {
@@ -253,34 +263,74 @@ export default function CashierProcessScreen() {
           }
 
           const resolvedFolio =
-            String(params?.folio ?? '').trim() ||
+            routeFolio ||
             String(folioRows?.[0]?.folio ?? '').trim();
 
           if (!resolvedFolio) {
             throw new Error('No se encontro un folio activo para este usuario.');
           }
 
+          let richSummary = null;
+          try {
+            richSummary = await getCashierDeliverySummary(resolvedFolio);
+          } catch (summaryError) {
+            console.warn('Cashier-style summary fallback:', summaryError?.message ?? summaryError);
+          }
+
           setDeliverySummary({
-            folio: resolvedFolio,
-            id_usuario: user?.id_usuario,
-            nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
-              .filter(Boolean)
-              .join(' '),
-            codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
-            monto_total: Number(balance ?? user?.monto_deposito ?? user?.saldo ?? 0),
-            monto_diario: qrRecord?.monto_diario ?? user?.monto_diario ?? null,
-            dias_vigencia: qrRecord?.dias_vigencia ?? user?.dias_vigencia ?? null,
-            tarifa_total: qrRecord?.tarifa_total ?? user?.tarifa_total ?? balance ?? user?.monto_deposito ?? user?.saldo ?? 0,
-            vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
-            vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
-            nip: null,
-            nip_legado_hash: false,
+            folio: richSummary?.folio ?? resolvedFolio,
+            id_usuario: richSummary?.id_usuario ?? user?.id_usuario,
+            nombre_completo:
+              richSummary?.nombre_completo ??
+              [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
+                .filter(Boolean)
+                .join(' '),
+            codigo_qr: richSummary?.codigo_qr ?? qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
+            monto_total: Number(
+              richSummary?.monto_total ??
+              balance ??
+              user?.monto_deposito ??
+              user?.saldo ??
+              0
+            ),
+            monto_diario:
+              richSummary?.monto_diario ??
+              qrRecord?.monto_diario ??
+              user?.monto_diario ??
+              null,
+            dias_vigencia:
+              richSummary?.dias_vigencia ??
+              qrRecord?.dias_vigencia ??
+              user?.dias_vigencia ??
+              null,
+            tarifa_total:
+              richSummary?.tarifa_total ??
+              qrRecord?.tarifa_total ??
+              user?.tarifa_total ??
+              balance ??
+              user?.monto_deposito ??
+              user?.saldo ??
+              0,
+            vigente_desde:
+              richSummary?.vigente_desde ??
+              qrRecord?.vigente_desde ??
+              user?.vigente_desde ??
+              null,
+            vigente_hasta:
+              richSummary?.vigente_hasta ??
+              qrRecord?.vigente_hasta ??
+              user?.vigente_hasta ??
+              null,
+            nip: richSummary?.nip ?? null,
+            nip_legado_hash: Boolean(richSummary?.nip_legado_hash ?? false),
             qr_activo: Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
             expediente_completo: false,
             solicitud_activacion_estatus: null,
             expediente_estatus: null,
             motivo_rechazo: '',
-            desglose_por_dia: [],
+            desglose_por_dia: Array.isArray(richSummary?.desglose_por_dia)
+              ? richSummary.desglose_por_dia
+              : [],
           });
         }
       } else {
