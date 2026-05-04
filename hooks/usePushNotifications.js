@@ -91,7 +91,6 @@ export const usePushNotifications = () => {
       Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient';
     const projectId = getProjectId();
     let appStateSubscription = null;
-    let refreshInterval = null;
 
     const tryRegisterStoredToken = async () => {
       try {
@@ -173,10 +172,6 @@ export const usePushNotifications = () => {
       }
     });
 
-    refreshInterval = setInterval(() => {
-      tryRegisterStoredToken();
-    }, 15000);
-
     setupNotifications();
     tryRegisterStoredToken();
 
@@ -184,9 +179,6 @@ export const usePushNotifications = () => {
       isMounted = false;
       receivedSubscription.remove();
       appStateSubscription?.remove?.();
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
     };
   }, [user?.id_usuario]);
 };

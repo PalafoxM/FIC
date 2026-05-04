@@ -98,7 +98,7 @@ const ROLE_CONFIG = {
       manageUsers: false,
       manageEstablishments: false,
       reports: false,
-      notifications: false,
+      notifications: true,
       scanner: false,
       salesHistory: false,
       clientQr: false,

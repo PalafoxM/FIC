@@ -8,6 +8,8 @@ import { useApi } from './useApi';
 import { useAuth } from './useAuth';
 
 const POLL_INTERVAL_MS = 10000;
+const POLL_RETRY_INTERVAL_MS = 30000;
+const POLL_MAX_RETRY_INTERVAL_MS = 120000;
 
 const parseNotificationData = (notification) => {
   if (!notification) {
@@ -31,14 +33,21 @@ export const usePaymentRequestAlerts = () => {
   const router = useRouter();
   const shownNotificationIdsRef = useRef(new Set());
   const alertOpenRef = useRef(false);
+  const pollTimeoutRef = useRef(null);
+  const pollingBackoffMsRef = useRef(POLL_INTERVAL_MS);
+  const networkErrorLoggedRef = useRef(false);
 
   useEffect(() => {
-    if (user?.id_perfil !== ROLE_IDS.CLIENT || !user?.id_usuario) {
+    const numericPerfil = Number(user?.id_perfil ?? 0);
+    const isClient = numericPerfil === ROLE_IDS.CLIENT;
+    const isManager = numericPerfil === ROLE_IDS.MANAGER;
+    const isCashier = numericPerfil === ROLE_IDS.CASHIER;
+
+    if ((!isClient && !isManager && !isCashier) || !user?.id_usuario) {
       return undefined;
     }
 
     let isMounted = true;
-    let intervalId = null;
 
     const showPaymentDecisionAlert = (notificationData) => {
       const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
@@ -103,6 +112,45 @@ export const usePaymentRequestAlerts = () => {
       );
     };
 
+    const showManagerNotificationAlert = (notification) => {
+      const notificationData = parseNotificationData(notification);
+      const title = notification?.title || 'Notificacion';
+      const body =
+        notification?.body ||
+        notificationData?.body ||
+        notificationData?.message ||
+        'Tienes una nueva notificacion operativa.';
+
+      alertOpenRef.current = true;
+
+      Alert.alert(
+        title,
+        body,
+        [
+          {
+            text: 'Despues',
+            style: 'cancel',
+            onPress: () => {
+              alertOpenRef.current = false;
+            },
+          },
+          {
+            text: 'Ver notificaciones',
+            onPress: () => {
+              alertOpenRef.current = false;
+              router.push('/alerts');
+            },
+          },
+        ],
+        {
+          cancelable: false,
+          onDismiss: () => {
+            alertOpenRef.current = false;
+          },
+        }
+      );
+    };
+
     const checkPendingPaymentRequests = async () => {
       if (!isMounted || alertOpenRef.current) {
         return;
@@ -125,6 +173,8 @@ export const usePaymentRequestAlerts = () => {
         const data = rawResponse ? JSON.parse(rawResponse) : null;
 
         if (!response.ok || !data?.success) {
+          networkErrorLoggedRef.current = false;
+          pollingBackoffMsRef.current = POLL_INTERVAL_MS;
           return;
         }
 
@@ -140,11 +190,19 @@ export const usePaymentRequestAlerts = () => {
           const notificationData = parseNotificationData(notification);
           const transactionId = notificationData?.transactionId;
 
-          if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
+          if (notificationId && shownNotificationIdsRef.current.has(notificationId)) {
             continue;
           }
 
-          if (notificationId && shownNotificationIdsRef.current.has(notificationId)) {
+          if (isManager || isCashier) {
+            if (notificationId) {
+              shownNotificationIdsRef.current.add(notificationId);
+            }
+            showManagerNotificationAlert(notification);
+            break;
+          }
+
+          if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
             continue;
           }
 
@@ -168,25 +226,54 @@ export const usePaymentRequestAlerts = () => {
             }
           }
         }
+        networkErrorLoggedRef.current = false;
+        pollingBackoffMsRef.current = POLL_INTERVAL_MS;
       } catch (error) {
-        console.error('Error polling payment request alerts:', error);
+        const normalizedMessage = String(error?.message || '').toLowerCase();
+        const isNetworkError = normalizedMessage.includes('network request failed');
+
+        if (!isNetworkError || !networkErrorLoggedRef.current) {
+          console.error('Error polling payment request alerts:', error);
+        }
+
+        if (isNetworkError) {
+          networkErrorLoggedRef.current = true;
+          pollingBackoffMsRef.current = Math.min(
+            Math.max(pollingBackoffMsRef.current, POLL_RETRY_INTERVAL_MS) * 2,
+            POLL_MAX_RETRY_INTERVAL_MS
+          );
+        } else {
+          networkErrorLoggedRef.current = false;
+          pollingBackoffMsRef.current = POLL_INTERVAL_MS;
+        }
+      } finally {
+        if (isMounted) {
+          pollTimeoutRef.current = setTimeout(
+            checkPendingPaymentRequests,
+            pollingBackoffMsRef.current
+          );
+        }
       }
     };
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+        }
         checkPendingPaymentRequests();
       }
     });
 
     checkPendingPaymentRequests();
-    intervalId = setInterval(checkPendingPaymentRequests, POLL_INTERVAL_MS);
 
     return () => {
       isMounted = false;
       appStateSubscription?.remove?.();
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
       }
       alertOpenRef.current = false;
     };
