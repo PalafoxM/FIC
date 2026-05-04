@@ -43,6 +43,15 @@ const buildFullName = (record) =>
     .join(' ')
     .trim() || 'Sin nombre';
 
+const getRecordTimestamp = (record) =>
+  new Date(
+    record?.fec_reg ??
+      record?.createdAt ??
+      record?.date ??
+      record?.fecha_movimiento ??
+      0
+  ).getTime();
+
 const GENERIC_ESTABLISHMENT_LABELS = new Set([
   'establecimiento',
   'establecimiento asignado',
@@ -495,15 +504,17 @@ export default function HomeScreen() {
         return accumulator;
       }, {});
 
-      setPaymentsView(
-        pagos.map((paymentRecord) => ({
+      const normalizedPayments = pagos
+        .map((paymentRecord) => ({
           ...paymentRecord,
           usuarioLabel: usuariosMap[String(paymentRecord.id_usuario ?? '')] || 'Sin usuario',
           establecimientoLabel:
             establecimientosMap[String(paymentRecord.id_establecimiento ?? '')] || 'Sin establecimiento',
           tipoPagoLabel: tiposPagoMap[String(paymentRecord.id_tipo_pago ?? '')] || 'Sin tipo',
         }))
-      );
+        .sort((first, second) => getRecordTimestamp(second) - getRecordTimestamp(first));
+
+      setPaymentsView(normalizedPayments);
       setVisiblePaymentsCount(10);
     } catch (error) {
       console.error('Error loading payments view:', error);
