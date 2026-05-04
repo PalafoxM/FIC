@@ -298,7 +298,7 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
 
-            {isAdminOrManager ? (
+            {(isAdminOrManager || isCashier) ? (
               <TouchableOpacity
                 style={[styles.profileActionButton, styles.profileActionButtonSecondary]}
                 onPress={() => router.push('/alerts')}

@@ -75,6 +75,24 @@ const PayHistory = () => {
 
   const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`;
   const getPaymentTypeLabel = (item) => item.tipo_pago || item.dsc_tipo_pago || 'Tipo no disponible';
+  const getMovementKind = (item) => {
+    const rawType = [
+      item?.tipo_pago,
+      item?.dsc_tipo_pago,
+      item?.tipo_movimiento,
+      item?.dsc_tipo_movimiento,
+      item?.concepto,
+      item?.descripcion,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return /(abono|deposito|dep[oó]sito|recarga|saldo inicial|saldo semanal)/i.test(rawType)
+      ? 'abono'
+      : 'consumo';
+  };
+  const getMovementTitle = (item) => (getMovementKind(item) === 'abono' ? 'Abono' : 'Consumo');
   const getEvidenceStatusLabel = (item) =>
     item.evidencias_completas ? 'Evidencias completas' : 'Pendiente de evidencias';
   const getEstablishmentLabel = (item) =>
@@ -208,19 +226,44 @@ const PayHistory = () => {
       <TouchableOpacity
         onPress={() =>
           Alert.alert(
-            'Detalle de consumo',
-            `Pago #${item.id_pagos || item.id || item._id}\nEstablecimiento: ${getEstablishmentLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nHora: ${formatTime(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
+            `Detalle de ${getMovementTitle(item).toLowerCase()}`,
+            `${getMovementTitle(item)} #${item.id_pagos || item.id || item._id}\nEstablecimiento: ${getEstablishmentLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nHora: ${formatTime(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
           )
         }
       >
         <View style={styles.saleHeader}>
-          <Text style={styles.saleId}>Pago #{item.id_pagos || item.id || item._id}</Text>
-          <Text style={styles.saleAmount}>{formatCurrency(item.total || item.totalAmount || item.amount)}</Text>
+          <View style={styles.saleHeaderLeft}>
+            <Text style={styles.saleId}>{getMovementTitle(item)} #{item.id_pagos || item.id || item._id}</Text>
+            <View
+              style={[
+                styles.movementBadge,
+                getMovementKind(item) === 'abono' ? styles.movementBadgeCredit : styles.movementBadgeDebit,
+              ]}
+            >
+              <Text style={styles.movementBadgeText}>
+                {getMovementKind(item) === 'abono' ? 'Abono' : 'Consumo'}
+              </Text>
+            </View>
+          </View>
+          <Text
+            style={[
+              styles.saleAmount,
+              getMovementKind(item) === 'abono' ? styles.saleAmountCredit : styles.saleAmountDebit,
+            ]}
+          >
+            {formatCurrency(item.total || item.totalAmount || item.amount)}
+          </Text>
         </View>
         <View style={styles.saleDetails}>
-          <Text style={styles.saleCustomer}>
-            Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
-          </Text>
+          {getMovementKind(item) === 'abono' ? (
+            <Text style={styles.saleCustomer}>
+              Abono aplicado por {formatCurrency(item.total || item.totalAmount || item.amount)}
+            </Text>
+          ) : (
+            <Text style={styles.saleCustomer}>
+              Monto {formatCurrency(item.monto || item.amount)} + Propina {formatCurrency(item.propina || 0)}
+            </Text>
+          )}
           <Text style={styles.saleMeta}>{getEstablishmentLabel(item)}</Text>
           {!isClient && <Text style={styles.saleMeta}>Cliente: {getClientLabel(item)}</Text>}
           <Text style={styles.saleMeta}>{getPaymentTypeLabel(item)}</Text>
@@ -299,21 +342,21 @@ const PayHistory = () => {
       ) : null}
 
       <View style={styles.header}>
-        <Text style={styles.title}>Historial de consumo</Text>
+        <Text style={styles.title}>Historial de movimientos</Text>
         <Text style={styles.subtitle}>
           Mostrando {visibleSales.length} de {filteredSales.length} movimientos
         </Text>
       </View>
 
       <View style={styles.searchContainer}>
-        <Text style={styles.searchLabel}>Buscar consumo</Text>
+        <Text style={styles.searchLabel}>Buscar movimiento</Text>
         <TextInput
           value={searchTerm}
           onChangeText={(value) => {
             setSearchTerm(value);
             setVisibleCount(10);
           }}
-          placeholder="Buscar por pago, cliente, comercio, monto o fecha"
+          placeholder="Buscar por movimiento, cliente, comercio, monto o fecha"
           placeholderTextColor="#888"
           style={styles.searchInput}
         />
@@ -439,9 +482,35 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  saleHeaderLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
   saleId: { fontSize: 16, fontWeight: '600', color: '#333' },
   saleAmount: { fontSize: 18, fontWeight: 'bold', color: '#263B80' },
+  saleAmountCredit: { color: '#2E7D32' },
+  saleAmountDebit: { color: '#263B80' },
+  movementBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  movementBadgeCredit: {
+    backgroundColor: '#E7F6EA',
+  },
+  movementBadgeDebit: {
+    backgroundColor: '#EEF2FB',
+  },
+  movementBadgeText: {
+    color: '#263B80',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   saleDetails: { marginBottom: 8 },
   saleCustomer: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 2 },
   saleMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
