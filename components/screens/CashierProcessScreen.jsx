@@ -7,9 +7,11 @@ import {
   DeviceEventEmitter,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -74,6 +76,92 @@ const normalizeRouteParam = (value) => {
   return String(value ?? '').trim();
 };
 
+const firstDefinedValue = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== '');
+
+const mergeBenefitSummary = (...sources) => {
+  const normalizedSources = sources.filter(Boolean);
+  const directOrderUrl = firstDefinedValue(
+    ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_url),
+    ...normalizedSources.map((source) => source?.orden_hospedaje_url),
+    ...normalizedSources.map((source) => source?.pdf_orden_hospedaje_url),
+    ...normalizedSources.map((source) => source?.hospedaje_pdf_url),
+    ...normalizedSources.map((source) => source?.pdf_url)
+  );
+
+  return {
+    tiene_alimentos: firstDefinedValue(...normalizedSources.map((source) => source?.tiene_alimentos)),
+    tiene_hospedaje: firstDefinedValue(...normalizedSources.map((source) => source?.tiene_hospedaje)),
+    tipo_beneficio: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.beneficio_qr),
+      ...normalizedSources.map((source) => source?.tipo_beneficio)
+    ),
+    tipo_beneficio_label: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.beneficio_qr_label),
+      ...normalizedSources.map((source) => source?.tipo_beneficio_label)
+    ),
+    hotel: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.hotel_nombre),
+      ...normalizedSources.map((source) => source?.hotel)
+    ),
+    id_establecimiento_hotel: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.id_establecimiento_hotel)
+    ),
+    id_tipo_habitacion: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.id_tipo_habitacion)
+    ),
+    tipo_habitacion: firstDefinedValue(...normalizedSources.map((source) => source?.tipo_habitacion)),
+    fecha_check_in: firstDefinedValue(...normalizedSources.map((source) => source?.fecha_check_in)),
+    fecha_check_out: firstDefinedValue(...normalizedSources.map((source) => source?.fecha_check_out)),
+    noches: firstDefinedValue(...normalizedSources.map((source) => source?.noches)),
+    tarifa_noche: firstDefinedValue(...normalizedSources.map((source) => source?.tarifa_noche)),
+    tarifa_total_hospedaje: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.tarifa_total_hospedaje)
+    ),
+    folio_hospedaje: firstDefinedValue(...normalizedSources.map((source) => source?.folio_hospedaje)),
+    observaciones_hospedaje: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.observaciones_hospedaje)
+    ),
+    orden_hospedaje_disponible: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.orden_hospedaje_disponible)
+    ),
+    orden_hospedaje_pdf_url: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_url)
+    ),
+    orden_hospedaje_url: directOrderUrl,
+  };
+};
+
+const resolveOrderUrl = (...sources) =>
+  firstDefinedValue(
+    ...sources
+      .filter(Boolean)
+      .flatMap((source) => [
+        source?.orden_hospedaje_pdf_url,
+        source?.orden_hospedaje_url,
+        source?.pdf_orden_hospedaje_url,
+        source?.hospedaje_pdf_url,
+        source?.pdf_url,
+      ])
+  );
+
+const hasLodgingBenefit = (summary) => {
+  const benefitType = String(summary?.tipo_beneficio ?? summary?.tipo_beneficio_label ?? '').trim().toLowerCase();
+  return (
+    Number(summary?.tiene_hospedaje ?? 0) === 1 ||
+    summary?.tiene_hospedaje === true ||
+    benefitType.includes('hospedaje') ||
+    Boolean(
+      summary?.hotel ||
+      summary?.tipo_habitacion ||
+      summary?.fecha_check_in ||
+      summary?.fecha_check_out ||
+      summary?.tarifa_total_hospedaje ||
+      summary?.orden_hospedaje_url
+    )
+  );
+};
+
 export default function CashierProcessScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -112,6 +200,10 @@ export default function CashierProcessScreen() {
   const isNativeClientProfile = Number(user?.id_perfil ?? 0) === 3;
   const usesClientActivationEndpoints = isClientActivation && isNativeClientProfile;
   const requiresTiReviewAfterSelfService = isClientActivation && !isNativeClientProfile;
+  const finishAndExit = () => {
+    DeviceEventEmitter.emit('refreshClientQrActivationState');
+    router.back();
+  };
 
   const currentPhotoUri = useMemo(() => {
     if (step === STEP_FRONT) {
@@ -234,6 +326,7 @@ export default function CashierProcessScreen() {
             expediente_estatus: activationStatus?.expediente_estatus ?? null,
             motivo_rechazo: activationStatus?.motivo_rechazo ?? '',
             desglose_por_dia: [],
+            ...mergeBenefitSummary(activationStatus, qrRecord, user),
           });
         } else {
           const [qrRecord, balance, folioRows] = await Promise.all([
@@ -332,6 +425,7 @@ export default function CashierProcessScreen() {
             desglose_por_dia: Array.isArray(richSummary?.desglose_por_dia)
               ? richSummary.desglose_por_dia
               : [],
+            ...mergeBenefitSummary(richSummary, qrRecord, user),
           });
         }
       } else {
@@ -547,18 +641,15 @@ export default function CashierProcessScreen() {
           firma_key: firmaUpload.file_key,
         });
 
-        Alert.alert(
-          'Operacion exitosa',
+        const mergedSummary = {
+          ...(deliverySummary ?? {}),
+          ...(response?.data ?? {}),
+          ...mergeBenefitSummary(deliverySummary, response?.data, response),
+        };
+        setDeliverySummary(mergedSummary);
+        showSuccessAlert(
           response?.respuesta || 'Solicitud de activacion enviada correctamente.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                DeviceEventEmitter.emit('refreshClientQrActivationState');
-                router.back();
-              },
-            },
-          ]
+          resolveOrderUrl(response?.data, response, mergedSummary)
         );
       } catch (error) {
         console.error('Error sending client activation request:', error);
@@ -631,20 +722,18 @@ export default function CashierProcessScreen() {
         });
       }
 
-      Alert.alert(
-        'Operacion exitosa',
+      const mergedSummary = {
+        ...(deliverySummary ?? {}),
+        ...(response?.data ?? {}),
+        ...(finalResponse?.data ?? {}),
+        ...mergeBenefitSummary(deliverySummary, response?.data, finalResponse?.data, finalResponse),
+      };
+      setDeliverySummary(mergedSummary);
+      showSuccessAlert(
         requiresTiReviewAfterSelfService
           ? finalResponse?.respuesta || 'Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo.'
           : finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              DeviceEventEmitter.emit('refreshClientQrActivationState');
-              router.back();
-            },
-          },
-        ]
+        resolveOrderUrl(finalResponse?.data, finalResponse, response?.data, mergedSummary)
       );
     } catch (error) {
       console.error('Error saving cashier expediente:', error);
@@ -652,6 +741,69 @@ export default function CashierProcessScreen() {
     } finally {
       setIsSavingExpediente(false);
     }
+  };
+
+  const openOrderResource = async (resourceUrl) => {
+    if (!resourceUrl) {
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(resourceUrl);
+      if (!supported) {
+        throw new Error('No se pudo abrir la orden de hospedaje en este dispositivo.');
+      }
+
+      await Linking.openURL(resourceUrl);
+    } catch (error) {
+      Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
+    }
+  };
+
+  const shareOrderResource = async (resourceUrl) => {
+    if (!resourceUrl) {
+      return;
+    }
+
+    try {
+      await Share.share({
+        title: 'Orden de hospedaje',
+        message: resourceUrl,
+        url: resourceUrl,
+      });
+    } catch (error) {
+      Alert.alert('Atencion', error.message || 'No se pudo compartir la orden de hospedaje.');
+    }
+  };
+
+  const showSuccessAlert = (message, orderUrl) => {
+    const buttons = [
+      {
+        text: 'OK',
+        onPress: finishAndExit,
+      },
+    ];
+
+    if (orderUrl) {
+      buttons.unshift(
+        {
+          text: 'Compartir orden',
+          onPress: () => {
+            shareOrderResource(orderUrl);
+            finishAndExit();
+          },
+        },
+        {
+          text: 'Abrir / descargar orden',
+          onPress: () => {
+            openOrderResource(orderUrl);
+            finishAndExit();
+          },
+        }
+      );
+    }
+
+    Alert.alert('Operacion exitosa', message, buttons);
   };
 
   const renderFolioStep = () => (
@@ -905,6 +1057,15 @@ export default function CashierProcessScreen() {
             </Text>
           </View>
           <View style={styles.summaryMetricCard}>
+            <Text style={styles.summaryMetricLabel}>Tipo de beneficio</Text>
+            <Text style={styles.summaryMetricValue}>
+              {deliverySummary?.tipo_beneficio_label || deliverySummary?.tipo_beneficio || 'Sin definir'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Tarifa total</Text>
             <Text style={styles.summaryMetricValue}>
               ${Number(deliverySummary?.tarifa_total ?? deliverySummary?.monto_total ?? 0).toFixed(2)}
@@ -939,6 +1100,110 @@ export default function CashierProcessScreen() {
             </Text>
           </View>
         </View>
+
+        {hasLodgingBenefit(deliverySummary) ? (
+          <>
+            <Text style={styles.summarySectionTitle}>Hospedaje</Text>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Hotel</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.hotel || 'Sin definir'}
+                </Text>
+              </View>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Tipo de habitacion</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.tipo_habitacion || 'Sin definir'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Check-in</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.fecha_check_in || 'Sin definir'}
+                </Text>
+              </View>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Check-out</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.fecha_check_out || 'Sin definir'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Noches</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.noches !== null && deliverySummary?.noches !== undefined
+                    ? String(deliverySummary.noches)
+                    : 'Sin definir'}
+                </Text>
+              </View>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Tarifa por noche</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.tarifa_noche !== null && deliverySummary?.tarifa_noche !== undefined
+                    ? `$${Number(deliverySummary.tarifa_noche).toFixed(2)}`
+                    : 'Sin definir'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Folio hospedaje</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.folio_hospedaje || 'Sin definir'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricLabel}>Tarifa total hospedaje</Text>
+                <Text style={styles.summaryMetricValue}>
+                  {deliverySummary?.tarifa_total_hospedaje !== null &&
+                  deliverySummary?.tarifa_total_hospedaje !== undefined
+                    ? `$${Number(deliverySummary.tarifa_total_hospedaje).toFixed(2)}`
+                    : 'Sin definir'}
+                </Text>
+              </View>
+            </View>
+
+            {String(deliverySummary?.observaciones_hospedaje ?? '').trim() ? (
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryMetricCard}>
+                  <Text style={styles.summaryMetricLabel}>Observaciones hospedaje</Text>
+                  <Text style={styles.summaryMetricValue}>
+                    {String(deliverySummary.observaciones_hospedaje).trim()}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {resolveOrderUrl(deliverySummary) ? (
+              <View style={styles.reviewActions}>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => openOrderResource(resolveOrderUrl(deliverySummary))}
+                >
+                  <Text style={styles.secondaryButtonText}>Abrir / descargar orden</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => shareOrderResource(resolveOrderUrl(deliverySummary))}
+                >
+                  <Text style={styles.secondaryButtonText}>Compartir orden</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
         <View style={styles.summaryGrid}>
           <View style={styles.summaryMetricCard}>
