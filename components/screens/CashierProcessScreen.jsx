@@ -1156,15 +1156,6 @@ export default function CashierProcessScreen() {
 
             <View style={styles.summaryGrid}>
               <View style={styles.summaryMetricCard}>
-                <Text style={styles.summaryMetricLabel}>Folio hospedaje</Text>
-                <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.folio_hospedaje || 'Sin definir'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryGrid}>
-              <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Tarifa total hospedaje</Text>
                 <Text style={styles.summaryMetricValue}>
                   {deliverySummary?.tarifa_total_hospedaje !== null &&
