@@ -1420,6 +1420,10 @@ export function AuthProvider({ children }) {
     }
   }, [getTable, user?.id_usuario, user?.monto_deposito, user?.saldo, user?.saldoDisponible, user?.saldo_actual]);
 
+  const getAccessToken = useCallback(async () => {
+    return await AsyncStorage.getItem('token');
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -1437,6 +1441,7 @@ export function AuthProvider({ children }) {
       getSalesByClient,
       getConsumptionPayments,
       getClientAvailableBalance,
+      getAccessToken,
       getClientQrData,
       getClientQrActivationStatus,
       getTiQrActivationRequests,
@@ -1456,6 +1461,7 @@ export function AuthProvider({ children }) {
       activeEstablecimientoId,
       error,
       getClientAvailableBalance,
+      getAccessToken,
       getClientQrActivationStatus,
       getTiQrActivationRequests,
       approveTiQrActivationRequest,

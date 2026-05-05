@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -168,6 +169,7 @@ export default function CashierProcessScreen() {
   const {
     user,
     activateCashierQr,
+    getAccessToken,
     getCashierDeliverySummary,
     getClientAvailableBalance,
     getClientQrActivationStatus,
@@ -203,6 +205,12 @@ export default function CashierProcessScreen() {
   const finishAndExit = () => {
     DeviceEventEmitter.emit('refreshClientQrActivationState');
     router.back();
+  };
+  const buildOrderPdfFileName = () => {
+    const safeFolio = String(deliverySummary?.folio ?? user?.id_usuario ?? Date.now())
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, '-');
+    return `orden-hospedaje-${safeFolio}.pdf`;
   };
 
   const currentPhotoUri = useMemo(() => {
@@ -749,12 +757,13 @@ export default function CashierProcessScreen() {
     }
 
     try {
-      const supported = await Linking.canOpenURL(resourceUrl);
+      const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
+      const supported = await Linking.canOpenURL(localFileUri);
       if (!supported) {
-        throw new Error('No se pudo abrir la orden de hospedaje en este dispositivo.');
+        throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde la app.');
       }
 
-      await Linking.openURL(resourceUrl);
+      await Linking.openURL(localFileUri);
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
     }
@@ -766,14 +775,44 @@ export default function CashierProcessScreen() {
     }
 
     try {
+      const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
       await Share.share({
         title: 'Orden de hospedaje',
-        message: resourceUrl,
-        url: resourceUrl,
+        message: localFileUri,
+        url: localFileUri,
       });
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo compartir la orden de hospedaje.');
     }
+  };
+
+  const downloadOrderPdfAuthenticated = async (resourceUrl) => {
+    const sessionToken = await getAccessToken();
+    if (!sessionToken) {
+      throw new Error('No hay token de autenticacion para descargar la orden de hospedaje.');
+    }
+
+    const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (!baseDirectory) {
+      throw new Error('No se encontro un directorio local para guardar la orden de hospedaje.');
+    }
+
+    const targetDirectory = `${baseDirectory}ordenes-hospedaje`;
+    await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true }).catch(() => null);
+    const fileUri = `${targetDirectory}/${buildOrderPdfFileName()}`;
+
+    const downloadResult = await FileSystem.downloadAsync(resourceUrl, fileUri, {
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+        Accept: 'application/pdf',
+      },
+    });
+
+    if (!downloadResult || Number(downloadResult.status ?? 0) >= 400) {
+      throw new Error('No se pudo descargar la orden de hospedaje autenticada.');
+    }
+
+    return downloadResult.uri;
   };
 
   const showSuccessAlert = (message, orderUrl) => {
