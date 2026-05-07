@@ -5,6 +5,7 @@ export const ROLE_IDS = {
   MANAGER: 4,
   BUSINESS_MANAGER: 5,
   CASHIER: 6,
+  RECEPTION: 7,
 };
 
 const ROLE_CONFIG = {
@@ -106,6 +107,24 @@ const ROLE_CONFIG = {
       cashierProcess: true,
     },
   },
+  [ROLE_IDS.RECEPTION]: {
+    label: 'Recepcion',
+    homeTitle: 'Operacion hotelera',
+    homeSubtitle: 'Escanea QR de huespedes, consulta ordenes de hospedaje y registra check in.',
+    permissions: {
+      dashboard: false,
+      manageUsers: false,
+      manageEstablishments: false,
+      reports: false,
+      notifications: false,
+      scanner: false,
+      salesHistory: false,
+      clientQr: false,
+      payHistory: false,
+      cashierProcess: false,
+      hotelReception: true,
+    },
+  },
 };
 
 const DEFAULT_ROLE = {
@@ -123,6 +142,7 @@ const DEFAULT_ROLE = {
     clientQr: false,
     payHistory: false,
     cashierProcess: false,
+    hotelReception: false,
   },
 };
 

@@ -9,9 +9,10 @@ export default function TabLayout() {
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
+  const isReception = user?.id_perfil === ROLE_IDS.RECEPTION;
   const isProviderOrBusinessManager = isProvider || isBusinessManager;
   const showNotificationsTab = isClient || isProviderOrBusinessManager;
-  const showParticipantsTab = !isBusinessManager && !isCashier;
+  const showParticipantsTab = !isBusinessManager && !isCashier && !isReception;
 
   return (
     <Tabs

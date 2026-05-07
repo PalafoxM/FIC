@@ -26,6 +26,7 @@ const ADMIN_FILTERS = [
   { id: ROLE_IDS.CLIENT, label: 'Cliente' },
   { id: ROLE_IDS.MANAGER, label: 'Gestor' },
   { id: ROLE_IDS.BUSINESS_MANAGER, label: 'Gerente' },
+  { id: ROLE_IDS.RECEPTION, label: 'Recepcion' },
 ];
 
 const buildAdminCards = () => [
@@ -319,6 +320,7 @@ export default function HomeScreen() {
   const isAdmin = user?.id_perfil === ROLE_IDS.ADMIN;
   const isManagerProfile = user?.id_perfil === ROLE_IDS.MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
+  const isReception = user?.id_perfil === ROLE_IDS.RECEPTION;
   const isAdminOrManager = isAdmin || isManagerProfile;
   const baseProviderEstablishments = useMemo(() => {
     const rawList = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
@@ -1088,6 +1090,46 @@ export default function HomeScreen() {
     }
   };
 
+  if (isReception) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshingHome}
+            onRefresh={refreshHomeData}
+            colors={['#263B80']}
+            tintColor="#263B80"
+          />
+        }
+      >
+        <View style={styles.heroCard}>
+          <Text style={styles.heroEyebrow}>Recepcion</Text>
+          <Text style={styles.heroTitle}>{roleConfig.homeTitle}</Text>
+          <Text style={styles.heroDescription}>{roleConfig.homeSubtitle}</Text>
+
+          <TouchableOpacity
+            style={styles.heroPrimaryAction}
+            onPress={() => router.push('/hotel-operation')}
+          >
+            <Text style={styles.heroPrimaryActionText}>Abrir operacion hotelera</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cardSection}>
+          <Text style={styles.sectionTitle}>Flujo disponible</Text>
+          <View style={styles.summaryPanel}>
+            <Text style={styles.summaryPanelText}>1. Escanear QR del huesped</Text>
+            <Text style={styles.summaryPanelText}>2. Consultar orden de hospedaje</Text>
+            <Text style={styles.summaryPanelText}>3. Abrir o compartir PDF autenticado</Text>
+            <Text style={styles.summaryPanelText}>4. Registrar check in</Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <>
       <ScrollView
@@ -1669,6 +1711,71 @@ const styles = StyleSheet.create({
   header: {
     marginTop: 12,
     marginBottom: 24,
+  },
+  heroCard: {
+    backgroundColor: '#263B80',
+    borderRadius: 20,
+    padding: 22,
+    marginTop: 12,
+    marginBottom: 20,
+    shadowColor: '#0D1B2A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F4C95D',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 10,
+  },
+  heroDescription: {
+    fontSize: 15,
+    color: '#E8EEFF',
+    lineHeight: 22,
+  },
+  heroPrimaryAction: {
+    marginTop: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroPrimaryActionText: {
+    color: '#263B80',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  cardSection: {
+    marginBottom: 24,
+  },
+  summaryPanel: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+    gap: 10,
+  },
+  summaryPanelText: {
+    color: '#49516A',
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
   },
   eyebrow: {
     fontSize: 13,

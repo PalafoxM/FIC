@@ -108,6 +108,13 @@ function RootLayoutContent() {
         }}
       />
       <Stack.Screen
+        name="hotel-operation"
+        options={{
+          title: 'Operacion hotelera',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
         name="enter-amount"
         options={{
           title: 'Ingresar Monto',

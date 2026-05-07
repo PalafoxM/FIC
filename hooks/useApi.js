@@ -2,6 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
+const PHP_BASE_URL = API_BASE_URL.endsWith('/api')
+  ? `${API_BASE_URL.slice(0, -4)}/index.php`
+  : `${API_BASE_URL}/index.php`;
 
 const normalizeTransactionRecord = (payload, fallback = {}) => {
   const transaction =
@@ -188,6 +191,26 @@ export const useApi = () => {
     return await parseJsonResponse(response, actionLabel);
   };
 
+  const getPhpJsonResponse = async ({
+    path,
+    method = 'GET',
+    body,
+    fallbackMessage: actionLabel,
+  }) => {
+    const headers = await getAuthHeaders();
+    const url = `${PHP_BASE_URL}${path}`;
+
+    console.log(`${actionLabel} URL:`, url);
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    return await parseJsonResponse(response, actionLabel);
+  };
+
   const postJson = async (path, body, fallbackMessage) =>
     await getApiJsonResponse({
       path,
@@ -215,6 +238,14 @@ export const useApi = () => {
   const getReportsResponse = async (path, method = 'GET', body, fallbackMessage) =>
     await getApiJsonResponse({
       path: `/reportes${path}`,
+      method,
+      body,
+      fallbackMessage,
+    });
+
+  const getHotelResponse = async (path, method = 'GET', body, fallbackMessage) =>
+    await getPhpJsonResponse({
+      path: `/api/hotel${path}`,
       method,
       body,
       fallbackMessage,
@@ -567,6 +598,46 @@ export const useApi = () => {
     }
   };
 
+  const getHotelOrderByQr = async (codigoQr) => {
+    const normalizedQr = String(codigoQr ?? '').trim();
+    if (!normalizedQr) {
+      throw new Error('No se recibio un codigo QR valido para consultar la orden.');
+    }
+
+    const data = await getHotelResponse(
+      `\/orden-por-qr?codigo_qr=${encodeURIComponent(normalizedQr)}`,
+      'GET',
+      undefined,
+      'Consultando orden de hospedaje'
+    );
+
+    return {
+      success: true,
+      data: data?.data ?? null,
+      message: data?.respuesta || data?.message || 'Orden consultada correctamente',
+    };
+  };
+
+  const registerHotelCheckIn = async ({ id_usuario_hospedaje, observaciones_check_in = '' }) => {
+    const payload = {
+      id_usuario_hospedaje: Number(id_usuario_hospedaje ?? 0),
+      observaciones_check_in: String(observaciones_check_in ?? '').trim(),
+    };
+
+    const data = await getHotelResponse(
+      '/check-in',
+      'POST',
+      payload,
+      'Registrando check in'
+    );
+
+    return {
+      success: true,
+      data: data?.data ?? null,
+      message: data?.respuesta || data?.message || 'Check in registrado correctamente',
+    };
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
@@ -574,7 +645,9 @@ export const useApi = () => {
     getTransactionStatus,
     getPaymentReports,
     createManagerRequest,
+    getHotelOrderByQr,
     getUserTransactions,
+    registerHotelCheckIn,
     approveTransaction,
     rejectTransaction,
     approvePaymentRequest,
