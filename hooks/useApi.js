@@ -245,15 +245,15 @@ export const useApi = () => {
 
   const getHotelResponse = async (path, method = 'GET', body, fallbackMessage) => {
     try {
-      return await getApiJsonResponse({
-        path: `/hotel${path}`,
+      return await getPhpJsonResponse({
+        path: `/api/hotel${path}`,
         method,
         body,
         fallbackMessage,
       });
     } catch (primaryError) {
-      return await getPhpJsonResponse({
-        path: `/api/hotel${path}`,
+      return await getApiJsonResponse({
+        path: `/hotel${path}`,
         method,
         body,
         fallbackMessage,

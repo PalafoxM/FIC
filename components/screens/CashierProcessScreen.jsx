@@ -129,6 +129,10 @@ const mergeBenefitSummary = (...sources) => {
     orden_hospedaje_pdf_url: firstDefinedValue(
       ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_url)
     ),
+    orden_hospedaje_pdf_path: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_path),
+      ...normalizedSources.map((source) => source?.pdf_path)
+    ),
     orden_hospedaje_url: directOrderUrl,
   };
 };

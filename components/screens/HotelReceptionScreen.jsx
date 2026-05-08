@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -176,12 +177,16 @@ export default function HotelReceptionScreen() {
     try {
       setProcessingPdf(true);
       const localUri = await downloadPdfLocally();
-      const supported = await Linking.canOpenURL(localUri);
+      const openableUri =
+        Platform.OS === 'android'
+          ? await FileSystem.getContentUriAsync(localUri)
+          : localUri;
+      const supported = await Linking.canOpenURL(openableUri);
       if (!supported) {
         throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde este modulo.');
       }
 
-      await Linking.openURL(localUri);
+      await Linking.openURL(openableUri);
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
     } finally {
@@ -352,9 +357,9 @@ export default function HotelReceptionScreen() {
           <View style={styles.actionColumn}>
             {String(orderSummary?.orden_hospedaje_pdf_url ?? '').trim() ? (
               <>
-            <TouchableOpacity
-              style={[styles.primaryButton, processingPdf && styles.disabledButton]}
-              onPress={handleOpenPdf}
+                <TouchableOpacity
+                  style={[styles.primaryButton, processingPdf && styles.disabledButton]}
+                  onPress={handleOpenPdf}
               disabled={processingPdf}
             >
               <Text style={styles.primaryButtonText}>
@@ -369,6 +374,12 @@ export default function HotelReceptionScreen() {
                 >
                   <Text style={styles.secondaryButtonText}>Compartir / imprimir PDF</Text>
                 </TouchableOpacity>
+
+                {String(orderSummary?.orden_hospedaje_pdf_path ?? '').trim() ? (
+                  <Text style={styles.pdfPathHint}>
+                    PDF persistido: {String(orderSummary.orden_hospedaje_pdf_path).trim()}
+                  </Text>
+                ) : null}
               </>
             ) : null}
 
@@ -582,5 +593,10 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  pdfPathHint: {
+    color: '#5F6782',
+    fontSize: 12,
+    lineHeight: 18,
   },
 });
