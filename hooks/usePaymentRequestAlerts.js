@@ -10,6 +10,7 @@ import { useAuth } from './useAuth';
 const POLL_INTERVAL_MS = 10000;
 const POLL_RETRY_INTERVAL_MS = 30000;
 const POLL_MAX_RETRY_INTERVAL_MS = 120000;
+const MAX_PERSISTED_NOTIFICATION_IDS = 100;
 
 const parseNotificationData = (notification) => {
   if (!notification) {
@@ -44,12 +45,33 @@ export const usePaymentRequestAlerts = () => {
     const isManager = numericPerfil === ROLE_IDS.MANAGER;
     const isCashier = numericPerfil === ROLE_IDS.CASHIER;
     const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
+    const persistedNotificationIdsKey = `seenPassiveNotificationIds:${user?.id_usuario ?? 'anonymous'}`;
 
     if ((!usesPaymentDecisionAlert && !isCashier) || !user?.id_usuario) {
       return undefined;
     }
 
     let isMounted = true;
+
+    const persistShownNotificationIds = async () => {
+      try {
+        const persistedIds = Array.from(shownNotificationIdsRef.current).slice(-MAX_PERSISTED_NOTIFICATION_IDS);
+        await AsyncStorage.setItem(persistedNotificationIdsKey, JSON.stringify(persistedIds));
+      } catch (error) {
+        console.error('Error persisting shown notification ids:', error);
+      }
+    };
+
+    const markNotificationAsShown = async (notificationId, persist = false) => {
+      if (!notificationId) {
+        return;
+      }
+
+      shownNotificationIdsRef.current.add(notificationId);
+      if (persist) {
+        await persistShownNotificationIds();
+      }
+    };
 
     const showPaymentDecisionAlert = (notificationData) => {
       const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
@@ -199,18 +221,14 @@ export const usePaymentRequestAlerts = () => {
           }
 
           if (isCashier) {
-            if (notificationId) {
-              shownNotificationIdsRef.current.add(notificationId);
-            }
+            await markNotificationAsShown(notificationId, true);
             showManagerNotificationAlert(notification);
             break;
           }
 
           if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
             if (usesPaymentDecisionAlert && (notificationData?.type === 'QR_READY' || notificationData?.type === 'QR_ACTIVATION_REJECTED')) {
-              if (notificationId) {
-                shownNotificationIdsRef.current.add(notificationId);
-              }
+              await markNotificationAsShown(notificationId, true);
               showManagerNotificationAlert(notification);
               break;
             }
@@ -221,9 +239,7 @@ export const usePaymentRequestAlerts = () => {
             const statusResponse = await getTransactionStatus(transactionId);
             const resolvedStatus = statusResponse?.data?.status ?? 'pending';
 
-            if (notificationId) {
-              shownNotificationIdsRef.current.add(notificationId);
-            }
+            await markNotificationAsShown(notificationId, false);
 
             if (resolvedStatus !== 'pending') {
               continue;
@@ -232,9 +248,7 @@ export const usePaymentRequestAlerts = () => {
             showPaymentDecisionAlert(notificationData);
             break;
           } catch {
-            if (notificationId) {
-              shownNotificationIdsRef.current.add(notificationId);
-            }
+            await markNotificationAsShown(notificationId, false);
           }
         }
         networkErrorLoggedRef.current = false;
@@ -277,7 +291,19 @@ export const usePaymentRequestAlerts = () => {
       }
     });
 
-    checkPendingPaymentRequests();
+    const initializePolling = async () => {
+      try {
+        const persistedIdsRaw = await AsyncStorage.getItem(persistedNotificationIdsKey);
+        const persistedIds = persistedIdsRaw ? JSON.parse(persistedIdsRaw) : [];
+        shownNotificationIdsRef.current = new Set(Array.isArray(persistedIds) ? persistedIds : []);
+      } catch (error) {
+        shownNotificationIdsRef.current = new Set();
+      }
+
+      await checkPendingPaymentRequests();
+    };
+
+    initializePolling();
 
     return () => {
       isMounted = false;

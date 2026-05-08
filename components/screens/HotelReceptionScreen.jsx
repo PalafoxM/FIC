@@ -69,6 +69,7 @@ const resolveHospedajeRecordId = (record) =>
   ) || null;
 
 const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Si' : 'No');
+const OPEN_PDF_TIMEOUT_MS = 1800;
 
 export default function HotelReceptionScreen() {
   const router = useRouter();
@@ -177,16 +178,22 @@ export default function HotelReceptionScreen() {
     try {
       setProcessingPdf(true);
       const localUri = await downloadPdfLocally();
-      const openableUri =
-        Platform.OS === 'android'
-          ? await FileSystem.getContentUriAsync(localUri)
-          : localUri;
-      const supported = await Linking.canOpenURL(openableUri);
-      if (!supported) {
-        throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde este modulo.');
+      const openableUri = Platform.OS === 'android'
+        ? await FileSystem.getContentUriAsync(localUri)
+        : localUri;
+
+      if (Platform.OS !== 'android') {
+        const supported = await Linking.canOpenURL(openableUri);
+        if (!supported) {
+          throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde este modulo.');
+        }
       }
 
-      await Linking.openURL(openableUri);
+      setProcessingPdf(false);
+      await Promise.race([
+        Linking.openURL(openableUri),
+        new Promise((resolve) => setTimeout(resolve, OPEN_PDF_TIMEOUT_MS)),
+      ]);
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
     } finally {
