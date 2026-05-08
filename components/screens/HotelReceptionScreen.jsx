@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -289,7 +290,11 @@ export default function HotelReceptionScreen() {
           </View>
         </>
       ) : (
-        <View style={styles.summaryContainer}>
+        <ScrollView
+          style={styles.summaryScroll}
+          contentContainerStyle={styles.summaryContainer}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.headerTitle}>Resumen del huesped</Text>
           <Text style={styles.headerSubtitle}>
             Revisa la habitacion, la vigencia del hospedaje y registra el check in cuando corresponda.
@@ -347,15 +352,15 @@ export default function HotelReceptionScreen() {
           <View style={styles.actionColumn}>
             {String(orderSummary?.orden_hospedaje_pdf_url ?? '').trim() ? (
               <>
-                <TouchableOpacity
-                  style={[styles.primaryButton, processingPdf && styles.disabledButton]}
-                  onPress={handleOpenPdf}
-                  disabled={processingPdf}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    {processingPdf ? 'Descargando PDF...' : 'Consultar PDF'}
-                  </Text>
-                </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButton, processingPdf && styles.disabledButton]}
+              onPress={handleOpenPdf}
+              disabled={processingPdf}
+            >
+              <Text style={styles.primaryButtonText}>
+                    {processingPdf ? 'Preparando PDF...' : 'Consultar PDF'}
+              </Text>
+            </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.secondaryButton, processingPdf && styles.disabledButton]}
@@ -394,7 +399,7 @@ export default function HotelReceptionScreen() {
               <Text style={styles.secondaryButtonText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -481,8 +486,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   summaryContainer: {
-    flex: 1,
     padding: 20,
+    paddingBottom: 32,
+  },
+  summaryScroll: {
+    flex: 1,
   },
   headerTitle: {
     color: '#263B80',

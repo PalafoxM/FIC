@@ -40,10 +40,12 @@ export const usePaymentRequestAlerts = () => {
   useEffect(() => {
     const numericPerfil = Number(user?.id_perfil ?? 0);
     const isClient = numericPerfil === ROLE_IDS.CLIENT;
+    const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
     const isManager = numericPerfil === ROLE_IDS.MANAGER;
     const isCashier = numericPerfil === ROLE_IDS.CASHIER;
+    const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
 
-    if ((!isClient && !isManager && !isCashier) || !user?.id_usuario) {
+    if ((!usesPaymentDecisionAlert && !isCashier) || !user?.id_usuario) {
       return undefined;
     }
 
@@ -69,11 +71,13 @@ export const usePaymentRequestAlerts = () => {
                   DeviceEventEmitter.emit('refreshClientBalanceNow');
                   Alert.alert(
                     'Operaci\u00f3n exitosa',
-                    'El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.'
+                    usesPaymentDecisionAlert
+                      ? 'El pago fue aprobado. Te llevaremos al perfil para revisar tu monto disponible.'
+                      : 'El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.'
                   );
                   setTimeout(() => {
                     DeviceEventEmitter.emit('closeClientQrModal');
-                    router.replace('/(tabs)');
+                    router.replace(usesPaymentDecisionAlert ? '/profile' : '/(tabs)');
                   }, 1200);
                   return;
                 }
@@ -194,7 +198,7 @@ export const usePaymentRequestAlerts = () => {
             continue;
           }
 
-          if (isManager || isCashier) {
+          if (isCashier) {
             if (notificationId) {
               shownNotificationIdsRef.current.add(notificationId);
             }
@@ -203,6 +207,13 @@ export const usePaymentRequestAlerts = () => {
           }
 
           if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
+            if (usesPaymentDecisionAlert && (notificationData?.type === 'QR_READY' || notificationData?.type === 'QR_ACTIVATION_REJECTED')) {
+              if (notificationId) {
+                shownNotificationIdsRef.current.add(notificationId);
+              }
+              showManagerNotificationAlert(notification);
+              break;
+            }
             continue;
           }
 

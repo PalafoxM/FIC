@@ -243,13 +243,23 @@ export const useApi = () => {
       fallbackMessage,
     });
 
-  const getHotelResponse = async (path, method = 'GET', body, fallbackMessage) =>
-    await getPhpJsonResponse({
-      path: `/api/hotel${path}`,
-      method,
-      body,
-      fallbackMessage,
-    });
+  const getHotelResponse = async (path, method = 'GET', body, fallbackMessage) => {
+    try {
+      return await getApiJsonResponse({
+        path: `/hotel${path}`,
+        method,
+        body,
+        fallbackMessage,
+      });
+    } catch (primaryError) {
+      return await getPhpJsonResponse({
+        path: `/api/hotel${path}`,
+        method,
+        body,
+        fallbackMessage,
+      });
+    }
+  };
 
   const buildRequestPayload = (transactionData = {}) => ({
     codigo_qr:

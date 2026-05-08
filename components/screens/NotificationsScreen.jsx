@@ -20,6 +20,9 @@ export default function NotificationsScreen() {
   const transactionStatusRef = useRef(getTransactionStatus);
   const autoOpenedTransactionsRef = useRef(new Set());
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
+  const usesPaymentDecisionAlert = [ROLE_IDS.CLIENT, ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(
+    Number(user?.id_perfil ?? 0)
+  );
 
   useEffect(() => {
     transactionStatusRef.current = getTransactionStatus;
@@ -140,8 +143,8 @@ export default function NotificationsScreen() {
 
   const navigateClientHome = useCallback(() => {
     DeviceEventEmitter.emit('closeClientQrModal');
-    router.replace('/(tabs)');
-  }, [router]);
+    router.replace(usesPaymentDecisionAlert && Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT ? '/profile' : '/(tabs)');
+  }, [router, user?.id_perfil, usesPaymentDecisionAlert]);
 
   const approvePayment = useCallback(async (transactionId) => {
     try {
@@ -249,7 +252,7 @@ export default function NotificationsScreen() {
   };
 
   useEffect(() => {
-    if (Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT || notifications.length === 0) {
+    if (!usesPaymentDecisionAlert || notifications.length === 0) {
       return;
     }
 
@@ -276,7 +279,7 @@ export default function NotificationsScreen() {
     }, 250);
 
     return () => clearTimeout(openTimeout);
-  }, [notifications, openPaymentRequestDialog, parseNotificationData, user?.id_perfil]);
+  }, [notifications, openPaymentRequestDialog, parseNotificationData, usesPaymentDecisionAlert]);
 
   if (!hasPermission(user?.id_perfil, 'notifications')) {
     return (
