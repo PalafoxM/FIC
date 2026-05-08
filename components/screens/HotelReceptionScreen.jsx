@@ -5,8 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
-  Platform,
+  Modal,
   ScrollView,
   Share,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import AccessDenied from '../AccessDenied';
 import { hasPermission } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
@@ -69,7 +69,119 @@ const resolveHospedajeRecordId = (record) =>
   ) || null;
 
 const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Si' : 'No');
-const OPEN_PDF_TIMEOUT_MS = 1800;
+
+const buildPdfViewerHtml = (pdfBase64) => `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Orden de hospedaje</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100%;
+      overflow: auto;
+    }
+    #status {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.94);
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+    }
+    #viewer {
+      padding: 14px 10px 28px;
+    }
+    .page {
+      display: block;
+      width: calc(100% - 8px);
+      max-width: 980px;
+      margin: 0 auto 18px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
+    }
+    .error {
+      color: #fecaca;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Preparando PDF...</div>
+  <div id="viewer"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (function () {
+      const status = document.getElementById('status');
+      const viewer = document.getElementById('viewer');
+      const base64 = ${JSON.stringify(pdfBase64)};
+
+      const base64ToUint8Array = (value) => {
+        const binary = atob(value);
+        const length = binary.length;
+        const bytes = new Uint8Array(length);
+        for (let index = 0; index < length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
+      };
+
+      const render = async () => {
+        try {
+          if (!window.pdfjsLib) {
+            throw new Error('No se pudo cargar el visor PDF.');
+          }
+
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+          const loadingTask = window.pdfjsLib.getDocument({ data: base64ToUint8Array(base64) });
+          const pdf = await loadingTask.promise;
+          status.textContent = 'Documento listo';
+
+          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+            const page = await pdf.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 1.15 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const ratio = window.devicePixelRatio || 1;
+
+            canvas.className = 'page';
+            canvas.width = Math.floor(viewport.width * ratio);
+            canvas.height = Math.floor(viewport.height * ratio);
+            canvas.style.width = viewport.width + 'px';
+            canvas.style.height = viewport.height + 'px';
+            context.scale(ratio, ratio);
+
+            viewer.appendChild(canvas);
+
+            await page.render({
+              canvasContext: context,
+              viewport,
+            }).promise;
+          }
+        } catch (error) {
+          status.innerHTML =
+            '<span class="error">' +
+            (error && error.message ? error.message : 'No se pudo visualizar el PDF.') +
+            '</span>';
+        }
+      };
+
+      render();
+    })();
+  </script>
+</body>
+</html>`;
 
 export default function HotelReceptionScreen() {
   const router = useRouter();
@@ -82,7 +194,14 @@ export default function HotelReceptionScreen() {
   const [savingCheckIn, setSavingCheckIn] = useState(false);
   const [observacionesCheckIn, setObservacionesCheckIn] = useState('');
   const [orderSummary, setOrderSummary] = useState(null);
+  const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
+  const [pdfViewerHtml, setPdfViewerHtml] = useState('');
   const navigatingRef = useRef(false);
+  const pdfCacheRef = useRef({
+    sourceUrl: '',
+    localUri: '',
+    pdfBase64: '',
+  });
 
   const hospedajeRecordId = useMemo(() => resolveHospedajeRecordId(orderSummary), [orderSummary]);
 
@@ -139,7 +258,7 @@ export default function HotelReceptionScreen() {
     await consultOrderByQr(qrCode);
   };
 
-  const downloadPdfLocally = async () => {
+  const preparePdfAsset = async ({ includeBase64 = false } = {}) => {
     const resourceUrl = String(orderSummary?.orden_hospedaje_pdf_url ?? '').trim();
     if (!resourceUrl) {
       throw new Error('No hay una orden de hospedaje disponible para este huesped.');
@@ -160,40 +279,56 @@ export default function HotelReceptionScreen() {
     const safeUserId = String(orderSummary?.id_usuario ?? Date.now()).replace(/[^A-Za-z0-9_-]/g, '-');
     const fileUri = `${targetDirectory}/orden-hospedaje-${safeUserId}.pdf`;
 
-    const result = await FileSystem.downloadAsync(resourceUrl, fileUri, {
-      headers: {
-        Authorization: `Bearer ${sessionToken}`,
-        Accept: 'application/pdf',
-      },
-    });
+    let localUri = pdfCacheRef.current.localUri;
+    if (pdfCacheRef.current.sourceUrl !== resourceUrl || !localUri) {
+      const result = await FileSystem.downloadAsync(resourceUrl, fileUri, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          Accept: 'application/pdf',
+        },
+      });
 
-    if (!result || Number(result.status ?? 0) >= 400) {
-      throw new Error('No se pudo descargar la orden de hospedaje autenticada.');
+      if (!result || Number(result.status ?? 0) >= 400) {
+        throw new Error('No se pudo descargar la orden de hospedaje autenticada.');
+      }
+
+      localUri = result.uri;
+      pdfCacheRef.current = {
+        sourceUrl: resourceUrl,
+        localUri,
+        pdfBase64: '',
+      };
     }
 
-    return result.uri;
+    let pdfBase64 = pdfCacheRef.current.pdfBase64;
+    if (includeBase64 && !pdfBase64) {
+      pdfBase64 = await FileSystem.readAsStringAsync(localUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      pdfCacheRef.current = {
+        ...pdfCacheRef.current,
+        localUri,
+        pdfBase64,
+      };
+    }
+
+    return {
+      localUri,
+      pdfBase64,
+    };
   };
 
   const handleOpenPdf = async () => {
     try {
       setProcessingPdf(true);
-      const localUri = await downloadPdfLocally();
-      const openableUri = Platform.OS === 'android'
-        ? await FileSystem.getContentUriAsync(localUri)
-        : localUri;
-
-      if (Platform.OS !== 'android') {
-        const supported = await Linking.canOpenURL(openableUri);
-        if (!supported) {
-          throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde este modulo.');
-        }
+      const { pdfBase64 } = await preparePdfAsset({ includeBase64: true });
+      if (!pdfBase64) {
+        throw new Error('No se pudo preparar el PDF para visualizarlo.');
       }
 
-      setProcessingPdf(false);
-      await Promise.race([
-        Linking.openURL(openableUri),
-        new Promise((resolve) => setTimeout(resolve, OPEN_PDF_TIMEOUT_MS)),
-      ]);
+      setPdfViewerHtml(buildPdfViewerHtml(pdfBase64));
+      setPdfViewerVisible(true);
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
     } finally {
@@ -204,7 +339,7 @@ export default function HotelReceptionScreen() {
   const handleSharePdf = async () => {
     try {
       setProcessingPdf(true);
-      const localUri = await downloadPdfLocally();
+      const { localUri } = await preparePdfAsset();
       await Share.share({
         title: 'Orden de hospedaje',
         message: localUri,
@@ -275,6 +410,47 @@ export default function HotelReceptionScreen() {
 
   return (
     <View style={styles.container}>
+      <Modal
+        animationType="slide"
+        visible={pdfViewerVisible}
+        onRequestClose={() => setPdfViewerVisible(false)}
+      >
+        <View style={styles.viewerContainer}>
+          <View style={styles.viewerHeader}>
+            <Text style={styles.viewerTitle}>Orden de hospedaje</Text>
+            <TouchableOpacity
+              style={styles.viewerCloseButton}
+              onPress={() => setPdfViewerVisible(false)}
+            >
+              <Text style={styles.viewerCloseButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pdfViewerHtml ? (
+            <WebView
+              originWhitelist={['*']}
+              source={{ html: pdfViewerHtml, baseUrl: 'https://localhost/' }}
+              style={styles.viewerWebView}
+              setSupportMultipleWindows={false}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.viewerLoadingState}>
+                  <ActivityIndicator size="large" color="#263B80" />
+                  <Text style={styles.viewerLoadingText}>Cargando PDF...</Text>
+                </View>
+              )}
+            />
+          ) : (
+            <View style={styles.viewerLoadingState}>
+              <ActivityIndicator size="large" color="#263B80" />
+              <Text style={styles.viewerLoadingText}>Preparando PDF...</Text>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {!orderSummary ? (
         <>
           <CameraView
@@ -509,6 +685,53 @@ const styles = StyleSheet.create({
   },
   summaryScroll: {
     flex: 1,
+  },
+  viewerContainer: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  viewerHeader: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#D7DEEE',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  viewerTitle: {
+    color: '#263B80',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  viewerCloseButton: {
+    backgroundColor: '#263B80',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  viewerCloseButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  viewerWebView: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  viewerLoadingState: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  viewerLoadingText: {
+    color: '#263B80',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 12,
   },
   headerTitle: {
     color: '#263B80',

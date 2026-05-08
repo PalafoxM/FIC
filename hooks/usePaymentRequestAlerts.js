@@ -28,6 +28,35 @@ const parseNotificationData = (notification) => {
   return notification.data || {};
 };
 
+const buildNotificationIdentity = (notification) => {
+  const notificationData = parseNotificationData(notification);
+
+  const explicitId =
+    notification?.id ??
+    notification?.id_notificacion ??
+    notification?.notification_id ??
+    notificationData?.notificationId ??
+    notificationData?.id ??
+    null;
+
+  if (explicitId !== null && explicitId !== undefined && String(explicitId).trim() !== '') {
+    return `id:${String(explicitId).trim()}`;
+  }
+
+  const fingerprint = [
+    notificationData?.type ?? notification?.type ?? 'notification',
+    notificationData?.transactionId ?? '',
+    notificationData?.id_usuario ?? notification?.user_id ?? '',
+    notification?.title ?? '',
+    notification?.body ?? '',
+    notification?.created_at ?? notificationData?.created_at ?? '',
+  ]
+    .map((value) => String(value ?? '').trim())
+    .join('|');
+
+  return `fp:${fingerprint}`;
+};
+
 export const usePaymentRequestAlerts = () => {
   const { user } = useAuth();
   const { approvePaymentRequest, getTransactionStatus, rejectPaymentRequest } = useApi();
@@ -62,12 +91,12 @@ export const usePaymentRequestAlerts = () => {
       }
     };
 
-    const markNotificationAsShown = async (notificationId, persist = false) => {
-      if (!notificationId) {
+    const markNotificationAsShown = async (notificationIdentity, persist = false) => {
+      if (!notificationIdentity) {
         return;
       }
 
-      shownNotificationIdsRef.current.add(notificationId);
+      shownNotificationIdsRef.current.add(notificationIdentity);
       if (persist) {
         await persistShownNotificationIds();
       }
@@ -212,23 +241,23 @@ export const usePaymentRequestAlerts = () => {
         });
 
         for (const notification of sortedRows) {
-          const notificationId = String(notification?.id ?? '');
+          const notificationIdentity = buildNotificationIdentity(notification);
           const notificationData = parseNotificationData(notification);
           const transactionId = notificationData?.transactionId;
 
-          if (notificationId && shownNotificationIdsRef.current.has(notificationId)) {
+          if (notificationIdentity && shownNotificationIdsRef.current.has(notificationIdentity)) {
             continue;
           }
 
           if (isCashier) {
-            await markNotificationAsShown(notificationId, true);
+            await markNotificationAsShown(notificationIdentity, true);
             showManagerNotificationAlert(notification);
             break;
           }
 
           if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
             if (usesPaymentDecisionAlert && (notificationData?.type === 'QR_READY' || notificationData?.type === 'QR_ACTIVATION_REJECTED')) {
-              await markNotificationAsShown(notificationId, true);
+              await markNotificationAsShown(notificationIdentity, true);
               showManagerNotificationAlert(notification);
               break;
             }
@@ -239,7 +268,7 @@ export const usePaymentRequestAlerts = () => {
             const statusResponse = await getTransactionStatus(transactionId);
             const resolvedStatus = statusResponse?.data?.status ?? 'pending';
 
-            await markNotificationAsShown(notificationId, false);
+            await markNotificationAsShown(notificationIdentity, false);
 
             if (resolvedStatus !== 'pending') {
               continue;
@@ -248,7 +277,7 @@ export const usePaymentRequestAlerts = () => {
             showPaymentDecisionAlert(notificationData);
             break;
           } catch {
-            await markNotificationAsShown(notificationId, false);
+            await markNotificationAsShown(notificationIdentity, false);
           }
         }
         networkErrorLoggedRef.current = false;
