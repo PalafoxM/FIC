@@ -9,6 +9,8 @@ import { useAuth } from './useAuth';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -125,6 +127,8 @@ export const usePushNotifications = () => {
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#8E6C17',
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            showBadge: true,
           });
         }
 
@@ -137,7 +141,13 @@ export const usePushNotifications = () => {
         let finalStatus = existingStatus;
 
         if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
+          const { status } = await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+            },
+          });
           finalStatus = status;
         }
 

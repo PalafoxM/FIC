@@ -272,7 +272,7 @@ const PayHistory = () => {
         </View>
       </TouchableOpacity>
 
-      {canCreateReport && (
+      {canCreateReport && getMovementKind(item) !== 'abono' && (
         <View style={styles.saleActions}>
           <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
             <Text style={styles.reportButtonText}>Levantar reporte</Text>

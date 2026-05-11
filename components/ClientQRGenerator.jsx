@@ -1,7 +1,7 @@
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, DeviceEventEmitter, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { useFocusEffect, useRouter } from 'expo-router';
 import { hasPermission } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
@@ -115,7 +115,7 @@ const ClientQRGenerator = () => {
       if (!qrCode) {
         Alert.alert(
           'Atenci\u00f3n',
-          'No tienes un codigo QR disponible. Revisa tu proceso de activacion con el area de TI.'
+          'No tienes un código QR disponible. Revisa tu proceso de activación con caja SECTURI.'
         );
         return;
       }
@@ -124,7 +124,7 @@ const ClientQRGenerator = () => {
         if (resolveActivationStatus(qrRecord) === 'pendiente') {
           Alert.alert(
             'Atenci\u00f3n',
-            'Tu solicitud de activacion ya fue enviada y se encuentra en revision por TI.'
+            'Tu solicitud de activación ya fue enviada y se encuentra en revisión.'
           );
           return;
         }
@@ -161,7 +161,7 @@ const ClientQRGenerator = () => {
       setQrData(clientPaymentInfo);
       setShowQR(true);
     } catch (error) {
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el QR vigente del cliente');
+      Alert.alert('Atención', error.message || 'No se pudo obtener el QR vigente del cliente');
     } finally {
       setLoadingQr(false);
     }
