@@ -491,7 +491,7 @@ export const useApi = () => {
         payload,
         authDebug,
       });
-      if (String(error?.message || '').includes('Creando reporte de pago devolvio una respuesta no valida')) {
+      if (String(error?.message || '').includes('Creando reporte de pago devolvió una respuesta no válida')) {
         throw new Error(
           'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/create.'
         );
