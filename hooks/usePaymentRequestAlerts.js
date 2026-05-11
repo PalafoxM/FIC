@@ -28,8 +28,31 @@ const parseNotificationData = (notification) => {
   return notification.data || {};
 };
 
-const buildNotificationIdentity = (notification) => {
+const buildNotificationIdentity = (notification, currentUserId = null) => {
   const notificationData = parseNotificationData(notification);
+  const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+  const normalizedUserId = String(
+    currentUserId ??
+    notificationData?.id_usuario ??
+    notification?.user_id ??
+    ''
+  ).trim();
+
+  if (normalizedType === 'QR_READY') {
+    const folio = String(notificationData?.folio ?? notificationData?.folio_entrega ?? '').trim();
+    return `passive:${normalizedType}:${normalizedUserId}:${folio || 'self'}`;
+  }
+
+  if (normalizedType === 'QR_ACTIVATION_REJECTED') {
+    const folio = String(notificationData?.folio ?? notificationData?.folio_entrega ?? '').trim();
+    const motivo = String(
+      notificationData?.motivo_rechazo ??
+      notificationData?.motivo ??
+      notification?.body ??
+      ''
+    ).trim();
+    return `passive:${normalizedType}:${normalizedUserId}:${folio || 'self'}:${motivo || 'no-reason'}`;
+  }
 
   const explicitId =
     notification?.id ??
@@ -241,7 +264,7 @@ export const usePaymentRequestAlerts = () => {
         });
 
         for (const notification of sortedRows) {
-          const notificationIdentity = buildNotificationIdentity(notification);
+          const notificationIdentity = buildNotificationIdentity(notification, user?.id_usuario);
           const notificationData = parseNotificationData(notification);
           const transactionId = notificationData?.transactionId;
 

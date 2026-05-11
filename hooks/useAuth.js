@@ -136,6 +136,16 @@ const normalizeTableRows = (payload) => {
   return [];
 };
 
+const extractBackendMessage = (payload, fallbackMessage) =>
+  payload?.respuesta ??
+  payload?.message ??
+  payload?.mensaje ??
+  payload?.error_msg ??
+  payload?.errorMessage ??
+  payload?.errors?.message ??
+  payload?.errors?.respuesta ??
+  fallbackMessage;
+
 const resolveDefaultEstablecimientoId = (userData) => {
   const normalizedList = Array.isArray(userData?.establecimientos) ? userData.establecimientos : [];
 
@@ -612,9 +622,11 @@ export function AuthProvider({ children }) {
     };
 
     const { response, data: responseData } = await getSaveTableResponse(payload, token);
+    console.log('saveTable status:', response.status);
+    console.log('saveTable respuesta:', responseData?.respuesta ?? responseData?.message ?? responseData);
 
     if (!response.ok || responseData?.error) {
-      throw new Error(responseData?.respuesta || responseData?.message || 'Error guardando datos');
+      throw new Error(extractBackendMessage(responseData, 'Error guardando datos'));
     }
 
     return responseData;
@@ -642,9 +654,11 @@ export function AuthProvider({ children }) {
     };
 
     const { response, data } = await getDepositoCreditoResponse(payload, token);
+    console.log('Guardar deposito creditos status:', response.status);
+    console.log('Guardar deposito creditos respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudo guardar el deposito.');
+      throw new Error(extractBackendMessage(data, 'No se pudo guardar el deposito.'));
     }
 
     return data;
