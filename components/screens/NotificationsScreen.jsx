@@ -147,7 +147,10 @@ export default function NotificationsScreen() {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
+      const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+      console.log('Notifications screen URL:', notificationsUrl);
+
+      const response = await fetch(notificationsUrl, {
         headers: {
           ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
           ...(token && { Authorization: `Bearer ${token}` }),
@@ -156,6 +159,7 @@ export default function NotificationsScreen() {
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : null;
+      console.log('Notifications screen status:', response.status);
 
       if (data?.success) {
         const rows = Array.isArray(data.data) ? data.data : [];
@@ -167,6 +171,8 @@ export default function NotificationsScreen() {
         const enrichedRows = await Promise.all(sortedRows.map(enrichNotificationStatus));
         setVisibleCount(10);
         setNotifications(enrichedRows);
+      } else {
+        console.log('Notifications screen respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
       }
     } catch (error) {
       console.error('Error loading notifications:', error);

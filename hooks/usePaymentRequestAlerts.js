@@ -330,7 +330,10 @@ export const usePaymentRequestAlerts = () => {
           return;
         }
 
-        const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
+        const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+        console.log('Polling notificaciones URL:', notificationsUrl);
+
+        const response = await fetch(notificationsUrl, {
           headers: {
             ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
             Authorization: `Bearer ${token}`,
@@ -340,7 +343,10 @@ export const usePaymentRequestAlerts = () => {
         const rawResponse = await response.text();
         const data = rawResponse ? JSON.parse(rawResponse) : null;
 
+        console.log('Polling notificaciones status:', response.status);
+
         if (!response.ok || !data?.success) {
+          console.log('Polling notificaciones respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
           networkErrorLoggedRef.current = false;
           pollingBackoffMsRef.current = POLL_INTERVAL_MS;
           return;

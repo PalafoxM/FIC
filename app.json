@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.agustinmarin.pagoqrapp",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -61,9 +62,9 @@
       "reactCompiler": true
     },
     "extra": {
-      "eas": {
-        "projectId": "70229529-dd2a-4242-b5d6-4ec1f590181e"
-      },
+      // "eas": {
+      //  "projectId": "70229529-dd2a-4242-b5d6-4ec1f590181e"
+      // },
       "router": {}
     },
     "owner": "agustinmarin"
