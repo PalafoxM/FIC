@@ -9,15 +9,32 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
 });
 
+const isPaymentApprovedLike = (data = {}) => {
+  const normalizedType = String(data?.type ?? '').trim().toUpperCase();
+  const normalizedStatus = String(data?.status ?? data?.paymentStatus ?? '').trim().toUpperCase();
+
+  return (
+    normalizedType === 'PAYMENT_APPROVED' ||
+    ['PAYMENT_SUCCESS', 'PAYMENT_COMPLETED', 'NIP_PAYMENT_APPROVED', 'PAYMENT_CAPTURED', 'PAYMENT_APPLIED'].includes(
+      normalizedType
+    ) ||
+    normalizedStatus === 'APPROVED'
+  );
+};
+
 function RootLayoutContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const numericPerfil = Number(user?.id_perfil ?? 0);
+  const shouldRouteToProfileOnBalanceView = numericPerfil === 1 || numericPerfil === 4;
 
   usePushNotifications();
   usePaymentRequestAlerts();
@@ -41,7 +58,7 @@ function RootLayoutContent() {
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data;
 
-      if (data?.type === 'QR_READY' || data?.type === 'QR_ACTIVATION_REJECTED') {
+      if (data?.type === 'QR_READY' || data?.type === 'QR_ACTIVATION_REJECTED' || isPaymentApprovedLike(data)) {
         DeviceEventEmitter.emit('refreshClientQrActivationState');
         DeviceEventEmitter.emit('refreshClientBalanceNow');
       }
@@ -53,8 +70,10 @@ function RootLayoutContent() {
 
       if (data.type === 'PAYMENT_REQUEST') {
         router.push('/alerts');
-      } else if (data.type === 'PAYMENT_APPROVED') {
-        router.push('/(tabs)');
+      } else if (isPaymentApprovedLike(data)) {
+        DeviceEventEmitter.emit('refreshClientBalanceNow');
+        DeviceEventEmitter.emit('closeClientQrModal');
+        router.push(shouldRouteToProfileOnBalanceView ? '/profile' : '/(tabs)');
       } else if (data.type === 'QR_READY' || data.type === 'QR_ACTIVATION_REJECTED') {
         DeviceEventEmitter.emit('refreshClientQrActivationState');
         DeviceEventEmitter.emit('refreshClientBalanceNow');
@@ -66,7 +85,7 @@ function RootLayoutContent() {
       receivedSubscription.remove();
       subscription.remove();
     };
-  }, [router]);
+  }, [router, shouldRouteToProfileOnBalanceView]);
 
   if (loading) {
     return (

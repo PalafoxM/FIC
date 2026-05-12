@@ -44,9 +44,57 @@ export default function NotificationsScreen() {
     return notification.data || {};
   }, []);
 
+  const isPaymentApprovedLike = useCallback((notification, notificationData = parseNotificationData(notification)) => {
+    const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+    const normalizedStatus = String(
+      notificationData?.status ??
+      notificationData?.paymentStatus ??
+      notificationData?.resolvedStatus ??
+      ''
+    ).trim().toUpperCase();
+    const title = String(notification?.title ?? '').trim().toLowerCase();
+    const body = String(notification?.body ?? notificationData?.body ?? notificationData?.message ?? '').trim().toLowerCase();
+
+    if (normalizedType === 'PAYMENT_APPROVED') {
+      return true;
+    }
+
+    if (
+      ['PAYMENT_SUCCESS', 'PAYMENT_COMPLETED', 'NIP_PAYMENT_APPROVED', 'PAYMENT_CAPTURED', 'PAYMENT_APPLIED'].includes(
+        normalizedType
+      )
+    ) {
+      return true;
+    }
+
+    if (normalizedStatus === 'APPROVED') {
+      return true;
+    }
+
+    return (
+      (title.includes('pago') || title.includes('cobro') || body.includes('pago') || body.includes('cobro')) &&
+      (title.includes('aprob') || title.includes('complet') || title.includes('aplicad') || body.includes('aprob') || body.includes('complet') || body.includes('aplicad'))
+    );
+  }, [parseNotificationData]);
+
   const enrichNotificationStatus = useCallback(async (notification) => {
     const notificationData = parseNotificationData(notification);
     const transactionId = notificationData?.transactionId;
+
+    if (isPaymentApprovedLike(notification, notificationData)) {
+      const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
+      return {
+        ...notification,
+        parsedData: notificationData,
+        resolvedStatus: 'approved',
+        title: notification.title || 'Operacion exitosa',
+        body:
+          notification.body ||
+          (totalAmount > 0
+            ? `Pago completado por $${totalAmount.toFixed(2)}`
+            : 'Pago completado correctamente'),
+      };
+    }
 
     if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
       return {
@@ -93,13 +141,16 @@ export default function NotificationsScreen() {
         resolvedStatus: 'pending',
       };
     }
-  }, [parseNotificationData]);
+  }, [isPaymentApprovedLike, parseNotificationData]);
 
   const loadNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
+      const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+      console.log('Notifications screen URL:', notificationsUrl);
+
+      const response = await fetch(notificationsUrl, {
         headers: {
           ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
           ...(token && { Authorization: `Bearer ${token}` }),
@@ -108,6 +159,7 @@ export default function NotificationsScreen() {
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : null;
+      console.log('Notifications screen status:', response.status);
 
       if (data?.success) {
         const rows = Array.isArray(data.data) ? data.data : [];
@@ -119,6 +171,8 @@ export default function NotificationsScreen() {
         const enrichedRows = await Promise.all(sortedRows.map(enrichNotificationStatus));
         setVisibleCount(10);
         setNotifications(enrichedRows);
+      } else {
+        console.log('Notifications screen respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -245,6 +299,13 @@ export default function NotificationsScreen() {
             },
           ]
         );
+        return;
+      }
+
+      if (isPaymentApprovedLike(notification, notificationData)) {
+        DeviceEventEmitter.emit('refreshClientBalanceNow');
+        DeviceEventEmitter.emit('closeClientQrModal');
+        router.replace(usesPaymentDecisionAlert && Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT ? '/profile' : '/(tabs)');
       }
     } catch (error) {
       console.error('Error procesando notificacion:', error);

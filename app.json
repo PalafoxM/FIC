@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.agustinmarin.pagoqrapp"
+      "bundleIdentifier": "com.agustinmarin.pagoqrapp",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "package": "com.agustinmarin.pagoqrapp",
@@ -34,7 +39,8 @@
         "expo-notifications",
         {
           "color": "#263B80",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

@@ -28,6 +28,39 @@ const parseNotificationData = (notification) => {
   return notification.data || {};
 };
 
+const isPaymentApprovedLike = (notification, notificationData = parseNotificationData(notification)) => {
+  const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+  const normalizedStatus = String(
+    notificationData?.status ??
+    notificationData?.paymentStatus ??
+    notificationData?.resolvedStatus ??
+    ''
+  ).trim().toUpperCase();
+  const title = String(notification?.title ?? '').trim().toLowerCase();
+  const body = String(notification?.body ?? notificationData?.body ?? notificationData?.message ?? '').trim().toLowerCase();
+
+  if (normalizedType === 'PAYMENT_APPROVED') {
+    return true;
+  }
+
+  if (
+    ['PAYMENT_SUCCESS', 'PAYMENT_COMPLETED', 'NIP_PAYMENT_APPROVED', 'PAYMENT_CAPTURED', 'PAYMENT_APPLIED'].includes(
+      normalizedType
+    )
+  ) {
+    return true;
+  }
+
+  if (normalizedStatus === 'APPROVED') {
+    return true;
+  }
+
+  return (
+    (title.includes('pago') || title.includes('cobro') || body.includes('pago') || body.includes('cobro')) &&
+    (title.includes('aprob') || title.includes('complet') || title.includes('aplicad') || body.includes('aprob') || body.includes('complet') || body.includes('aplicad'))
+  );
+};
+
 const buildNotificationIdentity = (notification, currentUserId = null) => {
   const notificationData = parseNotificationData(notification);
   const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
@@ -52,6 +85,16 @@ const buildNotificationIdentity = (notification, currentUserId = null) => {
       ''
     ).trim();
     return `passive:${normalizedType}:${normalizedUserId}:${folio || 'self'}:${motivo || 'no-reason'}`;
+  }
+
+  if (isPaymentApprovedLike(notification, notificationData)) {
+    const transactionId = String(
+      notificationData?.transactionId ??
+      notificationData?.transaction_id ??
+      ''
+    ).trim();
+    const amount = String(notificationData?.total ?? notificationData?.amount ?? '').trim();
+    return `passive:${normalizedType}:${normalizedUserId}:${transactionId || 'no-transaction'}:${amount || 'no-amount'}`;
   }
 
   const explicitId =
@@ -97,6 +140,11 @@ export const usePaymentRequestAlerts = () => {
     const isManager = numericPerfil === ROLE_IDS.MANAGER;
     const isCashier = numericPerfil === ROLE_IDS.CASHIER;
     const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
+    const navigateToAvailableBalance = () => {
+      DeviceEventEmitter.emit('closeClientQrModal');
+      DeviceEventEmitter.emit('refreshClientBalanceNow');
+      router.replace(usesPaymentDecisionAlert && !isClient ? '/profile' : '/(tabs)');
+    };
     const persistedNotificationIdsKey = `seenPassiveNotificationIds:${user?.id_usuario ?? 'anonymous'}`;
 
     if ((!usesPaymentDecisionAlert && !isCashier) || !user?.id_usuario) {
@@ -229,6 +277,48 @@ export const usePaymentRequestAlerts = () => {
       );
     };
 
+    const showPaymentApprovedAlert = (notification) => {
+      const notificationData = parseNotificationData(notification);
+      const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
+      const title = notification?.title || 'Pago aplicado';
+      const body =
+        notification?.body ||
+        notificationData?.body ||
+        notificationData?.message ||
+        (amount > 0
+          ? `Se aplico un cobro por $${amount.toFixed(2)}. Tu saldo disponible ya fue actualizado.`
+          : 'Se aplico un cobro correctamente. Tu saldo disponible ya fue actualizado.');
+
+      alertOpenRef.current = true;
+
+      Alert.alert(
+        title,
+        body,
+        [
+          {
+            text: 'Despues',
+            style: 'cancel',
+            onPress: () => {
+              alertOpenRef.current = false;
+            },
+          },
+          {
+            text: 'Ver saldo',
+            onPress: () => {
+              alertOpenRef.current = false;
+              navigateToAvailableBalance();
+            },
+          },
+        ],
+        {
+          cancelable: false,
+          onDismiss: () => {
+            alertOpenRef.current = false;
+          },
+        }
+      );
+    };
+
     const checkPendingPaymentRequests = async () => {
       if (!isMounted || alertOpenRef.current) {
         return;
@@ -240,7 +330,10 @@ export const usePaymentRequestAlerts = () => {
           return;
         }
 
-        const response = await fetch(`${ENV.apiBaseUrl}/notifications/my-notifications`, {
+        const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+        console.log('Polling notificaciones URL:', notificationsUrl);
+
+        const response = await fetch(notificationsUrl, {
           headers: {
             ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
             Authorization: `Bearer ${token}`,
@@ -250,7 +343,10 @@ export const usePaymentRequestAlerts = () => {
         const rawResponse = await response.text();
         const data = rawResponse ? JSON.parse(rawResponse) : null;
 
+        console.log('Polling notificaciones status:', response.status);
+
         if (!response.ok || !data?.success) {
+          console.log('Polling notificaciones respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
           networkErrorLoggedRef.current = false;
           pollingBackoffMsRef.current = POLL_INTERVAL_MS;
           return;
@@ -279,6 +375,12 @@ export const usePaymentRequestAlerts = () => {
           }
 
           if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
+            if (usesPaymentDecisionAlert && isPaymentApprovedLike(notification, notificationData)) {
+              await markNotificationAsShown(notificationIdentity, true);
+              showPaymentApprovedAlert(notification);
+              break;
+            }
+
             if (usesPaymentDecisionAlert && (notificationData?.type === 'QR_READY' || notificationData?.type === 'QR_ACTIVATION_REJECTED')) {
               await markNotificationAsShown(notificationIdentity, true);
               showManagerNotificationAlert(notification);
