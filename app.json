@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.agustinmarin.pagoqrapp",
-      "usesCleartextTraffic": true,
+      
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/LOGO.png",
@@ -28,7 +28,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "useNextNotificationsApi": true
+     
     },
     "web": {
       "output": "static",

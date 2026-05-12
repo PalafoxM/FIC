@@ -2,10 +2,40 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
-import { useAuth } from '../../hooks/useAuth';
 import PayHistory from '../../components/screens/PayHistory';
 import SalesHistory from '../../components/screens/SalesHistory ';
+import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
+import { useAuth } from '../../hooks/useAuth';
+
+
+export const buildHotelGuestName = (record) =>
+  [
+    record?.nombre_completo,
+    [record?.nombre, record?.primer_apellido, record?.segundo_apellido].filter(Boolean).join(' '),
+  ].find((value) => String(value ?? '').trim()) || 'Huésped no disponible';
+
+export const formatHotelStatus = (value) => {
+  const normalized = String(value ?? 'pendiente').trim().toLowerCase();
+  return normalized.replace(/_/g, ' ');
+};
+
+export const getHotelStatusTone = (value) => {
+  const normalized = String(value ?? 'pendiente').trim().toLowerCase();
+
+  if (normalized === 'check_in') {
+    return 'checkin';
+  }
+
+  if (normalized === 'check_out') {
+    return 'checkout';
+  }
+
+  if (normalized === 'cancelado') {
+    return 'cancelled';
+  }
+
+  return 'pending';
+};
 
 const getAssignedEstablishments = (user) => {
   const rawList =
@@ -64,7 +94,6 @@ export default function ProfileScreen() {
     activeEstablecimientoId,
     getClientAvailableBalance,
     getClientQrData,
-    getTable,
   } = useAuth();
   const router = useRouter();
   const [availableBalance, setAvailableBalance] = useState(null);
@@ -80,6 +109,7 @@ export default function ProfileScreen() {
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
+  const isReception = user?.id_perfil === ROLE_IDS.RECEPTION;
   const isProviderOrClient = isProvider || isClient;
   const isAdminOrManager =
     user?.id_perfil === ROLE_IDS.ADMIN || user?.id_perfil === ROLE_IDS.MANAGER;
@@ -92,6 +122,15 @@ export default function ProfileScreen() {
   const displayName = [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
     .filter(Boolean)
     .join(' ');
+  const receptionHotelName =
+    assignedEstablishments[0]?.name ??
+    user?.dsc_establecimiento ??
+    user?.establecimiento_nombre ??
+    'Hotel asignado';
+  const receptionStatusLabel =
+    String(activeEstablecimientoId ?? '') === String(assignedEstablishments[0]?.id ?? '')
+      ? 'Activo en app'
+      : 'Disponible';
 
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
 
@@ -165,7 +204,7 @@ export default function ProfileScreen() {
       });
       setQrVisible(true);
     } catch (error) {
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el codigo QR.');
+      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo obtener el código QR.');
     } finally {
       setLoadingQr(false);
     }
@@ -193,7 +232,7 @@ export default function ProfileScreen() {
 
       const folio = String(folioRows?.[0]?.folio ?? '').trim();
       if (!folio) {
-        throw new Error('No se encontro un folio activo para este usuario.');
+        throw new Error('No se encontró un folio activo para este usuario.');
       }
 
       Alert.alert(
@@ -258,19 +297,91 @@ export default function ProfileScreen() {
           <Text style={styles.badgeText}>{getRoleLabel(user?.id_perfil)}</Text>
         </View>
 
+        {isReception ? (
+          <>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>Hotel asignado</Text>
+              <Text style={styles.heroTitle}>{receptionHotelName}</Text>
+              <Text style={styles.heroDescription}>
+                Perfil de consulta para recepción. Aquí puedes revisar el contexto operativo del hotel sin editar configuraciones.
+              </Text>
+            </View>
+
+            <View style={styles.receptionMetricsGrid}>
+              <View style={[styles.receptionMetricCard, styles.receptionMetricCardPrimary]}>
+                <Text style={styles.receptionMetricLabel}>Hotel</Text>
+                <Text style={styles.receptionMetricValue}>{receptionHotelName}</Text>
+              </View>
+
+              <View style={styles.receptionMetricCard}>
+                <Text style={styles.receptionMetricLabel}>Usuario</Text>
+                <Text style={styles.receptionMetricValue}>{user?.usuario || 'N/D'}</Text>
+              </View>
+
+              <View style={styles.receptionMetricCard}>
+                <Text style={styles.receptionMetricLabel}>Estado operativo</Text>
+                <Text style={styles.receptionMetricValue}>{receptionStatusLabel}</Text>
+              </View>
+
+              <View style={styles.receptionMetricCard}>
+                <Text style={styles.receptionMetricLabel}>Módulo principal</Text>
+                <Text style={styles.receptionMetricValue}>Recepción hotelera</Text>
+              </View>
+            </View>
+
+            <View style={styles.metaBlock}>
+              <Text style={styles.metaLabel}>Correo operativo</Text>
+              <Text style={styles.metaValue}>{user?.correo || 'Sin correo registrado'}</Text>
+            </View>
+
+            
+
+            <View style={styles.receptionTableSection}>
+              <View style={styles.receptionTableHeader}>
+                <View>
+                  <Text style={styles.receptionTableTitle}>Hospedajes recientes</Text>
+                  <Text style={styles.receptionTableSubtitle}>
+                    Resumen de consulta con folio, noches, estatus y check in.
+                  </Text>
+                </View>
+
+              </View>
+
+              <TouchableOpacity
+                style={styles.receptionTableAction}
+                onPress={() => router.push('/hotel-operation')}
+              >
+                <Text style={styles.receptionTableActionText}>Abrir módulo</Text>
+              </TouchableOpacity>
+
+              <View style={styles.receptionTableCard}>
+                <View style={styles.receptionTableColumns}>
+                  <Text style={[styles.receptionTableColumnLabel, styles.receptionTableColumnFolio]}>Folio</Text>
+                  <Text style={[styles.receptionTableColumnLabel, styles.receptionTableColumnNights]}>Noches</Text>
+                  <Text style={[styles.receptionTableColumnLabel, styles.receptionTableColumnStatus]}>Estatus</Text>
+                </View>
+
+                <Text style={styles.receptionTableEmpty}>
+                  El listado movil de hospedajes todavia no existe como API. Hoy backend solo expone la consulta por QR y el check in autenticado.
+                </Text>
+              </View>
+            </View>
+          </>
+        ) : null}
+
         <View style={styles.metaBlock}>
           <Text style={styles.metaLabel}>Usuario</Text>
           <Text style={styles.metaValue}>{user?.usuario || 'N/D'}</Text>
         </View>
 
-        {showInternalMeta && (
+        {showInternalMeta && !isReception && (
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>ID de usuario</Text>
             <Text style={styles.metaValue}>{user?.id_usuario ?? 'N/D'}</Text>
           </View>
         )}
 
-        {showInternalMeta && (
+        {showInternalMeta && !isReception && (
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>Establecimiento</Text>
             <Text style={styles.metaValue}>{user?.id_establecimiento ?? 'N/D'}</Text>
@@ -426,6 +537,37 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  heroCard: {
+    width: '100%',
+    backgroundColor: '#263B80',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 18,
+    shadowColor: '#0D1B2A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F4C95D',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  heroDescription: {
+    fontSize: 14,
+    color: '#E8EEFF',
+    lineHeight: 21,
+  },
   avatar: {
     width: 84,
     height: 84,
@@ -465,6 +607,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  receptionMetricsGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+  },
+  receptionMetricCard: {
+    width: '48%',
+    backgroundColor: '#F7F9FE',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#D7DEEE',
+  },
+  receptionMetricCardPrimary: {
+    backgroundColor: '#EEF3FF',
+    borderColor: '#263B80',
+  },
+  receptionMetricLabel: {
+    fontSize: 12,
+    color: '#5F6782',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  receptionMetricValue: {
+    fontSize: 15,
+    color: '#263B80',
+    fontWeight: '800',
+  },
   metaBlock: {
     width: '100%',
     paddingVertical: 12,
@@ -485,6 +659,158 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#777',
     lineHeight: 20,
+  },
+  receptionTableSection: {
+    width: '100%',
+    marginTop: 10,
+  },
+  receptionTableHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  receptionTableTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#263B80',
+    marginBottom: 4,
+  },
+  receptionTableSubtitle: {
+    fontSize: 13,
+    color: '#5F6782',
+    lineHeight: 18,
+    maxWidth: 220,
+  },
+  receptionTableAction: {
+    width: '100%',
+    backgroundColor: '#263B80',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  receptionTableActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  receptionTableCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5EAF6',
+    overflow: 'hidden',
+  },
+  receptionTableColumns: {
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#F4F7FF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5EAF6',
+  },
+  receptionTableColumnLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#5F6782',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  receptionTableColumnFolio: {
+    flex: 1.6,
+  },
+  receptionTableColumnNights: {
+    flex: 0.6,
+    textAlign: 'center',
+  },
+  receptionTableColumnStatus: {
+    flex: 1,
+    textAlign: 'right',
+  },
+  receptionTableRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F3FA',
+  },
+  receptionTablePrimaryCell: {
+    flex: 1.6,
+    paddingRight: 10,
+  },
+  receptionTableSecondaryCell: {
+    flex: 0.6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receptionTableStatusCell: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  receptionTableFolio: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#263B80',
+    marginBottom: 2,
+  },
+  receptionTableGuest: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2A44',
+    marginBottom: 3,
+  },
+  receptionTableMeta: {
+    fontSize: 12,
+    color: '#5F6782',
+    lineHeight: 18,
+  },
+  receptionTableNights: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#263B80',
+  },
+  receptionStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  receptionStatusBadgePending: {
+    backgroundColor: '#FFF4D8',
+  },
+  receptionStatusBadgeCheckin: {
+    backgroundColor: '#DFF6EA',
+  },
+  receptionStatusBadgeCheckout: {
+    backgroundColor: '#E2EAFF',
+  },
+  receptionStatusBadgeCancelled: {
+    backgroundColor: '#FDE2E4',
+  },
+  receptionStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#263B80',
+    textTransform: 'uppercase',
+  },
+  receptionTableRoomType: {
+    fontSize: 12,
+    color: '#5F6782',
+    textAlign: 'right',
+  },
+  receptionTableEmpty: {
+    fontSize: 14,
+    color: '#5F6782',
+    lineHeight: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
   },
   balanceCard: {
     width: '100%',
@@ -631,4 +957,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
