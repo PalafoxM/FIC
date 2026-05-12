@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "PagoQRApp",
-    "slug": "PagoQRApp",
+    "slug": "pagoqrapp-sam93",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.agustinmarin.pagoqrapp",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -54,18 +55,19 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "70229529-dd2a-4242-b5d6-4ec1f590181e"
-      },
-      "router": {}
+        "projectId": "b10f0b1c-14c7-4980-812a-b983d8379f60"
+      }
     },
-    "owner": "agustinmarin"
+    "owner": "sama-93"
   }
 }
