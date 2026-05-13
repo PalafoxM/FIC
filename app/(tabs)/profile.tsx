@@ -1,25 +1,26 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import PayHistory from '../../components/screens/PayHistory';
 import SalesHistory from '../../components/screens/SalesHistory ';
 import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
+import { useApi } from '../../hooks/useApi';
 
 
-export const buildHotelGuestName = (record) =>
+const buildHotelGuestName = (record) =>
   [
     record?.nombre_completo,
     [record?.nombre, record?.primer_apellido, record?.segundo_apellido].filter(Boolean).join(' '),
   ].find((value) => String(value ?? '').trim()) || 'Huésped no disponible';
 
-export const formatHotelStatus = (value) => {
+const formatHotelStatus = (value) => {
   const normalized = String(value ?? 'pendiente').trim().toLowerCase();
   return normalized.replace(/_/g, ' ');
 };
 
-export const getHotelStatusTone = (value) => {
+const getHotelStatusTone = (value) => {
   const normalized = String(value ?? 'pendiente').trim().toLowerCase();
 
   if (normalized === 'check_in') {
@@ -94,7 +95,9 @@ export default function ProfileScreen() {
     activeEstablecimientoId,
     getClientAvailableBalance,
     getClientQrData,
+    getTable,
   } = useAuth();
+  const { getHotelHospedajes } = useApi();
   const router = useRouter();
   const [availableBalance, setAvailableBalance] = useState(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
@@ -104,6 +107,10 @@ export default function ProfileScreen() {
   const [qrPayload, setQrPayload] = useState(null);
   const [ownQrStatus, setOwnQrStatus] = useState(null);
   const [activatingOwnQr, setActivatingOwnQr] = useState(false);
+  const [receptionOrders, setReceptionOrders] = useState([]);
+  const [loadingReceptionOrders, setLoadingReceptionOrders] = useState(false);
+  const [receptionOrdersMessage, setReceptionOrdersMessage] = useState('');
+  const hotelHospedajesRef = useRef(getHotelHospedajes);
 
   const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
@@ -134,6 +141,10 @@ export default function ProfileScreen() {
 
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
 
+  useEffect(() => {
+    hotelHospedajesRef.current = getHotelHospedajes;
+  }, [getHotelHospedajes]);
+
   const loadOwnBalance = useCallback(async (showLoader = true) => {
     if (!canManageOwnWalletView || !user?.id_usuario) {
       return;
@@ -156,14 +167,46 @@ export default function ProfileScreen() {
     loadOwnBalance();
   }, [loadOwnBalance]);
 
+  const loadReceptionOrders = useCallback(async (showLoader = true) => {
+    if (!isReception) {
+      setReceptionOrders([]);
+      setReceptionOrdersMessage('');
+      return;
+    }
+
+    try {
+      if (showLoader) {
+        setLoadingReceptionOrders(true);
+      }
+
+      const response = await hotelHospedajesRef.current({
+        limit: 10,
+      });
+
+      setReceptionOrders(Array.isArray(response?.data) ? response.data : []);
+      setReceptionOrdersMessage(String(response?.message ?? '').trim());
+    } catch (error) {
+      console.error('Error loading hotel orders:', error);
+      setReceptionOrders([]);
+      setReceptionOrdersMessage('No se pudo consultar el listado hotelero en este momento.');
+    } finally {
+      setLoadingReceptionOrders(false);
+    }
+  }, [isReception]);
+
+  useEffect(() => {
+    loadReceptionOrders();
+  }, [loadReceptionOrders]);
+
   const refreshProfile = useCallback(async () => {
     try {
       setRefreshingProfile(true);
       await loadOwnBalance(false);
+      await loadReceptionOrders(false);
     } finally {
       setRefreshingProfile(false);
     }
-  }, [loadOwnBalance]);
+  }, [loadOwnBalance, loadReceptionOrders]);
 
   if (isClient) {
     return <PayHistory />;
@@ -361,9 +404,65 @@ export default function ProfileScreen() {
                   <Text style={[styles.receptionTableColumnLabel, styles.receptionTableColumnStatus]}>Estatus</Text>
                 </View>
 
-                <Text style={styles.receptionTableEmpty}>
-                  El listado movil de hospedajes todavia no existe como API. Hoy backend solo expone la consulta por QR y el check in autenticado.
-                </Text>
+                {receptionOrders.map((order) => {
+                  const statusTone = getHotelStatusTone(order?.estatus_hospedaje);
+                  const statusBadgeStyle =
+                    statusTone === 'checkin'
+                      ? styles.receptionStatusBadgeCheckin
+                      : statusTone === 'checkout'
+                        ? styles.receptionStatusBadgeCheckout
+                        : statusTone === 'cancelled'
+                          ? styles.receptionStatusBadgeCancelled
+                          : styles.receptionStatusBadgePending;
+
+                    return (
+                      <View
+                      key={String(order?.id_usuario_hospedaje ?? order?.folio ?? `${order?.usuario ?? 'row'}-${order?.noches ?? 0}`)}
+                        style={styles.receptionTableRow}
+                      >
+                      <View style={styles.receptionTablePrimaryCell}>
+                        <Text style={styles.receptionTableFolio}>
+                          {order?.folio || 'Sin folio'}
+                        </Text>
+                        <Text style={styles.receptionTableGuest}>
+                          {buildHotelGuestName(order)}
+                        </Text>
+                        <Text style={styles.receptionTableMeta}>
+                          {order?.usuario || 'Usuario no disponible'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.receptionTableSecondaryCell}>
+                        <Text style={styles.receptionTableNights}>
+                          {Number(order?.noches ?? 0)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.receptionTableStatusCell}>
+                        <View style={[styles.receptionStatusBadge, statusBadgeStyle]}>
+                          <Text style={styles.receptionStatusBadgeText}>
+                            {formatHotelStatus(order?.estatus_hospedaje)}
+                          </Text>
+                        </View>
+                        <Text style={styles.receptionTableRoomType}>
+                          {order?.tipo_habitacion || 'Sin habitacion'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {loadingReceptionOrders ? (
+                  <Text style={styles.receptionTableEmpty}>
+                    Consultando hospedajes del hotel...
+                  </Text>
+                ) : null}
+
+                {!loadingReceptionOrders && receptionOrders.length === 0 ? (
+                  <Text style={styles.receptionTableEmpty}>
+                    {receptionOrdersMessage || 'No hay hospedajes disponibles para mostrar en este momento.'}
+                  </Text>
+                ) : null}
               </View>
             </View>
           </>

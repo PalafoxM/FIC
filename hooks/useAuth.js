@@ -270,21 +270,34 @@ export function AuthProvider({ children }) {
         return { response, data: null, rawResponse, shouldContinue: true };
       }
 
-      console.error(`${rawLabel} raw response:`, rawResponse);
-      throw new Error(`El backend devolvio una respuesta no valida en ${rawLabel}`);
+      const serviceUnavailable =
+        response.status === 503 || /service unavailable/i.test(String(rawResponse ?? ''));
+
+      if (!serviceUnavailable) {
+        console.error(`${rawLabel} raw response:`, rawResponse);
+      }
+
+      const error = new Error(
+        serviceUnavailable
+          ? 'El servicio no esta disponible temporalmente. Intenta de nuevo en unos minutos.'
+          : `El backend devolvio una respuesta no valida en ${rawLabel}`
+      );
+      error.status = response.status;
+      error.rawResponse = rawResponse;
+      throw error;
     }
 
     return { response, data, rawResponse, shouldContinue: false };
   }, []);
 
-  const getLoginResponse = useCallback(async (payload, attemptLabel) => {
+  const getLoginResponse = useCallback(async (payload, attemptLabel, url) => {
     console.log('Login intento:', attemptLabel);
-    console.log('Login URL:', `${AUTH_BASE_URL}/login`);
+    console.log('Login URL:', url);
     console.log('Login usuario:', payload?.usuario ?? '');
     console.log('Login password length:', String(payload?.contrasenia ?? '').length);
 
     const result = await getApiJsonResponse({
-      url: `${AUTH_BASE_URL}/login`,
+      url,
       body: payload,
       rawLabel: 'Login',
     });
@@ -1081,8 +1094,39 @@ export function AuthProvider({ children }) {
         },
       });
 
-      const performLoginRequest = async (passwordValue, attemptLabel) =>
-        await getLoginResponse(buildPayload(passwordValue), attemptLabel);
+      const candidateLoginUrls = [
+        `${AUTH_BASE_URL}/login`,
+        `${LEGACY_AUTH_BASE_URL}/loginApi`,
+      ];
+
+      const shouldTryNextLoginUrl = (currentError) => {
+        const normalizedMessage = String(currentError?.message ?? '').toLowerCase();
+        return (
+          currentError?.status === 404 ||
+          currentError?.status === 405 ||
+          currentError?.status === 503 ||
+          normalizedMessage.includes('no esta disponible temporalmente') ||
+          normalizedMessage.includes('respuesta no valida')
+        );
+      };
+
+      const performLoginRequest = async (passwordValue, attemptLabel) => {
+        const payload = buildPayload(passwordValue);
+        let lastError = null;
+
+        for (const candidateUrl of candidateLoginUrls) {
+          try {
+            return await getLoginResponse(payload, attemptLabel, candidateUrl);
+          } catch (currentError) {
+            lastError = currentError;
+            if (!shouldTryNextLoginUrl(currentError) || candidateUrl === candidateLoginUrls[candidateLoginUrls.length - 1]) {
+              throw currentError;
+            }
+          }
+        }
+
+        throw lastError ?? new Error('No se pudo completar el login.');
+      };
 
       let { response, data } = await performLoginRequest(normalizedPassword, 'original');
 

@@ -90,6 +90,94 @@ const normalizeReportRecord = (payload, fallback = {}) => {
   };
 };
 
+const normalizeHotelHospedajeRecord = (record = {}, index = 0) => {
+  const normalizedStatus = String(record?.estatus_hospedaje ?? 'pendiente').trim().toLowerCase();
+  const guestName =
+    String(record?.nombre_completo ?? '').trim() ||
+    [record?.nombre, record?.primer_apellido, record?.segundo_apellido]
+      .filter(Boolean)
+      .join(' ')
+      .trim() ||
+    'Huesped no disponible';
+
+  return {
+    ...record,
+    id_usuario_hospedaje:
+      record?.id_usuario_hospedaje ??
+      record?.idUsuarioHospedaje ??
+      record?.id ??
+      `hospedaje-${index}`,
+    id_establecimiento_hotel:
+      record?.id_establecimiento_hotel ??
+      record?.idEstablecimientoHotel ??
+      record?.id_establecimiento ??
+      null,
+    id_usuario:
+      record?.id_usuario ??
+      record?.idUsuario ??
+      null,
+    folio:
+      String(
+        record?.folio ??
+        record?.folio_hospedaje ??
+        record?.usuario_folio_entrega ??
+        ''
+      ).trim(),
+    nombre_completo: guestName,
+    usuario: String(record?.usuario ?? '').trim(),
+    codigo_qr: String(record?.codigo_qr ?? '').trim(),
+    tipo_habitacion:
+      String(record?.tipo_habitacion ?? record?.dsc_tipo_habitacion ?? '').trim(),
+    noches: Number(record?.noches ?? record?.noches_calculadas ?? 0),
+    estatus_hospedaje: normalizedStatus || 'pendiente',
+    check_in_at: record?.check_in_at ?? null,
+    fecha_check_in: record?.fecha_check_in ?? null,
+    fecha_check_out: record?.fecha_check_out ?? null,
+    tarifa_noche:
+      Number(record?.tarifa_noche_calculada ?? record?.tarifa_noche ?? 0),
+    tarifa_total:
+      Number(record?.tarifa_total_calculada ?? record?.tarifa_total_hospedaje ?? 0),
+    orden_hospedaje_url:
+      record?.orden_hospedaje_url ??
+      record?.orden_hospedaje_pdf_url ??
+      null,
+    puede_hacer_check_in:
+      Number(record?.puede_hacer_check_in ?? record?.puede_check_in ?? 0) === 1,
+  };
+};
+
+const extractHotelHospedajesRows = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.rows)) {
+    return payload.rows;
+  }
+
+  if (Array.isArray(payload?.result)) {
+    return payload.result;
+  }
+
+  if (Array.isArray(payload?.response)) {
+    return payload.response;
+  }
+
+  if (Array.isArray(payload?.data?.rows)) {
+    return payload.data.rows;
+  }
+
+  if (Array.isArray(payload?.data?.result)) {
+    return payload.data.result;
+  }
+
+  return [];
+};
+
 const decodeJwtPayload = (token) => {
   try {
     const parts = String(token || '').split('.');
@@ -157,7 +245,9 @@ export const useApi = () => {
     try {
       data = rawResponse ? JSON.parse(rawResponse) : null;
     } catch (_parseError) {
-      console.error(`${actionLabel} raw response:`, rawResponse);
+      if (!contentType.includes('text/html')) {
+        console.error(`${actionLabel} raw response:`, rawResponse);
+      }
       throw new Error(`${actionLabel} devolvio una respuesta no valida`);
     }
 
@@ -648,6 +738,76 @@ export const useApi = () => {
     };
   };
 
+  const getHotelHospedajes = async (filters = {}) => {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (
+        ['limit', 'offset', 'search', 'estatus'].includes(key) &&
+        value !== undefined &&
+        value !== null &&
+        String(value).trim() !== ''
+      ) {
+        params.set(key, String(value));
+      }
+    });
+
+    try {
+      const data = await getPhpJsonResponse({
+        path: params.size > 0 ? `/api/hotel/hospedajes?${params.toString()}` : '/api/hotel/hospedajes',
+        method: 'GET',
+        body: undefined,
+        fallbackMessage: 'Consultando hospedajes del hotel',
+      });
+
+      const rows = extractHotelHospedajesRows(data);
+
+      console.log('Hospedajes hotel recibidos:', {
+        count: rows.length,
+        keys: rows[0] ? Object.keys(rows[0]).slice(0, 12) : [],
+      });
+
+      return {
+        success: true,
+        data: rows.map((row, index) => normalizeHotelHospedajeRecord(row, index)),
+        message:
+          data?.respuesta ||
+          data?.message ||
+          'Hospedajes consultados correctamente',
+      };
+    } catch (error) {
+      const normalizedMessage = String(error?.message ?? '').toLowerCase();
+      const endpointUnavailable =
+        error?.status === 404 ||
+        normalizedMessage.includes('consultando hospedajes del hotel devolvio una respuesta no valida') ||
+        normalizedMessage.includes('cannot get') ||
+        normalizedMessage.includes('not found');
+
+      if (!endpointUnavailable) {
+        throw error;
+      }
+
+      console.log('Listado hotelero no disponible todavia:', {
+        status: error?.status ?? null,
+        message: error?.message ?? null,
+      });
+
+      const backendMessage = String(error?.message ?? '').trim();
+      const routeNotPublished =
+        backendMessage.includes('Controller or its method is not found') ||
+        backendMessage.includes('\\App\\Controllers\\Api::hotel');
+
+      return {
+        success: true,
+        data: [],
+        unavailable: true,
+        message: routeNotPublished
+          ? 'El backend aun no tiene publicada la ruta PHP para GET /api/hotel/hospedajes.'
+          : 'El listado hotelero todavia no esta disponible en backend.',
+      };
+    }
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
@@ -655,6 +815,7 @@ export const useApi = () => {
     getTransactionStatus,
     getPaymentReports,
     createManagerRequest,
+    getHotelHospedajes,
     getHotelOrderByQr,
     getUserTransactions,
     registerHotelCheckIn,
