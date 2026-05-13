@@ -1,7 +1,7 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system/legacy';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system/legacy";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,67 +18,82 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import SignatureCanvas from 'react-native-signature-canvas';
-import AccessDenied from '../AccessDenied';
-import { hasPermission } from '../../constants/roles';
-import { useAuth } from '../../hooks/useAuth';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import SignatureCanvas from "react-native-signature-canvas";
+// Nuevos imports ---------------------------------------------
+import * as ImageManipulator from "expo-image-manipulator";
+import { Dimensions } from "react-native";
+import { ENV } from "../../constants/env";
+// ------------------------------------------------------------
+import { hasPermission } from "../../constants/roles";
+import { useAuth } from "../../hooks/useAuth";
+import AccessDenied from "../AccessDenied";
 
-const STEP_FOLIO = 'folio';
-const STEP_FRONT = 'front';
-const STEP_BACK = 'back';
-const STEP_REVIEW = 'review';
-const STEP_SIGNATURE = 'signature';
-const STEP_SUMMARY = 'summary';
+const STEP_FOLIO = "folio";
+const STEP_FRONT = "front";
+const STEP_BACK = "back";
+const STEP_REVIEW = "review";
+const STEP_SIGNATURE = "signature";
+const STEP_SUMMARY = "summary";
 const SELF_ACTIVATION_PROFILE_IDS = new Set([1, 3, 4, 6]);
+// DIMENSIONES DEL MARCO DE CAPTURA --------------------------------------------
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const CAMERA_CONTAINER_WIDTH = SCREEN_WIDTH - 40;
+const CARD_FRAME_WIDTH = CAMERA_CONTAINER_WIDTH * 0.9;
+const CARD_FRAME_HEIGHT = CARD_FRAME_WIDTH / 1.585; // Proporción ISO 7810 ID-1
+// -----------------------------------------------------------------------------
 
 const buildStepTitle = (step) => {
   switch (step) {
     case STEP_FRONT:
-      return 'Captura anverso';
+      return "Captura anverso";
     case STEP_BACK:
-      return 'Captura reverso';
+      return "Captura reverso";
     case STEP_REVIEW:
-      return 'Revision documental';
+      return "Revision documental";
     case STEP_SIGNATURE:
-      return 'Firma del interesado';
+      return "Firma del interesado";
     case STEP_SUMMARY:
-      return 'Resumen del tramite';
+      return "Resumen del tramite";
     default:
-      return 'Validar folio';
+      return "Validar folio";
   }
 };
 
 const resolveActivationStatus = (status) => {
-  const solicitud = String(status?.solicitud_activacion_estatus ?? '').trim().toLowerCase();
-  const expediente = String(status?.expediente_estatus ?? '').trim().toLowerCase();
+  const solicitud = String(status?.solicitud_activacion_estatus ?? "")
+    .trim()
+    .toLowerCase();
+  const expediente = String(status?.expediente_estatus ?? "")
+    .trim()
+    .toLowerCase();
 
-  if (solicitud === 'pendiente' || expediente === 'solicitado_ti') {
-    return 'pendiente';
+  if (solicitud === "pendiente" || expediente === "solicitado_ti") {
+    return "pendiente";
   }
 
-  if (solicitud === 'rechazada' || expediente === 'cancelado') {
-    return 'rechazada';
+  if (solicitud === "rechazada" || expediente === "cancelado") {
+    return "rechazada";
   }
 
-  if (solicitud === 'aprobada' || expediente === 'entregado') {
-    return 'aprobada';
+  if (solicitud === "aprobada" || expediente === "entregado") {
+    return "aprobada";
   }
 
-  return '';
+  return "";
 };
 
 const normalizeRouteParam = (value) => {
   if (Array.isArray(value)) {
-    return String(value[0] ?? '').trim();
+    return String(value[0] ?? "").trim();
   }
 
-  return String(value ?? '').trim();
+  return String(value ?? "").trim();
 };
 
 const firstDefinedValue = (...values) =>
-  values.find((value) => value !== undefined && value !== null && value !== '');
+  values.find((value) => value !== undefined && value !== null && value !== "");
 
 const mergeBenefitSummary = (...sources) => {
   const normalizedSources = sources.filter(Boolean);
@@ -87,51 +102,67 @@ const mergeBenefitSummary = (...sources) => {
     ...normalizedSources.map((source) => source?.orden_hospedaje_url),
     ...normalizedSources.map((source) => source?.pdf_orden_hospedaje_url),
     ...normalizedSources.map((source) => source?.hospedaje_pdf_url),
-    ...normalizedSources.map((source) => source?.pdf_url)
+    ...normalizedSources.map((source) => source?.pdf_url),
   );
 
   return {
-    tiene_alimentos: firstDefinedValue(...normalizedSources.map((source) => source?.tiene_alimentos)),
-    tiene_hospedaje: firstDefinedValue(...normalizedSources.map((source) => source?.tiene_hospedaje)),
+    tiene_alimentos: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.tiene_alimentos),
+    ),
+    tiene_hospedaje: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.tiene_hospedaje),
+    ),
     tipo_beneficio: firstDefinedValue(
       ...normalizedSources.map((source) => source?.beneficio_qr),
-      ...normalizedSources.map((source) => source?.tipo_beneficio)
+      ...normalizedSources.map((source) => source?.tipo_beneficio),
     ),
     tipo_beneficio_label: firstDefinedValue(
       ...normalizedSources.map((source) => source?.beneficio_qr_label),
-      ...normalizedSources.map((source) => source?.tipo_beneficio_label)
+      ...normalizedSources.map((source) => source?.tipo_beneficio_label),
     ),
     hotel: firstDefinedValue(
       ...normalizedSources.map((source) => source?.hotel_nombre),
-      ...normalizedSources.map((source) => source?.hotel)
+      ...normalizedSources.map((source) => source?.hotel),
     ),
     id_establecimiento_hotel: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.id_establecimiento_hotel)
+      ...normalizedSources.map((source) => source?.id_establecimiento_hotel),
     ),
     id_tipo_habitacion: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.id_tipo_habitacion)
+      ...normalizedSources.map((source) => source?.id_tipo_habitacion),
     ),
-    tipo_habitacion: firstDefinedValue(...normalizedSources.map((source) => source?.tipo_habitacion)),
-    fecha_check_in: firstDefinedValue(...normalizedSources.map((source) => source?.fecha_check_in)),
-    fecha_check_out: firstDefinedValue(...normalizedSources.map((source) => source?.fecha_check_out)),
-    noches: firstDefinedValue(...normalizedSources.map((source) => source?.noches)),
-    tarifa_noche: firstDefinedValue(...normalizedSources.map((source) => source?.tarifa_noche)),
+    tipo_habitacion: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.tipo_habitacion),
+    ),
+    fecha_check_in: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.fecha_check_in),
+    ),
+    fecha_check_out: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.fecha_check_out),
+    ),
+    noches: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.noches),
+    ),
+    tarifa_noche: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.tarifa_noche),
+    ),
     tarifa_total_hospedaje: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.tarifa_total_hospedaje)
+      ...normalizedSources.map((source) => source?.tarifa_total_hospedaje),
     ),
-    folio_hospedaje: firstDefinedValue(...normalizedSources.map((source) => source?.folio_hospedaje)),
+    folio_hospedaje: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.folio_hospedaje),
+    ),
     observaciones_hospedaje: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.observaciones_hospedaje)
+      ...normalizedSources.map((source) => source?.observaciones_hospedaje),
     ),
     orden_hospedaje_disponible: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.orden_hospedaje_disponible)
+      ...normalizedSources.map((source) => source?.orden_hospedaje_disponible),
     ),
     orden_hospedaje_pdf_url: firstDefinedValue(
-      ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_url)
+      ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_url),
     ),
     orden_hospedaje_pdf_path: firstDefinedValue(
       ...normalizedSources.map((source) => source?.orden_hospedaje_pdf_path),
-      ...normalizedSources.map((source) => source?.pdf_path)
+      ...normalizedSources.map((source) => source?.pdf_path),
     ),
     orden_hospedaje_url: directOrderUrl,
   };
@@ -147,22 +178,26 @@ const resolveOrderUrl = (...sources) =>
         source?.pdf_orden_hospedaje_url,
         source?.hospedaje_pdf_url,
         source?.pdf_url,
-      ])
+      ]),
   );
 
 const hasLodgingBenefit = (summary) => {
-  const benefitType = String(summary?.tipo_beneficio ?? summary?.tipo_beneficio_label ?? '').trim().toLowerCase();
+  const benefitType = String(
+    summary?.tipo_beneficio ?? summary?.tipo_beneficio_label ?? "",
+  )
+    .trim()
+    .toLowerCase();
   return (
     Number(summary?.tiene_hospedaje ?? 0) === 1 ||
     summary?.tiene_hospedaje === true ||
-    benefitType.includes('hospedaje') ||
+    benefitType.includes("hospedaje") ||
     Boolean(
       summary?.hotel ||
       summary?.tipo_habitacion ||
       summary?.fecha_check_in ||
       summary?.fecha_check_out ||
       summary?.tarifa_total_hospedaje ||
-      summary?.orden_hospedaje_url
+      summary?.orden_hospedaje_url,
     )
   );
 };
@@ -198,22 +233,32 @@ export default function CashierProcessScreen() {
   const [isValidatingFolio, setIsValidatingFolio] = useState(false);
   const [isSavingExpediente, setIsSavingExpediente] = useState(false);
   const [deliverySummary, setDeliverySummary] = useState(null);
+  // Para extracción de CURP -------------------------------------------------
+  const [isExtractingCurp, setIsExtractingCurp] = useState(false);
+  const [extractedCurp, setExtractedCurp] = useState(null);
+  const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
+  // -------------------------------------------------------------------------
   const cameraRef = useRef(null);
   const signatureRef = useRef(null);
-  const activationMode = routeMode === 'client' ? 'client' : 'cashier';
+  const activationMode = routeMode === "client" ? "client" : "cashier";
   const isClientActivation =
-    activationMode === 'client' && SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
+    activationMode === "client" &&
+    SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
   const isNativeClientProfile = Number(user?.id_perfil ?? 0) === 3;
-  const usesClientActivationEndpoints = isClientActivation && isNativeClientProfile;
-  const requiresTiReviewAfterSelfService = isClientActivation && !isNativeClientProfile;
+  const usesClientActivationEndpoints =
+    isClientActivation && isNativeClientProfile;
+  const requiresTiReviewAfterSelfService =
+    isClientActivation && !isNativeClientProfile;
   const finishAndExit = () => {
-    DeviceEventEmitter.emit('refreshClientQrActivationState');
+    DeviceEventEmitter.emit("refreshClientQrActivationState");
     router.back();
   };
   const buildOrderPdfFileName = () => {
-    const safeFolio = String(deliverySummary?.folio ?? user?.id_usuario ?? Date.now())
+    const safeFolio = String(
+      deliverySummary?.folio ?? user?.id_usuario ?? Date.now(),
+    )
       .trim()
-      .replace(/[^A-Za-z0-9_-]/g, '-');
+      .replace(/[^A-Za-z0-9_-]/g, "-");
     return `orden-hospedaje-${safeFolio}.pdf`;
   };
 
@@ -229,7 +274,10 @@ export default function CashierProcessScreen() {
     return null;
   }, [backPhoto, frontPhoto, step]);
 
-  if (!hasPermission(user?.id_perfil, 'cashierProcess') && !isClientActivation) {
+  if (
+    !hasPermission(user?.id_perfil, "cashierProcess") &&
+    !isClientActivation
+  ) {
     return (
       <AccessDenied
         title="Proceso restringido"
@@ -240,7 +288,10 @@ export default function CashierProcessScreen() {
 
   const startDocumentCapture = async () => {
     if (!isClientActivation && !folio.trim()) {
-      Alert.alert('Atencion', 'Captura el folio del interesado para continuar.');
+      Alert.alert(
+        "Atencion",
+        "Captura el folio del interesado para continuar.",
+      );
       return;
     }
 
@@ -250,66 +301,97 @@ export default function CashierProcessScreen() {
         if (isNativeClientProfile) {
           const [qrRecord, balance, folioRows] = await Promise.all([
             getClientQrData(user?.id_usuario, { includeInactive: true }),
-            getClientAvailableBalance(user?.id_usuario).catch(() => Number(user?.monto_deposito ?? user?.saldo ?? 0)),
+            getClientAvailableBalance(user?.id_usuario).catch(() =>
+              Number(user?.monto_deposito ?? user?.saldo ?? 0),
+            ),
             getTable({
-              tabla: 'usuario_folio_entrega',
+              tabla: "usuario_folio_entrega",
               where: {
                 id_usuario: Number(user?.id_usuario ?? 0),
                 activo: 1,
                 visible: 1,
-                tipo_folio: 'titular',
+                tipo_folio: "titular",
               },
-              order: 'id_usuario_folio_entrega DESC',
+              order: "id_usuario_folio_entrega DESC",
               limit: 1,
             }),
           ]);
 
           let activationStatus = null;
           try {
-            activationStatus = await getClientQrActivationStatus(user?.id_usuario);
+            activationStatus = await getClientQrActivationStatus(
+              user?.id_usuario,
+            );
           } catch (statusError) {
-            const normalizedMessage = String(statusError?.message ?? '').toLowerCase();
-            if (normalizedMessage.includes('no tienes permisos')) {
-              console.warn('Cliente activacion status fallback:', statusError?.message ?? statusError);
+            const normalizedMessage = String(
+              statusError?.message ?? "",
+            ).toLowerCase();
+            if (normalizedMessage.includes("no tienes permisos")) {
+              console.warn(
+                "Cliente activacion status fallback:",
+                statusError?.message ?? statusError,
+              );
             } else {
               throw statusError;
             }
           }
 
           const qrOperativo =
-            typeof qrRecord?.qr_operativo === 'boolean'
+            typeof qrRecord?.qr_operativo === "boolean"
               ? qrRecord.qr_operativo
-              : Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
+              : Number(
+                  activationStatus?.qr_activo ??
+                    qrRecord?.qr_activo ??
+                    user?.qr_activo ??
+                    0,
+                ) === 1;
 
           if (qrOperativo) {
-            Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
+            Alert.alert(
+              "Atencion",
+              "Tu QR ya se encuentra activo y listo para operar.",
+            );
             router.back();
             return;
           }
 
-          if (activationStatus && resolveActivationStatus(activationStatus) === 'pendiente') {
-            Alert.alert('Atencion', 'Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.');
+          if (
+            activationStatus &&
+            resolveActivationStatus(activationStatus) === "pendiente"
+          ) {
+            Alert.alert(
+              "Atencion",
+              "Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.",
+            );
             router.back();
             return;
           }
 
           const resolvedFolio =
-            String(activationStatus?.folio ?? '').trim() ||
+            String(activationStatus?.folio ?? "").trim() ||
             routeFolio ||
-            String(folioRows?.[0]?.folio ?? '').trim();
+            String(folioRows?.[0]?.folio ?? "").trim();
 
           if (!resolvedFolio) {
-            throw new Error('No se encontro un folio activo para este usuario.');
+            throw new Error(
+              "No se encontro un folio activo para este usuario.",
+            );
           }
 
           setDeliverySummary({
             folio: resolvedFolio,
             id_usuario: user?.id_usuario,
-            nombre_completo: [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
+            nombre_completo: [
+              user?.nombre,
+              user?.primer_apellido,
+              user?.segundo_apellido,
+            ]
               .filter(Boolean)
-              .join(' '),
+              .join(" "),
             codigo_qr: qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
-            monto_total: Number(balance ?? user?.monto_deposito ?? user?.saldo ?? 0),
+            monto_total: Number(
+              balance ?? user?.monto_deposito ?? user?.saldo ?? 0,
+            ),
             monto_diario:
               activationStatus?.monto_diario ??
               qrRecord?.monto_diario ??
@@ -328,59 +410,76 @@ export default function CashierProcessScreen() {
               user?.monto_deposito ??
               user?.saldo ??
               0,
-            vigente_desde: qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
-            vigente_hasta: qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
+            vigente_desde:
+              qrRecord?.vigente_desde ?? user?.vigente_desde ?? null,
+            vigente_hasta:
+              qrRecord?.vigente_hasta ?? user?.vigente_hasta ?? null,
             nip: null,
             nip_legado_hash: false,
-            qr_activo: Number(activationStatus?.qr_activo ?? qrRecord?.qr_activo ?? user?.qr_activo ?? 0),
+            qr_activo: Number(
+              activationStatus?.qr_activo ??
+                qrRecord?.qr_activo ??
+                user?.qr_activo ??
+                0,
+            ),
             expediente_completo: activationStatus?.expediente_completo ?? false,
-            solicitud_activacion_estatus: activationStatus?.solicitud_activacion_estatus ?? null,
+            solicitud_activacion_estatus:
+              activationStatus?.solicitud_activacion_estatus ?? null,
             expediente_estatus: activationStatus?.expediente_estatus ?? null,
-            motivo_rechazo: activationStatus?.motivo_rechazo ?? '',
+            motivo_rechazo: activationStatus?.motivo_rechazo ?? "",
             desglose_por_dia: [],
             ...mergeBenefitSummary(activationStatus, qrRecord, user),
           });
         } else {
           const [qrRecord, balance, folioRows] = await Promise.all([
             getClientQrData(user?.id_usuario, { includeInactive: true }),
-            getClientAvailableBalance(user?.id_usuario).catch(() => Number(user?.monto_deposito ?? user?.saldo ?? 0)),
+            getClientAvailableBalance(user?.id_usuario).catch(() =>
+              Number(user?.monto_deposito ?? user?.saldo ?? 0),
+            ),
             getTable({
-              tabla: 'usuario_folio_entrega',
+              tabla: "usuario_folio_entrega",
               where: {
                 id_usuario: Number(user?.id_usuario ?? 0),
                 activo: 1,
                 visible: 1,
-                tipo_folio: 'titular',
+                tipo_folio: "titular",
               },
-              order: 'id_usuario_folio_entrega DESC',
+              order: "id_usuario_folio_entrega DESC",
               limit: 1,
             }),
           ]);
 
           const qrOperativo =
-            typeof qrRecord?.qr_operativo === 'boolean'
+            typeof qrRecord?.qr_operativo === "boolean"
               ? qrRecord.qr_operativo
               : Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0) === 1;
 
           if (qrOperativo) {
-            Alert.alert('Atencion', 'Tu QR ya se encuentra activo y listo para operar.');
+            Alert.alert(
+              "Atencion",
+              "Tu QR ya se encuentra activo y listo para operar.",
+            );
             router.back();
             return;
           }
 
           const resolvedFolio =
-            routeFolio ||
-            String(folioRows?.[0]?.folio ?? '').trim();
+            routeFolio || String(folioRows?.[0]?.folio ?? "").trim();
 
           if (!resolvedFolio) {
-            throw new Error('No se encontro un folio activo para este usuario.');
+            throw new Error(
+              "No se encontro un folio activo para este usuario.",
+            );
           }
 
           let richSummary = null;
           try {
             richSummary = await getCashierDeliverySummary(resolvedFolio);
           } catch (summaryError) {
-            console.warn('Cashier-style summary fallback:', summaryError?.message ?? summaryError);
+            console.warn(
+              "Cashier-style summary fallback:",
+              summaryError?.message ?? summaryError,
+            );
           }
 
           setDeliverySummary({
@@ -390,14 +489,18 @@ export default function CashierProcessScreen() {
               richSummary?.nombre_completo ??
               [user?.nombre, user?.primer_apellido, user?.segundo_apellido]
                 .filter(Boolean)
-                .join(' '),
-            codigo_qr: richSummary?.codigo_qr ?? qrRecord?.codigo_qr ?? user?.codigo_qr ?? null,
+                .join(" "),
+            codigo_qr:
+              richSummary?.codigo_qr ??
+              qrRecord?.codigo_qr ??
+              user?.codigo_qr ??
+              null,
             monto_total: Number(
               richSummary?.monto_total ??
-              balance ??
-              user?.monto_deposito ??
-              user?.saldo ??
-              0
+                balance ??
+                user?.monto_deposito ??
+                user?.saldo ??
+                0,
             ),
             monto_diario:
               richSummary?.monto_diario ??
@@ -433,7 +536,7 @@ export default function CashierProcessScreen() {
             expediente_completo: false,
             solicitud_activacion_estatus: null,
             expediente_estatus: null,
-            motivo_rechazo: '',
+            motivo_rechazo: "",
             desglose_por_dia: Array.isArray(richSummary?.desglose_por_dia)
               ? richSummary.desglose_por_dia
               : [],
@@ -445,8 +548,11 @@ export default function CashierProcessScreen() {
         setDeliverySummary(summary);
       }
     } catch (error) {
-      console.error('Error validating cashier folio:', error);
-      Alert.alert('Atencion', error.message || 'No se pudo validar el folio del interesado.');
+      console.error("Error validating cashier folio:", error);
+      Alert.alert(
+        "Atencion",
+        error.message || "No se pudo validar el folio del interesado.",
+      );
       return;
     } finally {
       setIsValidatingFolio(false);
@@ -455,7 +561,10 @@ export default function CashierProcessScreen() {
     if (!permission?.granted) {
       const response = await requestPermission();
       if (!response.granted) {
-        Alert.alert('Atencion', 'Necesitamos permiso de camara para capturar la identificacion.');
+        Alert.alert(
+          "Atencion",
+          "Necesitamos permiso de camara para capturar la identificacion.",
+        );
         return;
       }
     }
@@ -464,26 +573,52 @@ export default function CashierProcessScreen() {
   };
 
   const captureDocumentSide = async () => {
-    if (!cameraRef.current || isCapturing) {
-      return;
-    }
+    if (!cameraRef.current || isCapturing) return;
 
     try {
       setIsCapturing(true);
+
       const picture = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
-        base64: true,
-        skipProcessing: true,
+        quality: 1.0,
+        base64: false,
+        skipProcessing: false,
       });
 
-      if (!picture?.uri || !picture?.base64) {
-        throw new Error('No se obtuvo una imagen valida.');
+      if (!picture?.uri) {
+        throw new Error("No se obtuvo una imagen valida.");
       }
 
-      const mimeType = 'image/jpeg';
+      // Obtenemos las dimensiones reales leyendo la imagen con ImageManipulator
+      const imageInfo = await ImageManipulator.manipulateAsync(
+        picture.uri,
+        [],
+        { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
+      );
+
+      const croppedUri = await cropToCardFrame(
+        imageInfo.uri,
+        imageInfo.width,
+        imageInfo.height,
+      );
+
+      // Convertir el recorte a base64 para envío al backend
+      const manipResult = await ImageManipulator.manipulateAsync(
+        croppedUri,
+        [],
+        {
+          compress: 0.92,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
+
+      if (!manipResult?.base64) {
+        throw new Error("No se pudo convertir la imagen recortada.");
+      }
+
       const photoPayload = {
-        uri: picture.uri,
-        dataUrl: `data:${mimeType};base64,${picture.base64}`,
+        uri: manipResult.uri,
+        dataUrl: `data:image/jpeg;base64,${manipResult.base64}`,
       };
 
       if (step === STEP_FRONT) {
@@ -492,10 +627,61 @@ export default function CashierProcessScreen() {
         setBackPhoto(photoPayload);
       }
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo capturar la fotografia.');
+      Alert.alert(
+        "Atencion",
+        error.message || "No se pudo capturar la fotografia.",
+      );
     } finally {
       setIsCapturing(false);
     }
+  };
+
+  // Recorta la imagen capturada para que coincida exactamente con el marco visual
+  const cropToCardFrame = async (uri, photoWidth, photoHeight) => {
+    if (!cameraLayout.width || !cameraLayout.height) {
+      throw new Error("Las dimensiones de la cámara no están listas.");
+    }
+
+    const viewWidth = cameraLayout.width;
+    const viewHeight = cameraLayout.height;
+
+    const scale = Math.max(viewWidth / photoWidth, viewHeight / photoHeight);
+
+    const displayedWidth = photoWidth * scale;
+    const displayedHeight = photoHeight * scale;
+
+    const offsetX = (viewWidth - displayedWidth) / 2;
+    const offsetY = (viewHeight - displayedHeight) / 2;
+
+    const frameX = (viewWidth - CARD_FRAME_WIDTH) / 2;
+    const frameY = viewHeight * 0.15;
+
+    const cropX = Math.round((frameX - offsetX) / scale);
+    const cropY = Math.round((frameY - offsetY) / scale);
+    const cropWidth = Math.round(CARD_FRAME_WIDTH / scale);
+    const cropHeight = Math.round(CARD_FRAME_HEIGHT / scale);
+
+    const safeOriginX = Math.max(0, Math.min(cropX, photoWidth - cropWidth));
+    const safeOriginY = Math.max(0, Math.min(cropY, photoHeight - cropHeight));
+    const safeWidth = Math.min(cropWidth, photoWidth - safeOriginX);
+    const safeHeight = Math.min(cropHeight, photoHeight - safeOriginY);
+
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [
+        {
+          crop: {
+            originX: safeOriginX,
+            originY: safeOriginY,
+            width: safeWidth,
+            height: safeHeight,
+          },
+        },
+      ],
+      { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
+    );
+
+    return result.uri;
   };
 
   const retakeCurrentSide = () => {
@@ -509,9 +695,119 @@ export default function CashierProcessScreen() {
     }
   };
 
+  // Función de procesamiento de OCR y validación con RENAPO
+  const processOcrAndContinue = async () => {
+    if (!frontPhoto?.uri) return;
+
+    try {
+      setIsExtractingCurp(true);
+      const sessionToken = await getAccessToken();
+
+      // 1. Petición al backend local para hacer el OCR
+      const formData = new FormData();
+      formData.append("ine_front", {
+        uri:
+          Platform.OS === "android"
+            ? frontPhoto.uri
+            : frontPhoto.uri.replace("file://", ""),
+        type: "image/jpeg",
+        name: "ine_front.jpg",
+      });
+
+      const response = await fetch(`${ENV.apiBaseUrl}/ocr-ine`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          // fetch genera 'Content-Type' automáticamente para multipart/form-data
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      // 2. Validar que el OCR tuvo éxito y nos devolvió una CURP
+      if (result.success && result.data?.curp) {
+        const curpObtenida = result.data.curp;
+        setExtractedCurp(curpObtenida);
+
+        // Configuramos un AbortController para cancelar la petición si tarda mucho.
+        // Si el OCR leyó mal una letra, se tarda mucho buscando.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 segundos límite
+
+        try {
+          const renapoParams = new URLSearchParams();
+          renapoParams.append("curp", curpObtenida);
+
+          // 3. Petición a la API de RENAPO
+          const renapoResponse = await fetch(`${ENV.apiCurpUrl}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${ENV.tokenApi}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: renapoParams.toString(),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId); // Limpiamos el timeout si respondió a tiempo
+          const renapoResult = await renapoResponse.json();
+
+          // 4. Evaluar la respuesta de RENAPO
+          if (!renapoResult.error) {
+            // Éxito: La CURP es válida
+            Alert.alert(
+              "Validación Exitosa",
+              `CURP obtenida: ${curpObtenida}\n\n${renapoResult.respuesta || "CURP validado por RENAPO."}`,
+              [{ text: "Continuar", onPress: () => setStep(STEP_BACK) }],
+            );
+          } else {
+            // Error lógico: La API respondió rápido, pero la CURP no es válida
+            Alert.alert(
+              "Atención: Validación Fallida",
+              `CURP obtenida por OCR: ${curpObtenida}\n\nRespuesta RENAPO: ${renapoResult.respuesta || "No se encontró en la base de datos."}\n\nSi la CURP es incorrecta, por favor vuelva a tomar la fotografía.`,
+              [{ text: "Entendido", style: "cancel" }],
+            );
+          }
+        } catch (renapoError) {
+          clearTimeout(timeoutId);
+
+          // 5. Manejo de Errores (Timeout o Red)
+          if (renapoError.name === "AbortError") {
+            Alert.alert(
+              "Tiempo de espera agotado",
+              `La validación está tardando demasiado. Esto suele ocurrir cuando la CURP se detectó incorrectamente por el OCR.\n\nCURP obtenida: ${curpObtenida}\n\nVerifique que los datos sean legibles e intente mejorar la iluminación de la foto.`,
+              [{ text: "Reintentar foto", style: "cancel" }],
+            );
+          } else {
+            Alert.alert(
+              "Error de conexión",
+              `No se pudo conectar con el servicio de validación.\nCURP obtenida: ${curpObtenida}\n\nVerifique su conexión a internet e intente nuevamente.`,
+            );
+          }
+        }
+      } else {
+        // El OCR falló desde el inicio
+        Alert.alert(
+          "Atención",
+          result.respuesta || "Verifique la iluminación y nitidez de la foto.",
+        );
+      }
+    } catch (error) {
+      console.error("Error en flujo OCR/RENAPO:", error);
+      Alert.alert(
+        "Error de sistema",
+        "Ocurrió un problema interno al procesar la identificación. Intente de nuevo.",
+      );
+    } finally {
+      setIsExtractingCurp(false);
+    }
+  };
+
   const goToNextStep = () => {
     if (step === STEP_FRONT && frontPhoto?.uri) {
-      setStep(STEP_BACK);
+      // Interceptar aquí para hacer el OCR antes de pasar al reverso
+      processOcrAndContinue();
       return;
     }
 
@@ -527,8 +823,8 @@ export default function CashierProcessScreen() {
 
     if (step === STEP_SUMMARY) {
       Alert.alert(
-        'Fase 3 completada',
-        'Ya tenemos folio, identificacion y firma. El siguiente paso es guardar o enviar el expediente segun el perfil.'
+        "Fase 3 completada",
+        "Ya tenemos folio, identificacion y firma. El siguiente paso es guardar o enviar el expediente segun el perfil.",
       );
     }
   };
@@ -540,31 +836,36 @@ export default function CashierProcessScreen() {
   };
 
   const handleSignatureEmpty = () => {
-    Alert.alert('Atencion', 'La firma esta vacia. Solicita al interesado que firme antes de continuar.');
+    Alert.alert(
+      "Atencion",
+      "La firma esta vacia. Solicita al interesado que firme antes de continuar.",
+    );
   };
 
   const handleSignatureError = (error) => {
-    Alert.alert('Atencion', error?.message || 'No se pudo procesar la firma.');
+    Alert.alert("Atencion", error?.message || "No se pudo procesar la firma.");
   };
 
   const uploadDataUrlToSignedUrl = async (uploadConfig, dataUrl) => {
     if (!uploadConfig?.upload_url || !dataUrl) {
-      throw new Error('Falta informacion para subir un archivo a S3.');
+      throw new Error("Falta informacion para subir un archivo a S3.");
     }
 
-    const base64Payload = String(dataUrl).split(',')[1] ?? '';
+    const base64Payload = String(dataUrl).split(",")[1] ?? "";
     if (!base64Payload) {
-      throw new Error('No se pudo convertir el archivo local para subirlo a S3.');
+      throw new Error(
+        "No se pudo convertir el archivo local para subirlo a S3.",
+      );
     }
 
-    const normalizedBase64 = base64Payload.replace(/\s/g, '');
+    const normalizedBase64 = base64Payload.replace(/\s/g, "");
     const binaryString =
-      typeof atob === 'function'
+      typeof atob === "function"
         ? atob(normalizedBase64)
         : global?.atob?.(normalizedBase64);
 
     if (!binaryString) {
-      throw new Error('El entorno no pudo decodificar el archivo para S3.');
+      throw new Error("El entorno no pudo decodificar el archivo para S3.");
     }
 
     const bytes = new Uint8Array(binaryString.length);
@@ -572,26 +873,33 @@ export default function CashierProcessScreen() {
       bytes[index] = binaryString.charCodeAt(index);
     }
 
-    const uploadHeaders = uploadConfig?.headers && typeof uploadConfig.headers === 'object'
-      ? { 'Content-Type': uploadConfig.headers['Content-Type'] || uploadConfig.headers['content-type'] }
-      : {};
+    const uploadHeaders =
+      uploadConfig?.headers && typeof uploadConfig.headers === "object"
+        ? {
+            "Content-Type":
+              uploadConfig.headers["Content-Type"] ||
+              uploadConfig.headers["content-type"],
+          }
+        : {};
 
-    console.log('S3 upload target:', {
+    console.log("S3 upload target:", {
       tipo: uploadConfig.tipo,
       file_key: uploadConfig.file_key,
       localUriSize: bytes.length,
       headers: uploadHeaders,
-      method: 'PUT',
+      method: "PUT",
     });
 
     const uploadResponse = await fetch(uploadConfig.upload_url, {
-      method: 'PUT',
+      method: "PUT",
       headers: uploadHeaders,
       body: bytes,
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`No se pudo subir ${uploadConfig.tipo || 'el archivo'} a S3.`);
+      throw new Error(
+        `No se pudo subir ${uploadConfig.tipo || "el archivo"} a S3.`,
+      );
     }
 
     return uploadConfig.file_key;
@@ -603,12 +911,18 @@ export default function CashierProcessScreen() {
     }
 
     if (!deliverySummary?.folio || !deliverySummary?.id_usuario) {
-      Alert.alert('Atencion', 'No contamos con el resumen del interesado para guardar el expediente.');
+      Alert.alert(
+        "Atencion",
+        "No contamos con el resumen del interesado para guardar el expediente.",
+      );
       return;
     }
 
     if (!frontPhoto?.dataUrl || !backPhoto?.dataUrl || !signatureDataUrl) {
-      Alert.alert('Atencion', 'Faltan evidencias por capturar antes de guardar el expediente.');
+      Alert.alert(
+        "Atencion",
+        "Faltan evidencias por capturar antes de guardar el expediente.",
+      );
       return;
     }
 
@@ -619,9 +933,9 @@ export default function CashierProcessScreen() {
           folio: deliverySummary.folio,
           id_usuario: deliverySummary.id_usuario,
           archivos: [
-            { tipo: 'anverso', mime_type: 'image/jpeg' },
-            { tipo: 'reverso', mime_type: 'image/jpeg' },
-            { tipo: 'firma', mime_type: 'image/png' },
+            { tipo: "anverso", mime_type: "image/jpeg" },
+            { tipo: "reverso", mime_type: "image/jpeg" },
+            { tipo: "firma", mime_type: "image/png" },
           ],
         });
 
@@ -631,12 +945,14 @@ export default function CashierProcessScreen() {
             ? presignResponse.uploads
             : [];
 
-        const anversoUpload = uploads.find((item) => item?.tipo === 'anverso');
-        const reversoUpload = uploads.find((item) => item?.tipo === 'reverso');
-        const firmaUpload = uploads.find((item) => item?.tipo === 'firma');
+        const anversoUpload = uploads.find((item) => item?.tipo === "anverso");
+        const reversoUpload = uploads.find((item) => item?.tipo === "reverso");
+        const firmaUpload = uploads.find((item) => item?.tipo === "firma");
 
         if (!anversoUpload || !reversoUpload || !firmaUpload) {
-          throw new Error('El backend no devolvio las URLs firmadas completas para la activacion.');
+          throw new Error(
+            "El backend no devolvio las URLs firmadas completas para la activacion.",
+          );
         }
 
         await Promise.all([
@@ -660,12 +976,16 @@ export default function CashierProcessScreen() {
         };
         setDeliverySummary(mergedSummary);
         showSuccessAlert(
-          response?.respuesta || 'Solicitud de activacion enviada correctamente.',
-          resolveOrderUrl(response?.data, response, mergedSummary)
+          response?.respuesta ||
+            "Solicitud de activacion enviada correctamente.",
+          resolveOrderUrl(response?.data, response, mergedSummary),
         );
       } catch (error) {
-        console.error('Error sending client activation request:', error);
-        Alert.alert('Atencion', error.message || 'No se pudo enviar la solicitud de activacion.');
+        console.error("Error sending client activation request:", error);
+        Alert.alert(
+          "Atencion",
+          error.message || "No se pudo enviar la solicitud de activacion.",
+        );
       } finally {
         setIsSavingExpediente(false);
       }
@@ -679,9 +999,9 @@ export default function CashierProcessScreen() {
         folio: deliverySummary.folio,
         id_usuario: deliverySummary.id_usuario,
         archivos: [
-          { tipo: 'anverso', mime_type: 'image/jpeg' },
-          { tipo: 'reverso', mime_type: 'image/jpeg' },
-          { tipo: 'firma', mime_type: 'image/png' },
+          { tipo: "anverso", mime_type: "image/jpeg" },
+          { tipo: "reverso", mime_type: "image/jpeg" },
+          { tipo: "firma", mime_type: "image/png" },
         ],
       });
 
@@ -691,12 +1011,14 @@ export default function CashierProcessScreen() {
           ? presignResponse.uploads
           : [];
 
-      const anversoUpload = uploads.find((item) => item?.tipo === 'anverso');
-      const reversoUpload = uploads.find((item) => item?.tipo === 'reverso');
-      const firmaUpload = uploads.find((item) => item?.tipo === 'firma');
+      const anversoUpload = uploads.find((item) => item?.tipo === "anverso");
+      const reversoUpload = uploads.find((item) => item?.tipo === "reverso");
+      const firmaUpload = uploads.find((item) => item?.tipo === "firma");
 
       if (!anversoUpload || !reversoUpload || !firmaUpload) {
-        throw new Error('El backend no devolvio las URLs firmadas completas para el expediente.');
+        throw new Error(
+          "El backend no devolvio las URLs firmadas completas para el expediente.",
+        );
       }
 
       await Promise.all([
@@ -714,10 +1036,13 @@ export default function CashierProcessScreen() {
       });
 
       const rawCanActivateQr =
-        Number(response?.data?.puede_activar_qr ?? response?.puede_activar_qr ?? 0) === 1 ||
+        Number(
+          response?.data?.puede_activar_qr ?? response?.puede_activar_qr ?? 0,
+        ) === 1 ||
         response?.data?.puede_activar_qr === true ||
         response?.puede_activar_qr === true;
-      const shouldActivateQr = !requiresTiReviewAfterSelfService && rawCanActivateQr;
+      const shouldActivateQr =
+        !requiresTiReviewAfterSelfService && rawCanActivateQr;
 
       let finalResponse = response;
 
@@ -738,18 +1063,34 @@ export default function CashierProcessScreen() {
         ...(deliverySummary ?? {}),
         ...(response?.data ?? {}),
         ...(finalResponse?.data ?? {}),
-        ...mergeBenefitSummary(deliverySummary, response?.data, finalResponse?.data, finalResponse),
+        ...mergeBenefitSummary(
+          deliverySummary,
+          response?.data,
+          finalResponse?.data,
+          finalResponse,
+        ),
       };
       setDeliverySummary(mergedSummary);
       showSuccessAlert(
         requiresTiReviewAfterSelfService
-          ? finalResponse?.respuesta || 'Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo.'
-          : finalResponse?.respuesta || response?.respuesta || 'Expediente de entrega guardado correctamente.',
-        resolveOrderUrl(finalResponse?.data, finalResponse, response?.data, mergedSummary)
+          ? finalResponse?.respuesta ||
+              "Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo."
+          : finalResponse?.respuesta ||
+              response?.respuesta ||
+              "Expediente de entrega guardado correctamente.",
+        resolveOrderUrl(
+          finalResponse?.data,
+          finalResponse,
+          response?.data,
+          mergedSummary,
+        ),
       );
     } catch (error) {
-      console.error('Error saving cashier expediente:', error);
-      Alert.alert('Atencion', error.message || 'No se pudo guardar el expediente.');
+      console.error("Error saving cashier expediente:", error);
+      Alert.alert(
+        "Atencion",
+        error.message || "No se pudo guardar el expediente.",
+      );
     } finally {
       setIsSavingExpediente(false);
     }
@@ -764,12 +1105,17 @@ export default function CashierProcessScreen() {
       const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
       const supported = await Linking.canOpenURL(localFileUri);
       if (!supported) {
-        throw new Error('No se pudo abrir el PDF localmente. Puedes compartirlo desde la app.');
+        throw new Error(
+          "No se pudo abrir el PDF localmente. Puedes compartirlo desde la app.",
+        );
       }
 
       await Linking.openURL(localFileUri);
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
+      Alert.alert(
+        "Atencion",
+        error.message || "No se pudo abrir la orden de hospedaje.",
+      );
     }
   };
 
@@ -781,39 +1127,55 @@ export default function CashierProcessScreen() {
     try {
       const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
       await Share.share({
-        title: 'Orden de hospedaje',
+        title: "Orden de hospedaje",
         message: localFileUri,
         url: localFileUri,
       });
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo compartir la orden de hospedaje.');
+      Alert.alert(
+        "Atencion",
+        error.message || "No se pudo compartir la orden de hospedaje.",
+      );
     }
   };
 
   const downloadOrderPdfAuthenticated = async (resourceUrl) => {
     const sessionToken = await getAccessToken();
     if (!sessionToken) {
-      throw new Error('No hay token de autenticacion para descargar la orden de hospedaje.');
+      throw new Error(
+        "No hay token de autenticacion para descargar la orden de hospedaje.",
+      );
     }
 
-    const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    const baseDirectory =
+      FileSystem.cacheDirectory || FileSystem.documentDirectory;
     if (!baseDirectory) {
-      throw new Error('No se encontro un directorio local para guardar la orden de hospedaje.');
+      throw new Error(
+        "No se encontro un directorio local para guardar la orden de hospedaje.",
+      );
     }
 
     const targetDirectory = `${baseDirectory}ordenes-hospedaje`;
-    await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true }).catch(() => null);
+    await FileSystem.makeDirectoryAsync(targetDirectory, {
+      intermediates: true,
+    }).catch(() => null);
     const fileUri = `${targetDirectory}/${buildOrderPdfFileName()}`;
 
-    const downloadResult = await FileSystem.downloadAsync(resourceUrl, fileUri, {
-      headers: {
-        Authorization: `Bearer ${sessionToken}`,
-        Accept: 'application/pdf',
+    const downloadResult = await FileSystem.downloadAsync(
+      resourceUrl,
+      fileUri,
+      {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          Accept: "application/pdf",
+        },
       },
-    });
+    );
 
     if (!downloadResult || Number(downloadResult.status ?? 0) >= 400) {
-      throw new Error('No se pudo descargar la orden de hospedaje autenticada.');
+      throw new Error(
+        "No se pudo descargar la orden de hospedaje autenticada.",
+      );
     }
 
     return downloadResult.uri;
@@ -822,7 +1184,7 @@ export default function CashierProcessScreen() {
   const showSuccessAlert = (message, orderUrl) => {
     const buttons = [
       {
-        text: 'OK',
+        text: "OK",
         onPress: finishAndExit,
       },
     ];
@@ -830,30 +1192,30 @@ export default function CashierProcessScreen() {
     if (orderUrl) {
       buttons.unshift(
         {
-          text: 'Compartir orden',
+          text: "Compartir orden",
           onPress: () => {
             shareOrderResource(orderUrl);
             finishAndExit();
           },
         },
         {
-          text: 'Abrir / descargar orden',
+          text: "Abrir / descargar orden",
           onPress: () => {
             openOrderResource(orderUrl);
             finishAndExit();
           },
-        }
+        },
       );
     }
 
-    Alert.alert('Operacion exitosa', message, buttons);
+    Alert.alert("Operacion exitosa", message, buttons);
   };
 
   const renderFolioStep = () => (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.formStepWrapper}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
     >
       <ScrollView
         contentContainerStyle={styles.formStepContent}
@@ -862,18 +1224,25 @@ export default function CashierProcessScreen() {
       >
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            {isClientActivation ? 'Comienza tu activacion' : 'Folio del interesado'}
+            {isClientActivation
+              ? "Comienza tu activacion"
+              : "Folio del interesado"}
           </Text>
           <Text style={styles.cardDescription}>
             {isClientActivation
-              ? 'Completa tu expediente documental para que TI revise y active tu QR.'
-              : 'El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega.'}
+              ? "Completa tu expediente documental para que TI revise y active tu QR."
+              : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
           </Text>
 
-          {isClientActivation && String(deliverySummary?.motivo_rechazo ?? '').trim() ? (
+          {isClientActivation &&
+          String(deliverySummary?.motivo_rechazo ?? "").trim() ? (
             <View style={styles.rejectionHint}>
-              <Text style={styles.rejectionHintTitle}>Motivo del rechazo anterior</Text>
-              <Text style={styles.rejectionHintText}>{String(deliverySummary.motivo_rechazo).trim()}</Text>
+              <Text style={styles.rejectionHintTitle}>
+                Motivo del rechazo anterior
+              </Text>
+              <Text style={styles.rejectionHintText}>
+                {String(deliverySummary.motivo_rechazo).trim()}
+              </Text>
             </View>
           ) : null}
 
@@ -893,14 +1262,19 @@ export default function CashierProcessScreen() {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.primaryButton, isValidatingFolio && styles.disabledButton]}
+            style={[
+              styles.primaryButton,
+              isValidatingFolio && styles.disabledButton,
+            ]}
             onPress={startDocumentCapture}
             disabled={isValidatingFolio}
           >
             <Text style={styles.primaryButtonText}>
               {isValidatingFolio
-                ? (isClientActivation ? 'Preparando activacion...' : 'Validando folio...')
-                : 'Continuar'}
+                ? isClientActivation
+                  ? "Preparando activacion..."
+                  : "Validando folio..."
+                : "Continuar"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -912,28 +1286,84 @@ export default function CashierProcessScreen() {
     <View style={styles.captureWrapper}>
       <Text style={styles.captureTitle}>
         {step === STEP_FRONT
-          ? 'Toma una fotografia clara del anverso de la identificacion oficial.'
-          : 'Toma una fotografia clara del reverso de la identificacion oficial.'}
+          ? "Encuadra el anverso de la credencial dentro del marco."
+          : "Encuadra el reverso de la credencial dentro del marco."}
       </Text>
 
       {currentPhotoUri ? (
-        <Image source={{ uri: currentPhotoUri }} style={styles.previewImage} resizeMode="cover" />
+        <Image
+          source={{ uri: currentPhotoUri }}
+          style={styles.previewImage}
+          resizeMode="contain"
+        />
       ) : (
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+        <View
+          style={styles.camera}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setCameraLayout({ width, height });
+          }}
+        >
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+          />
+
+          <View style={styles.cameraOverlay} pointerEvents="none">
+            <View style={styles.overlayTop} />
+
+            <View style={styles.overlayMiddle}>
+              <View style={styles.overlaySide} />
+
+              <View style={styles.cardFrame}>
+                <View style={[styles.corner, styles.cornerTL]} />
+                <View style={[styles.corner, styles.cornerTR]} />
+                <View style={[styles.corner, styles.cornerBL]} />
+                <View style={[styles.corner, styles.cornerBR]} />
+              </View>
+
+              <View style={styles.overlaySide} />
+            </View>
+
+            <View style={styles.overlayBottom}>
+              <Text style={styles.overlayHint}>
+                Mantén la credencial plana y bien iluminada
+              </Text>
+            </View>
+          </View>
+        </View>
       )}
 
       <View style={styles.captureActions}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.back()}
+        >
           <Text style={styles.secondaryButtonText}>Cancelar</Text>
         </TouchableOpacity>
 
         {currentPhotoUri ? (
           <>
-            <TouchableOpacity style={styles.secondaryButton} onPress={retakeCurrentSide}>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={retakeCurrentSide}
+            >
               <Text style={styles.secondaryButtonText}>Repetir</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={goToNextStep}>
-              <Text style={styles.primaryButtonText}>Siguiente</Text>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                isExtractingCurp && styles.disabledButton,
+              ]}
+              onPress={goToNextStep}
+              disabled={isExtractingCurp}
+            >
+              {isExtractingCurp ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Siguiente</Text>
+              )}
             </TouchableOpacity>
           </>
         ) : (
@@ -943,7 +1373,7 @@ export default function CashierProcessScreen() {
             disabled={isCapturing}
           >
             <Text style={styles.primaryButtonText}>
-              {isCapturing ? 'Capturando...' : 'Tomar fotografia'}
+              {isCapturing ? "Capturando..." : "Tomar fotografía"}
             </Text>
           </TouchableOpacity>
         )}
@@ -956,26 +1386,40 @@ export default function CashierProcessScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Revision previa a firma</Text>
         <Text style={styles.cardDescription}>
-          Estas son las evidencias locales reunidas en las fases 1 y 2. El siguiente paso sera capturar la firma del interesado.
+          Estas son las evidencias locales reunidas en las fases 1 y 2. El
+          siguiente paso sera capturar la firma del interesado.
         </Text>
 
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Folio</Text>
-          <Text style={styles.summaryValue}>{deliverySummary?.folio || folio.trim()}</Text>
+          <Text style={styles.summaryValue}>
+            {deliverySummary?.folio || folio.trim()}
+          </Text>
         </View>
 
         <Text style={styles.summarySectionTitle}>Anverso</Text>
         {frontPhoto?.uri ? (
-          <Image source={{ uri: frontPhoto.uri }} style={styles.reviewImage} resizeMode="cover" />
+          <Image
+            source={{ uri: frontPhoto.uri }}
+            style={styles.reviewImage}
+            resizeMode="cover"
+          />
         ) : null}
 
         <Text style={styles.summarySectionTitle}>Reverso</Text>
         {backPhoto?.uri ? (
-          <Image source={{ uri: backPhoto.uri }} style={styles.reviewImage} resizeMode="cover" />
+          <Image
+            source={{ uri: backPhoto.uri }}
+            style={styles.reviewImage}
+            resizeMode="cover"
+          />
         ) : null}
 
         <View style={styles.reviewActions}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep(STEP_FRONT)}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setStep(STEP_FRONT)}
+          >
             <Text style={styles.secondaryButtonText}>Editar fotos</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={goToNextStep}>
@@ -999,10 +1443,14 @@ export default function CashierProcessScreen() {
             <View style={styles.signatureTopCopy}>
               <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
               <Text style={styles.signatureTopSubtitle}>
-                Toca Firmar para usar el lienzo completo. Guardar te llevara al resumen.
+                Toca Firmar para usar el lienzo completo. Guardar te llevara al
+                resumen.
               </Text>
             </View>
-            <TouchableOpacity style={styles.signatureCloseButton} onPress={() => setSignatureModalVisible(false)}>
+            <TouchableOpacity
+              style={styles.signatureCloseButton}
+              onPress={() => setSignatureModalVisible(false)}
+            >
               <Text style={styles.signatureCloseButtonText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -1065,11 +1513,11 @@ export default function CashierProcessScreen() {
               `}
               webviewProps={{
                 cacheEnabled: true,
-                androidLayerType: 'hardware',
+                androidLayerType: "hardware",
                 nestedScrollEnabled: false,
                 scrollEnabled: false,
                 showsVerticalScrollIndicator: false,
-                overScrollMode: 'never',
+                overScrollMode: "never",
                 bounces: false,
               }}
             />
@@ -1084,25 +1532,30 @@ export default function CashierProcessScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Resumen local del tramite</Text>
         <Text style={styles.cardDescription}>
-          La app ya reunio folio, identificacion oficial y firma. A continuacion se muestra el resumen real entregado por backend para el interesado.
+          La app ya reunio folio, identificacion oficial y firma. A continuacion
+          se muestra el resumen real entregado por backend para el interesado.
         </Text>
 
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Folio</Text>
-          <Text style={styles.summaryValue}>{deliverySummary?.folio || folio.trim()}</Text>
+          <Text style={styles.summaryValue}>
+            {deliverySummary?.folio || folio.trim()}
+          </Text>
         </View>
 
         <View style={styles.summaryGrid}>
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Interesado</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.nombre_completo || 'Sin nombre disponible'}
+              {deliverySummary?.nombre_completo || "Sin nombre disponible"}
             </Text>
           </View>
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Tipo de beneficio</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.tipo_beneficio_label || deliverySummary?.tipo_beneficio || 'Sin definir'}
+              {deliverySummary?.tipo_beneficio_label ||
+                deliverySummary?.tipo_beneficio ||
+                "Sin definir"}
             </Text>
           </View>
         </View>
@@ -1111,7 +1564,12 @@ export default function CashierProcessScreen() {
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Tarifa total</Text>
             <Text style={styles.summaryMetricValue}>
-              ${Number(deliverySummary?.tarifa_total ?? deliverySummary?.monto_total ?? 0).toFixed(2)}
+              $
+              {Number(
+                deliverySummary?.tarifa_total ??
+                  deliverySummary?.monto_total ??
+                  0,
+              ).toFixed(2)}
             </Text>
           </View>
         </View>
@@ -1120,17 +1578,19 @@ export default function CashierProcessScreen() {
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Monto diario</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.monto_diario !== null && deliverySummary?.monto_diario !== undefined
+              {deliverySummary?.monto_diario !== null &&
+              deliverySummary?.monto_diario !== undefined
                 ? `$${Number(deliverySummary.monto_diario).toFixed(2)}`
-                : 'Sin definir'}
+                : "Sin definir"}
             </Text>
           </View>
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Dias de vigencia</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.dias_vigencia !== null && deliverySummary?.dias_vigencia !== undefined
+              {deliverySummary?.dias_vigencia !== null &&
+              deliverySummary?.dias_vigencia !== undefined
                 ? String(deliverySummary.dias_vigencia)
-                : 'Sin definir'}
+                : "Sin definir"}
             </Text>
           </View>
         </View>
@@ -1139,7 +1599,7 @@ export default function CashierProcessScreen() {
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>QR del interesado</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.codigo_qr || 'Sin QR disponible'}
+              {deliverySummary?.codigo_qr || "Sin QR disponible"}
             </Text>
           </View>
         </View>
@@ -1152,13 +1612,15 @@ export default function CashierProcessScreen() {
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Hotel</Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.hotel || 'Sin definir'}
+                  {deliverySummary?.hotel || "Sin definir"}
                 </Text>
               </View>
               <View style={styles.summaryMetricCard}>
-                <Text style={styles.summaryMetricLabel}>Tipo de habitacion</Text>
+                <Text style={styles.summaryMetricLabel}>
+                  Tipo de habitacion
+                </Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.tipo_habitacion || 'Sin definir'}
+                  {deliverySummary?.tipo_habitacion || "Sin definir"}
                 </Text>
               </View>
             </View>
@@ -1167,13 +1629,13 @@ export default function CashierProcessScreen() {
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Check-in</Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.fecha_check_in || 'Sin definir'}
+                  {deliverySummary?.fecha_check_in || "Sin definir"}
                 </Text>
               </View>
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Check-out</Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.fecha_check_out || 'Sin definir'}
+                  {deliverySummary?.fecha_check_out || "Sin definir"}
                 </Text>
               </View>
             </View>
@@ -1182,37 +1644,43 @@ export default function CashierProcessScreen() {
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Noches</Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.noches !== null && deliverySummary?.noches !== undefined
+                  {deliverySummary?.noches !== null &&
+                  deliverySummary?.noches !== undefined
                     ? String(deliverySummary.noches)
-                    : 'Sin definir'}
+                    : "Sin definir"}
                 </Text>
               </View>
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricLabel}>Tarifa por noche</Text>
                 <Text style={styles.summaryMetricValue}>
-                  {deliverySummary?.tarifa_noche !== null && deliverySummary?.tarifa_noche !== undefined
+                  {deliverySummary?.tarifa_noche !== null &&
+                  deliverySummary?.tarifa_noche !== undefined
                     ? `$${Number(deliverySummary.tarifa_noche).toFixed(2)}`
-                    : 'Sin definir'}
+                    : "Sin definir"}
                 </Text>
               </View>
             </View>
 
             <View style={styles.summaryGrid}>
               <View style={styles.summaryMetricCard}>
-                <Text style={styles.summaryMetricLabel}>Tarifa total hospedaje</Text>
+                <Text style={styles.summaryMetricLabel}>
+                  Tarifa total hospedaje
+                </Text>
                 <Text style={styles.summaryMetricValue}>
                   {deliverySummary?.tarifa_total_hospedaje !== null &&
                   deliverySummary?.tarifa_total_hospedaje !== undefined
                     ? `$${Number(deliverySummary.tarifa_total_hospedaje).toFixed(2)}`
-                    : 'Sin definir'}
+                    : "Sin definir"}
                 </Text>
               </View>
             </View>
 
-            {String(deliverySummary?.observaciones_hospedaje ?? '').trim() ? (
+            {String(deliverySummary?.observaciones_hospedaje ?? "").trim() ? (
               <View style={styles.summaryGrid}>
                 <View style={styles.summaryMetricCard}>
-                  <Text style={styles.summaryMetricLabel}>Observaciones hospedaje</Text>
+                  <Text style={styles.summaryMetricLabel}>
+                    Observaciones hospedaje
+                  </Text>
                   <Text style={styles.summaryMetricValue}>
                     {String(deliverySummary.observaciones_hospedaje).trim()}
                   </Text>
@@ -1224,15 +1692,23 @@ export default function CashierProcessScreen() {
               <View style={styles.reviewActions}>
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={() => openOrderResource(resolveOrderUrl(deliverySummary))}
+                  onPress={() =>
+                    openOrderResource(resolveOrderUrl(deliverySummary))
+                  }
                 >
-                  <Text style={styles.secondaryButtonText}>Abrir / descargar orden</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    Abrir / descargar orden
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={() => shareOrderResource(resolveOrderUrl(deliverySummary))}
+                  onPress={() =>
+                    shareOrderResource(resolveOrderUrl(deliverySummary))
+                  }
                 >
-                  <Text style={styles.secondaryButtonText}>Compartir orden</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    Compartir orden
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -1243,13 +1719,13 @@ export default function CashierProcessScreen() {
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Vigente desde</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.vigente_desde || 'Sin definir'}
+              {deliverySummary?.vigente_desde || "Sin definir"}
             </Text>
           </View>
           <View style={styles.summaryMetricCard}>
             <Text style={styles.summaryMetricLabel}>Vigente hasta</Text>
             <Text style={styles.summaryMetricValue}>
-              {deliverySummary?.vigente_hasta || 'Sin definir'}
+              {deliverySummary?.vigente_hasta || "Sin definir"}
             </Text>
           </View>
         </View>
@@ -1259,8 +1735,8 @@ export default function CashierProcessScreen() {
             <Text style={styles.summaryMetricLabel}>NIP</Text>
             <Text style={styles.summaryMetricValue}>
               {deliverySummary?.nip_legado_hash
-                ? 'NIP legado, requiere regeneracion'
-                : deliverySummary?.nip || 'Sin NIP disponible'}
+                ? "NIP legado, requiere regeneracion"
+                : deliverySummary?.nip || "Sin NIP disponible"}
             </Text>
           </View>
         </View>
@@ -1268,9 +1744,12 @@ export default function CashierProcessScreen() {
         {isClientActivation ? (
           <View style={styles.summaryGrid}>
             <View style={styles.summaryMetricCard}>
-              <Text style={styles.summaryMetricLabel}>Estatus de expediente</Text>
+              <Text style={styles.summaryMetricLabel}>
+                Estatus de expediente
+              </Text>
               <Text style={styles.summaryMetricValue}>
-                {deliverySummary?.expediente_estatus || 'Sin estatus disponible'}
+                {deliverySummary?.expediente_estatus ||
+                  "Sin estatus disponible"}
               </Text>
             </View>
           </View>
@@ -1278,20 +1757,34 @@ export default function CashierProcessScreen() {
 
         <Text style={styles.summarySectionTitle}>Anverso</Text>
         {frontPhoto?.uri ? (
-          <Image source={{ uri: frontPhoto.uri }} style={styles.reviewImage} resizeMode="cover" />
+          <Image
+            source={{ uri: frontPhoto.uri }}
+            style={styles.reviewImage}
+            resizeMode="cover"
+          />
         ) : null}
 
         <Text style={styles.summarySectionTitle}>Reverso</Text>
         {backPhoto?.uri ? (
-          <Image source={{ uri: backPhoto.uri }} style={styles.reviewImage} resizeMode="cover" />
+          <Image
+            source={{ uri: backPhoto.uri }}
+            style={styles.reviewImage}
+            resizeMode="cover"
+          />
         ) : null}
 
         <Text style={styles.summarySectionTitle}>Firma</Text>
         {signatureDataUrl ? (
-          <Image source={{ uri: signatureDataUrl }} style={styles.signaturePreview} resizeMode="contain" />
+          <Image
+            source={{ uri: signatureDataUrl }}
+            style={styles.signaturePreview}
+            resizeMode="contain"
+          />
         ) : (
           <View style={styles.signaturePlaceholder}>
-            <Text style={styles.signaturePlaceholderText}>Aun no hay firma capturada.</Text>
+            <Text style={styles.signaturePlaceholderText}>
+              Aun no hay firma capturada.
+            </Text>
           </View>
         )}
 
@@ -1305,16 +1798,20 @@ export default function CashierProcessScreen() {
             <Text style={styles.secondaryButtonText}>Repetir firma</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.primaryButton, styles.summaryPrimaryAction, isSavingExpediente && styles.disabledButton]}
+            style={[
+              styles.primaryButton,
+              styles.summaryPrimaryAction,
+              isSavingExpediente && styles.disabledButton,
+            ]}
             onPress={saveExpediente}
             disabled={isSavingExpediente}
           >
             <Text style={styles.primaryButtonText}>
               {isSavingExpediente
-                ? 'Guardando expediente...'
+                ? "Guardando expediente..."
                 : isClientActivation
-                  ? 'Enviar solicitud'
-                  : 'Guardar expediente'}
+                  ? "Enviar solicitud"
+                  : "Guardar expediente"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1334,18 +1831,18 @@ export default function CashierProcessScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>
-          {isClientActivation ? 'Activacion de cliente' : 'Perfil cajero'}
+          {isClientActivation ? "Activacion de cliente" : "Perfil cajero"}
         </Text>
         <Text style={styles.title}>{buildStepTitle(step)}</Text>
         <Text style={styles.subtitle}>
           {isClientActivation
-            ? 'Completa tu expediente documental para solicitar la activacion de tu QR.'
-            : 'Completa el expediente documental para la entrega segura del QR.'}
+            ? "Completa tu expediente documental para solicitar la activacion de tu QR."
+            : "Completa el expediente documental para la entrega segura del QR."}
         </Text>
       </View>
 
       {step === STEP_FOLIO ? renderFolioStep() : null}
-      {(step === STEP_FRONT || step === STEP_BACK) ? renderCaptureStep() : null}
+      {step === STEP_FRONT || step === STEP_BACK ? renderCaptureStep() : null}
       {step === STEP_REVIEW ? renderReviewStep() : null}
       {renderSignatureModal()}
       {step === STEP_SUMMARY ? renderSummaryStep() : null}
@@ -1356,7 +1853,7 @@ export default function CashierProcessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   formStepWrapper: {
     flex: 1,
@@ -1371,112 +1868,112 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   eyebrow: {
-    color: '#B23A48',
+    color: "#B23A48",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginBottom: 6,
   },
   title: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   subtitle: {
-    color: '#5F6782',
+    color: "#5F6782",
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,
   },
   card: {
     margin: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#D7DEEE',
-    shadowColor: '#0D1B2A',
+    borderColor: "#D7DEEE",
+    shadowColor: "#0D1B2A",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 4,
   },
   cardTitle: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 8,
   },
   cardDescription: {
-    color: '#49516A',
+    color: "#49516A",
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 18,
   },
   rejectionHint: {
-    backgroundColor: '#FFF4F5',
+    backgroundColor: "#FFF4F5",
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E9BBC2',
+    borderColor: "#E9BBC2",
     marginBottom: 18,
   },
   rejectionHintTitle: {
-    color: '#B23A48',
+    color: "#B23A48",
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 6,
   },
   rejectionHintText: {
-    color: '#7B3943',
+    color: "#7B3943",
     fontSize: 14,
     lineHeight: 20,
   },
   inputLabel: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#C9D3EA',
+    borderColor: "#C9D3EA",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#263B80',
-    backgroundColor: '#F7F9FE',
+    color: "#263B80",
+    backgroundColor: "#F7F9FE",
     marginBottom: 16,
   },
   primaryButton: {
-    backgroundColor: '#263B80',
+    backgroundColor: "#263B80",
     borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   secondaryButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
   },
   secondaryButtonText: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   captureWrapper: {
     flex: 1,
@@ -1484,26 +1981,26 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   captureTitle: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 14,
   },
   camera: {
     flex: 1,
     borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: '#1F2430',
+    overflow: "hidden",
+    backgroundColor: "#1F2430",
   },
   previewImage: {
     flex: 1,
     borderRadius: 18,
-    backgroundColor: '#E9EDF6',
+    backgroundColor: "#E9EDF6",
   },
   captureActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     paddingTop: 14,
   },
   disabledButton: {
@@ -1513,65 +2010,65 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   summaryBox: {
-    backgroundColor: '#F7F9FE',
+    backgroundColor: "#F7F9FE",
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
   },
   summaryLabel: {
-    color: '#5F6782',
+    color: "#5F6782",
     fontSize: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: 4,
   },
   summaryValue: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   summaryGrid: {
     gap: 10,
     marginBottom: 12,
   },
   summaryMetricCard: {
-    backgroundColor: '#F7F9FE',
+    backgroundColor: "#F7F9FE",
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F4',
+    borderColor: "#E2E8F4",
   },
   summaryMetricLabel: {
-    color: '#5F6782',
+    color: "#5F6782",
     fontSize: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   summaryMetricValue: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   summarySectionTitle: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
     marginTop: 8,
   },
   reviewImage: {
-    width: '100%',
+    width: "100%",
     height: 220,
     borderRadius: 14,
-    backgroundColor: '#E9EDF6',
+    backgroundColor: "#E9EDF6",
     marginBottom: 14,
   },
   reviewActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     marginTop: 8,
   },
   summaryPrimaryAction: {
@@ -1584,93 +2081,163 @@ const styles = StyleSheet.create({
   },
   signatureModalRoot: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   signatureTopBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#D7DEEE',
+    borderColor: "#D7DEEE",
     borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 16,
     marginBottom: 12,
-    shadowColor: '#0D1B2A',
+    shadowColor: "#0D1B2A",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
     shadowRadius: 18,
     elevation: 3,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   signatureTopCopy: {
     flex: 1,
   },
   signatureTopTitle: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 21,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 6,
   },
   signatureTopSubtitle: {
-    color: '#49516A',
+    color: "#49516A",
     fontSize: 14,
     lineHeight: 20,
   },
   signatureCloseButton: {
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   signatureCloseButtonText: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   signatureWrapper: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: '#D7DEEE',
+    borderColor: "#D7DEEE",
     marginTop: 4,
-    shadowColor: '#0D1B2A',
+    shadowColor: "#0D1B2A",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 4,
   },
   signaturePreview: {
-    width: '100%',
+    width: "100%",
     height: 180,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#D7DEEE',
+    borderColor: "#D7DEEE",
     marginBottom: 14,
   },
   signaturePlaceholder: {
     height: 120,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D7DEEE',
-    backgroundColor: '#F7F9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#D7DEEE",
+    backgroundColor: "#F7F9FE",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 14,
   },
   signaturePlaceholderText: {
-    color: '#5F6782',
+    color: "#5F6782",
     fontSize: 14,
   },
   centeredState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  // Estilos del overlay de cámara con marco de credencial
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "column",
+  },
+  overlayTop: {
+    height: "15%",
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  overlayMiddle: {
+    flexDirection: "row",
+    height: CARD_FRAME_HEIGHT,
+  },
+  overlaySide: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  overlayBottom: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    paddingTop: 14,
+  },
+  overlayHint: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+    opacity: 0.85,
+  },
+  cardFrame: {
+    width: CARD_FRAME_WIDTH,
+    height: CARD_FRAME_HEIGHT,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  corner: {
+    position: "absolute",
+    width: 22,
+    height: 22,
+    borderColor: "#FFFFFF",
+  },
+  cornerTL: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 10,
+  },
+  cornerTR: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 10,
+  },
+  cornerBL: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 10,
+  },
+  cornerBR: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 10,
   },
 });
