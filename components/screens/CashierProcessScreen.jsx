@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   DeviceEventEmitter,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Linking,
@@ -23,7 +24,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import SignatureCanvas from "react-native-signature-canvas";
 // Nuevos imports ---------------------------------------------
 import * as ImageManipulator from "expo-image-manipulator";
-import { Dimensions } from "react-native";
 import { ENV } from "../../constants/env";
 // ------------------------------------------------------------
 import { hasPermission } from "../../constants/roles";
@@ -235,7 +235,7 @@ export default function CashierProcessScreen() {
   const [deliverySummary, setDeliverySummary] = useState(null);
   // Para extracción de CURP -------------------------------------------------
   const [isExtractingCurp, setIsExtractingCurp] = useState(false);
-  const [extractedCurp, setExtractedCurp] = useState(null);
+  const [, setExtractedCurp] = useState(null);
   const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
   // -------------------------------------------------------------------------
   const cameraRef = useRef(null);
@@ -361,7 +361,7 @@ export default function CashierProcessScreen() {
           ) {
             Alert.alert(
               "Atencion",
-              "Tu solicitud ya esta en revision por TI. Espera su resolucion para continuar.",
+              "Tu solicitud ya está en revisión por TI. Espera su resolución para continuar.",
             );
             router.back();
             return;
@@ -374,7 +374,7 @@ export default function CashierProcessScreen() {
 
           if (!resolvedFolio) {
             throw new Error(
-              "No se encontro un folio activo para este usuario.",
+              "No se encontró un folio activo para este usuario.",
             );
           }
 
@@ -468,7 +468,7 @@ export default function CashierProcessScreen() {
 
           if (!resolvedFolio) {
             throw new Error(
-              "No se encontro un folio activo para este usuario.",
+              "No se encontró un folio activo para este usuario.",
             );
           }
 
@@ -560,13 +560,13 @@ export default function CashierProcessScreen() {
 
     if (!permission?.granted) {
       const response = await requestPermission();
-      if (!response.granted) {
-        Alert.alert(
-          "Atencion",
-          "Necesitamos permiso de camara para capturar la identificacion.",
-        );
-        return;
-      }
+        if (!response.granted) {
+          Alert.alert(
+            "Atencion",
+            "Necesitamos permiso de camara para capturar el documento oficial.",
+          );
+          return;
+        }
     }
 
     setStep(STEP_FRONT);
@@ -585,7 +585,7 @@ export default function CashierProcessScreen() {
       });
 
       if (!picture?.uri) {
-        throw new Error("No se obtuvo una imagen valida.");
+        throw new Error("No se obtuvo una imagen válida.");
       }
 
       // Obtenemos las dimensiones reales leyendo la imagen con ImageManipulator
@@ -806,8 +806,24 @@ export default function CashierProcessScreen() {
 
   const goToNextStep = () => {
     if (step === STEP_FRONT && frontPhoto?.uri) {
-      // Interceptar aquí para hacer el OCR antes de pasar al reverso
-      processOcrAndContinue();
+      Alert.alert(
+        "Continuar activacion",
+        "Intentaremos validar la CURP si el documento lo permite. Si se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.\\n\\n¿Continuar con la activación?",
+        [
+          {
+            text: "Validar CURP",
+            onPress: processOcrAndContinue,
+          },
+          {
+            text: "Sí",
+            onPress: () => setStep(STEP_BACK),
+          },
+          {
+            text: "No",
+            style: "cancel",
+          },
+        ],
+      );
       return;
     }
 
@@ -824,7 +840,7 @@ export default function CashierProcessScreen() {
     if (step === STEP_SUMMARY) {
       Alert.alert(
         "Fase 3 completada",
-        "Ya tenemos folio, identificacion y firma. El siguiente paso es guardar o enviar el expediente segun el perfil.",
+        "Ya tenemos folio, identificación y firma. El siguiente paso es guardar o enviar el expediente según el perfil.",
       );
     }
   };
@@ -838,7 +854,7 @@ export default function CashierProcessScreen() {
   const handleSignatureEmpty = () => {
     Alert.alert(
       "Atencion",
-      "La firma esta vacia. Solicita al interesado que firme antes de continuar.",
+      "La firma está vacía. Solicita al interesado que firme antes de continuar.",
     );
   };
 
@@ -848,7 +864,7 @@ export default function CashierProcessScreen() {
 
   const uploadDataUrlToSignedUrl = async (uploadConfig, dataUrl) => {
     if (!uploadConfig?.upload_url || !dataUrl) {
-      throw new Error("Falta informacion para subir un archivo a S3.");
+      throw new Error("Falta información para subir un archivo a S3.");
     }
 
     const base64Payload = String(dataUrl).split(",")[1] ?? "";
@@ -912,7 +928,7 @@ export default function CashierProcessScreen() {
 
     if (!deliverySummary?.folio || !deliverySummary?.id_usuario) {
       Alert.alert(
-        "Atencion",
+        "Atención",
         "No contamos con el resumen del interesado para guardar el expediente.",
       );
       return;
@@ -951,7 +967,7 @@ export default function CashierProcessScreen() {
 
         if (!anversoUpload || !reversoUpload || !firmaUpload) {
           throw new Error(
-            "El backend no devolvio las URLs firmadas completas para la activacion.",
+            "El backend no devolvió las URLs firmadas completas para la activación.",
           );
         }
 
@@ -984,7 +1000,7 @@ export default function CashierProcessScreen() {
         console.error("Error sending client activation request:", error);
         Alert.alert(
           "Atencion",
-          error.message || "No se pudo enviar la solicitud de activacion.",
+          error.message || "No se pudo enviar la solicitud de activación.",
         );
       } finally {
         setIsSavingExpediente(false);
@@ -1017,7 +1033,7 @@ export default function CashierProcessScreen() {
 
       if (!anversoUpload || !reversoUpload || !firmaUpload) {
         throw new Error(
-          "El backend no devolvio las URLs firmadas completas para el expediente.",
+          "El backend no devolvió las URLs firmadas completas para el expediente.",
         );
       }
 
@@ -1074,7 +1090,7 @@ export default function CashierProcessScreen() {
       showSuccessAlert(
         requiresTiReviewAfterSelfService
           ? finalResponse?.respuesta ||
-              "Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmacion de TI para que tu QR quede activo."
+              "Tu expediente documental fue enviado correctamente. Ahora debes esperar la confirmación de TI para que tu QR quede activo."
           : finalResponse?.respuesta ||
               response?.respuesta ||
               "Expediente de entrega guardado correctamente.",
@@ -1143,7 +1159,7 @@ export default function CashierProcessScreen() {
     const sessionToken = await getAccessToken();
     if (!sessionToken) {
       throw new Error(
-        "No hay token de autenticacion para descargar la orden de hospedaje.",
+        "No hay token de autenticación para descargar la orden de hospedaje.",
       );
     }
 
@@ -1151,7 +1167,7 @@ export default function CashierProcessScreen() {
       FileSystem.cacheDirectory || FileSystem.documentDirectory;
     if (!baseDirectory) {
       throw new Error(
-        "No se encontro un directorio local para guardar la orden de hospedaje.",
+        "No se encontró un directorio local para guardar la orden de hospedaje.",
       );
     }
 
@@ -1225,7 +1241,7 @@ export default function CashierProcessScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
             {isClientActivation
-              ? "Comienza tu activacion"
+              ? "Comienza tu activación"
               : "Folio del interesado"}
           </Text>
           <Text style={styles.cardDescription}>
@@ -1286,8 +1302,8 @@ export default function CashierProcessScreen() {
     <View style={styles.captureWrapper}>
       <Text style={styles.captureTitle}>
         {step === STEP_FRONT
-          ? "Encuadra el anverso de la credencial dentro del marco."
-          : "Encuadra el reverso de la credencial dentro del marco."}
+          ? "Encuadra el anverso del documento oficial dentro del marco."
+          : "Encuadra el reverso del documento oficial dentro del marco."}
       </Text>
 
       {currentPhotoUri ? (
@@ -1443,7 +1459,7 @@ export default function CashierProcessScreen() {
             <View style={styles.signatureTopCopy}>
               <Text style={styles.signatureTopTitle}>Firma del interesado</Text>
               <Text style={styles.signatureTopSubtitle}>
-                Toca Firmar para usar el lienzo completo. Guardar te llevara al
+                Toca Firmar para usar el lienzo completo. Guardar te llevará al
                 resumen.
               </Text>
             </View>
@@ -1530,9 +1546,9 @@ export default function CashierProcessScreen() {
   const renderSummaryStep = () => (
     <ScrollView contentContainerStyle={styles.reviewContent}>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Resumen local del tramite</Text>
+        <Text style={styles.cardTitle}>Resumen local del trámite</Text>
         <Text style={styles.cardDescription}>
-          La app ya reunio folio, identificacion oficial y firma. A continuacion
+          La app ya reunió folio, documento oficial y firma. A continuación
           se muestra el resumen real entregado por backend para el interesado.
         </Text>
 
@@ -1735,7 +1751,7 @@ export default function CashierProcessScreen() {
             <Text style={styles.summaryMetricLabel}>NIP</Text>
             <Text style={styles.summaryMetricValue}>
               {deliverySummary?.nip_legado_hash
-                ? "NIP legado, requiere regeneracion"
+                ? "NIP legado, requiere regeneración"
                 : deliverySummary?.nip || "Sin NIP disponible"}
             </Text>
           </View>
@@ -1783,7 +1799,7 @@ export default function CashierProcessScreen() {
         ) : (
           <View style={styles.signaturePlaceholder}>
             <Text style={styles.signaturePlaceholderText}>
-              Aun no hay firma capturada.
+              Aún no hay firma capturada.
             </Text>
           </View>
         )}
@@ -1984,6 +2000,12 @@ const styles = StyleSheet.create({
     color: "#263B80",
     fontSize: 16,
     fontWeight: "700",
+    marginBottom: 8,
+  },
+  captureSubtitle: {
+    color: "#5F6782",
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 14,
   },
   camera: {
@@ -2241,3 +2263,4 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 10,
   },
 });
+
