@@ -740,7 +740,7 @@ export default function CashierProcessScreen() {
           renapoParams.append("curp", curpObtenida);
 
           // 3. Petición a la API de RENAPO
-          const renapoResponse = await fetch(`${ENV.apiCurpUrl}`, {
+          const renapoResponse = await fetch(`${ENV.apiCurpUrl}/api-curp`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${ENV.tokenApi}`,
