@@ -69,6 +69,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="cashier-process"
+        options={{
+          href: null,
+          title: 'Entrega de QR',
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           href: showParticipantsTab ? '/explore' : null,

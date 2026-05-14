@@ -137,7 +137,7 @@ const ClientQRGenerator = () => {
         }
 
         router.push({
-          pathname: '/cashier-process',
+          pathname: '/(tabs)/cashier-process',
           params: {
             mode: 'client',
           },
@@ -485,4 +485,3 @@ const styles = StyleSheet.create({
 });
 
 export default ClientQRGenerator;
-

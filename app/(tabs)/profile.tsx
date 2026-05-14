@@ -289,12 +289,12 @@ export default function ProfileScreen() {
           {
             text: 'Continuar',
             onPress: () => {
-              setQrVisible(false);
-              router.push({
-                pathname: '/cashier-process',
-                params: {
-                  mode: 'client',
-                  folio,
+                setQrVisible(false);
+                router.push({
+                  pathname: '/(tabs)/cashier-process',
+                  params: {
+                    mode: 'client',
+                    folio,
                 },
               });
             },

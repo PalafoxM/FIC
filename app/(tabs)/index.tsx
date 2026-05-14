@@ -1207,7 +1207,7 @@ export default function HomeScreen() {
 
               <TouchableOpacity
                 style={[styles.primaryButton, { marginTop: 16 }]}
-                onPress={() => router.push('/cashier-process')}
+                onPress={() => router.push('/(tabs)/cashier-process')}
               >
                 <Text style={styles.primaryButtonText}>Iniciar tramite</Text>
               </TouchableOpacity>
