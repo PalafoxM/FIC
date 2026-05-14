@@ -253,6 +253,23 @@ export default function CashierProcessScreen() {
     DeviceEventEmitter.emit("refreshClientQrActivationState");
     router.back();
   };
+  const confirmContinueActivation = (message) => {
+    Alert.alert(
+      "Continuar activacion",
+      `${message}\n\n¿Continuar con la activacion?`,
+      [
+        {
+          text: "No",
+          style: "cancel",
+        },
+        {
+          text: "Si",
+          onPress: () => setStep(STEP_BACK),
+        },
+      ],
+      { cancelable: true },
+    );
+  };
   const buildOrderPdfFileName = () => {
     const safeFolio = String(
       deliverySummary?.folio ?? user?.id_usuario ?? Date.now(),
@@ -763,10 +780,8 @@ export default function CashierProcessScreen() {
             );
           } else {
             // Error lógico: La API respondió rápido, pero la CURP no es válida
-            Alert.alert(
-              "Atención: Validación Fallida",
-              `CURP obtenida por OCR: ${curpObtenida}\n\nRespuesta RENAPO: ${renapoResult.respuesta || "No se encontró en la base de datos."}\n\nSi la CURP es incorrecta, por favor vuelva a tomar la fotografía.`,
-              [{ text: "Entendido", style: "cancel" }],
+            confirmContinueActivation(
+              `CURP obtenida por OCR: ${curpObtenida}\n\nRespuesta RENAPO: ${renapoResult.respuesta || "No se encontro en la base de datos."}\n\nSi se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.`,
             );
           }
         } catch (renapoError) {
@@ -774,30 +789,25 @@ export default function CashierProcessScreen() {
 
           // 5. Manejo de Errores (Timeout o Red)
           if (renapoError.name === "AbortError") {
-            Alert.alert(
-              "Tiempo de espera agotado",
-              `La validación está tardando demasiado. Esto suele ocurrir cuando la CURP se detectó incorrectamente por el OCR.\n\nCURP obtenida: ${curpObtenida}\n\nVerifique que los datos sean legibles e intente mejorar la iluminación de la foto.`,
-              [{ text: "Reintentar foto", style: "cancel" }],
+            confirmContinueActivation(
+              `La validacion esta tardando demasiado. Esto suele ocurrir cuando la CURP se detecto incorrectamente por OCR.\n\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
             );
           } else {
-            Alert.alert(
-              "Error de conexión",
-              `No se pudo conectar con el servicio de validación.\nCURP obtenida: ${curpObtenida}\n\nVerifique su conexión a internet e intente nuevamente.`,
+            confirmContinueActivation(
+              `No se pudo conectar con el servicio de validacion.\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
             );
           }
         }
       } else {
         // El OCR falló desde el inicio
-        Alert.alert(
-          "Atención",
-          result.respuesta || "Verifique la iluminación y nitidez de la foto.",
+        confirmContinueActivation(
+          result.respuesta || "No fue posible leer la CURP del documento. Verifica la iluminacion, la nitidez o continua manualmente si corresponde.",
         );
       }
     } catch (error) {
       console.error("Error en flujo OCR/RENAPO:", error);
-      Alert.alert(
-        "Error de sistema",
-        "Ocurrió un problema interno al procesar la identificación. Intente de nuevo.",
+      confirmContinueActivation(
+        "Ocurrio un problema interno al procesar el documento. Puedes reintentar o continuar manualmente con la activacion.",
       );
     } finally {
       setIsExtractingCurp(false);
@@ -808,14 +818,14 @@ export default function CashierProcessScreen() {
     if (step === STEP_FRONT && frontPhoto?.uri) {
       Alert.alert(
         "Continuar activacion",
-        "Intentaremos validar la CURP si el documento lo permite. Si se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.\\n\\n¿Continuar con la activación?",
+        "Intentaremos validar la CURP si el documento lo permite. Si se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.\n\n¿Continuar con la activacion?",
         [
           {
             text: "Validar CURP",
             onPress: processOcrAndContinue,
           },
           {
-            text: "Sí",
+            text: "Si",
             onPress: () => setStep(STEP_BACK),
           },
           {

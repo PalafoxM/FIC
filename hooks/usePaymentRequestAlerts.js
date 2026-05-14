@@ -138,7 +138,6 @@ export const usePaymentRequestAlerts = () => {
     const isClient = numericPerfil === ROLE_IDS.CLIENT;
     const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
     const isManager = numericPerfil === ROLE_IDS.MANAGER;
-    const isCashier = numericPerfil === ROLE_IDS.CASHIER;
     const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
     const navigateToAvailableBalance = () => {
       DeviceEventEmitter.emit('closeClientQrModal');
@@ -147,7 +146,7 @@ export const usePaymentRequestAlerts = () => {
     };
     const persistedNotificationIdsKey = `seenPassiveNotificationIds:${user?.id_usuario ?? 'anonymous'}`;
 
-    if ((!usesPaymentDecisionAlert && !isCashier) || !user?.id_usuario) {
+    if (!usesPaymentDecisionAlert || !user?.id_usuario) {
       return undefined;
     }
 
@@ -331,8 +330,6 @@ export const usePaymentRequestAlerts = () => {
         }
 
         const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
-        console.log('Polling notificaciones URL:', notificationsUrl);
-
         const response = await fetch(notificationsUrl, {
           headers: {
             ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
@@ -343,10 +340,7 @@ export const usePaymentRequestAlerts = () => {
         const rawResponse = await response.text();
         const data = rawResponse ? JSON.parse(rawResponse) : null;
 
-        console.log('Polling notificaciones status:', response.status);
-
         if (!response.ok || !data?.success) {
-          console.log('Polling notificaciones respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
           networkErrorLoggedRef.current = false;
           pollingBackoffMsRef.current = POLL_INTERVAL_MS;
           return;
@@ -366,12 +360,6 @@ export const usePaymentRequestAlerts = () => {
 
           if (notificationIdentity && shownNotificationIdsRef.current.has(notificationIdentity)) {
             continue;
-          }
-
-          if (isCashier) {
-            await markNotificationAsShown(notificationIdentity, true);
-            showManagerNotificationAlert(notification);
-            break;
           }
 
           if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {

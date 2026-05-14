@@ -168,6 +168,22 @@ export const usePushNotifications = () => {
           await registerTokenInBackend(token);
         }
       } catch (error) {
+        const normalizedMessage = String(error?.message ?? '');
+        const missingFirebaseApp =
+          Platform.OS === 'android' &&
+          (
+            normalizedMessage.includes('Default FirebaseApp is not initialized') ||
+            normalizedMessage.includes('FirebaseApp.initializeApp') ||
+            normalizedMessage.includes('fcm-credentials')
+          );
+
+        if (missingFirebaseApp) {
+          console.log(
+            'Notificaciones push omitidas temporalmente: la build Android no tiene Firebase/FCM inicializado todavía.'
+          );
+          return;
+        }
+
         console.error('Error configurando notificaciones:', error);
       }
     };

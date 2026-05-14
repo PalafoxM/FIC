@@ -120,13 +120,6 @@ function RootLayoutContent() {
         }}
       />
       <Stack.Screen
-        name="cashier-process"
-        options={{
-          title: 'Entrega de QR',
-          presentation: 'modal',
-        }}
-      />
-      <Stack.Screen
         name="hotel-operation"
         options={{
           title: 'Operacion hotelera',
@@ -137,6 +130,13 @@ function RootLayoutContent() {
         name="enter-amount"
         options={{
           title: 'Ingresar Monto',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="cashier-process"
+        options={{
+          title: 'Entrega de QR',
           presentation: 'modal',
         }}
       />
