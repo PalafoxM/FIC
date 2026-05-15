@@ -16,17 +16,13 @@ export default function NotificationsScreen() {
   const [visibleCount, setVisibleCount] = useState(10);
   const { user } = useAuth();
   const router = useRouter();
-  const { approvePaymentRequest, rejectPaymentRequest, getTransactionStatus } = useApi();
-  const transactionStatusRef = useRef(getTransactionStatus);
+  const { approvePaymentRequest, rejectPaymentRequest } = useApi();
   const autoOpenedTransactionsRef = useRef(new Set());
+  const loadNotificationsPromiseRef = useRef(null);
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
   const usesPaymentDecisionAlert = [ROLE_IDS.CLIENT, ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(
     Number(user?.id_perfil ?? 0)
   );
-
-  useEffect(() => {
-    transactionStatusRef.current = getTransactionStatus;
-  }, [getTransactionStatus]);
 
   const parseNotificationData = useCallback((notification) => {
     if (!notification) {
@@ -77,16 +73,42 @@ export default function NotificationsScreen() {
     );
   }, [parseNotificationData]);
 
-  const enrichNotificationStatus = useCallback(async (notification) => {
-    const notificationData = parseNotificationData(notification);
-    const transactionId = notificationData?.transactionId;
+  const resolveNotificationStatus = useCallback((notification, notificationData = parseNotificationData(notification)) => {
+    const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+    const normalizedStatus = String(
+      notificationData?.status ??
+      notificationData?.paymentStatus ??
+      notificationData?.resolvedStatus ??
+      notification?.status ??
+      ''
+    ).trim().toLowerCase();
 
-    if (isPaymentApprovedLike(notification, notificationData)) {
-      const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
+    if (isPaymentApprovedLike(notification, notificationData) || normalizedStatus === 'approved') {
+      return 'approved';
+    }
+
+    if (
+      normalizedType === 'PAYMENT_REJECTED' ||
+      normalizedType === 'PAYMENT_DECLINED' ||
+      normalizedStatus === 'rejected' ||
+      normalizedStatus === 'declined'
+    ) {
+      return 'rejected';
+    }
+
+    return 'pending';
+  }, [isPaymentApprovedLike, parseNotificationData]);
+
+  const enrichNotificationStatus = useCallback((notification) => {
+    const notificationData = parseNotificationData(notification);
+    const resolvedStatus = resolveNotificationStatus(notification, notificationData);
+    const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
+
+    if (resolvedStatus === 'approved') {
       return {
         ...notification,
         parsedData: notificationData,
-        resolvedStatus: 'approved',
+        resolvedStatus,
         title: notification.title || 'Operacion exitosa',
         body:
           notification.body ||
@@ -96,88 +118,118 @@ export default function NotificationsScreen() {
       };
     }
 
-    if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
-      return {
-        ...notification,
-        parsedData: notificationData,
-        resolvedStatus: 'pending',
-      };
-    }
-
-    try {
-      const statusResponse = await transactionStatusRef.current(transactionId);
-      const resolvedStatus = statusResponse?.data?.status ?? 'pending';
-      const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
-
-      if (resolvedStatus === 'approved') {
-        return {
-          ...notification,
-          parsedData: notificationData,
-          resolvedStatus,
-          title: 'Operaci\u00f3n exitosa',
-          body: `Pago completado por $${totalAmount.toFixed(2)}`,
-        };
-      }
-
-      if (resolvedStatus === 'rejected') {
-        return {
-          ...notification,
-          parsedData: notificationData,
-          resolvedStatus,
-          title: 'Atenci\u00f3n',
-          body: `Pago rechazado por $${totalAmount.toFixed(2)}`,
-        };
-      }
-
+    if (resolvedStatus === 'rejected') {
       return {
         ...notification,
         parsedData: notificationData,
         resolvedStatus,
+        title: notification.title || 'Atencion',
+        body:
+          notification.body ||
+          (totalAmount > 0
+            ? `Pago rechazado por $${totalAmount.toFixed(2)}`
+            : 'Pago rechazado'),
       };
-    } catch {
+    }
+
+    if (notificationData?.type !== 'PAYMENT_REQUEST') {
       return {
         ...notification,
         parsedData: notificationData,
         resolvedStatus: 'pending',
       };
     }
-  }, [isPaymentApprovedLike, parseNotificationData]);
+
+    return {
+      ...notification,
+      parsedData: notificationData,
+      resolvedStatus: 'pending',
+    };
+  }, [parseNotificationData, resolveNotificationStatus]);
+
+  const updateNotificationStatusLocally = useCallback((transactionId, resolvedStatus) => {
+    const normalizedTransactionId = String(transactionId ?? '');
+
+    if (!normalizedTransactionId) {
+      return;
+    }
+
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) => {
+        const parsedData = notification.parsedData ?? parseNotificationData(notification);
+        const matchesTransaction = String(parsedData?.transactionId ?? '') === normalizedTransactionId;
+
+        if (!matchesTransaction) {
+          return notification;
+        }
+
+        const nextData = {
+          ...parsedData,
+          status: resolvedStatus,
+          paymentStatus: resolvedStatus,
+          resolvedStatus,
+        };
+
+        return enrichNotificationStatus({
+          ...notification,
+          data: nextData,
+          parsedData: nextData,
+        });
+      })
+    );
+  }, [enrichNotificationStatus, parseNotificationData]);
 
   const loadNotifications = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
-      console.log('Notifications screen URL:', notificationsUrl);
+    if (loadNotificationsPromiseRef.current) {
+      return await loadNotificationsPromiseRef.current;
+    }
 
-      const response = await fetch(notificationsUrl, {
-        headers: {
-          ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
+    const runLoadNotifications = async () => {
+      try {
+        setLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+        console.log('Notifications screen URL:', notificationsUrl);
 
-      const rawResponse = await response.text();
-      const data = rawResponse ? JSON.parse(rawResponse) : null;
-      console.log('Notifications screen status:', response.status);
-
-      if (data?.success) {
-        const rows = Array.isArray(data.data) ? data.data : [];
-        const sortedRows = [...rows].sort((left, right) => {
-          const leftDate = new Date(left?.created_at ?? 0).getTime();
-          const rightDate = new Date(right?.created_at ?? 0).getTime();
-          return rightDate - leftDate;
+        const response = await fetch(notificationsUrl, {
+          headers: {
+            ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
         });
-        const enrichedRows = await Promise.all(sortedRows.map(enrichNotificationStatus));
-        setVisibleCount(10);
-        setNotifications(enrichedRows);
-      } else {
-        console.log('Notifications screen respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
+
+        const rawResponse = await response.text();
+        const data = rawResponse ? JSON.parse(rawResponse) : null;
+        console.log('Notifications screen status:', response.status);
+
+        if (data?.success) {
+          const rows = Array.isArray(data.data) ? data.data : [];
+          const sortedRows = [...rows].sort((left, right) => {
+            const leftDate = new Date(left?.created_at ?? 0).getTime();
+            const rightDate = new Date(right?.created_at ?? 0).getTime();
+            return rightDate - leftDate;
+          });
+          const enrichedRows = sortedRows.map(enrichNotificationStatus);
+          setVisibleCount(10);
+          setNotifications(enrichedRows);
+        } else {
+          console.log('Notifications screen respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+      } finally {
+        setLoading(false);
+        loadNotificationsPromiseRef.current = null;
       }
+    };
+
+    loadNotificationsPromiseRef.current = runLoadNotifications();
+
+    try {
+      return await loadNotificationsPromiseRef.current;
     } catch (error) {
-      console.error('Error loading notifications:', error);
-    } finally {
-      setLoading(false);
+      loadNotificationsPromiseRef.current = null;
+      throw error;
     }
   }, [enrichNotificationStatus]);
 
@@ -205,12 +257,12 @@ export default function NotificationsScreen() {
       const data = await approvePaymentRequest(transactionId);
 
       if (data?.success) {
+        updateNotificationStatusLocally(transactionId, 'approved');
         DeviceEventEmitter.emit('refreshClientBalanceNow');
         Alert.alert(
           'Operaci\u00f3n exitosa',
           'El pago ha sido aprobado exitosamente. Volveras a Inicio para ver tu saldo actualizado.'
         );
-        loadNotifications();
         setTimeout(() => {
           navigateClientHome();
         }, 1200);
@@ -222,15 +274,15 @@ export default function NotificationsScreen() {
       console.error('Error aprobando pago:', error);
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar la aprobacion');
     }
-  }, [approvePaymentRequest, loadNotifications, navigateClientHome]);
+  }, [approvePaymentRequest, navigateClientHome, updateNotificationStatusLocally]);
 
   const rejectPayment = useCallback(async (transactionId) => {
     try {
       const data = await rejectPaymentRequest(transactionId);
 
       if (data?.success) {
+        updateNotificationStatusLocally(transactionId, 'rejected');
         Alert.alert('Atenci\u00f3n', 'El pago ha sido rechazado');
-        loadNotifications();
         return;
       }
 
@@ -239,7 +291,7 @@ export default function NotificationsScreen() {
       console.error('Error rechazando pago:', error);
       Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar el rechazo');
     }
-  }, [loadNotifications, rejectPaymentRequest]);
+  }, [rejectPaymentRequest, updateNotificationStatusLocally]);
 
   const openPaymentRequestDialog = useCallback((notificationData) => {
     if (!notificationData?.transactionId) {
@@ -544,5 +596,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-
