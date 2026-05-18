@@ -2,9 +2,10 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import InstitutionalProfileScreen from '../../components/screens/InstitutionalProfileScreen';
 import PayHistory from '../../components/screens/PayHistory';
 import SalesHistory from '../../components/screens/SalesHistory ';
-import { getRoleLabel, ROLE_IDS } from '../../constants/roles';
+import { getRoleLabel, hasQrWalletProfile, isConsumerProfile, isInstitutionalPortalProfile, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 import { useApi } from '../../hooks/useApi';
 
@@ -112,7 +113,7 @@ export default function ProfileScreen() {
   const [receptionOrdersMessage, setReceptionOrdersMessage] = useState('');
   const hotelHospedajesRef = useRef(getHotelHospedajes);
 
-  const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
+  const isClient = isConsumerProfile(user?.id_perfil);
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
@@ -120,7 +121,7 @@ export default function ProfileScreen() {
   const isProviderOrClient = isProvider || isClient;
   const isAdminOrManager =
     user?.id_perfil === ROLE_IDS.ADMIN || user?.id_perfil === ROLE_IDS.MANAGER;
-  const canManageOwnWalletView = isAdminOrManager || isCashier;
+  const canManageOwnWalletView = hasQrWalletProfile(user?.id_perfil);
   const showInternalMeta = !isProviderOrClient && !isAdminOrManager && !isCashier;
   const showsAssignedEstablishments =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
@@ -207,6 +208,10 @@ export default function ProfileScreen() {
       setRefreshingProfile(false);
     }
   }, [loadOwnBalance, loadReceptionOrders]);
+
+  if (isInstitutionalPortalProfile(user?.id_perfil)) {
+    return <InstitutionalProfileScreen />;
+  }
 
   if (isClient) {
     return <PayHistory />;

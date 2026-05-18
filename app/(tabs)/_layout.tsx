@@ -1,18 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { ROLE_IDS } from '../../constants/roles';
+import { isConsumerProfile, isInstitutionalPortalProfile, ROLE_IDS } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function TabLayout() {
   const { user } = useAuth();
-  const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
+  const isClient = isConsumerProfile(user?.id_perfil);
+  const isInstitutionalPortal = isInstitutionalPortalProfile(user?.id_perfil);
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
   const isReception = user?.id_perfil === ROLE_IDS.RECEPTION;
   const isProviderOrBusinessManager = isProvider || isBusinessManager;
   const showNotificationsTab = isClient || isProviderOrBusinessManager;
-  const showParticipantsTab = !isBusinessManager && !isCashier && !isReception;
+  const showParticipantsTab = !isInstitutionalPortal && !isBusinessManager && !isCashier && !isReception;
+  const showConsumptionTab = isInstitutionalPortal;
 
   return (
     <Tabs
@@ -41,10 +43,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: isClient ? 'Consumo' : isProviderOrBusinessManager ? 'Ventas' : 'Perfil',
+          title: isInstitutionalPortal ? 'Mi perfil' : isClient ? 'Consumo' : isProviderOrBusinessManager ? 'Ventas' : 'Perfil',
           tabBarIcon: ({ color, size }) => (
             <Ionicons
-              name={isClient || isProviderOrBusinessManager ? 'receipt-outline' : 'person-outline'}
+              name={isInstitutionalPortal ? 'person-outline' : isClient || isProviderOrBusinessManager ? 'receipt-outline' : 'person-outline'}
               size={size}
               color={color}
             />
@@ -64,8 +66,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="consumption"
         options={{
-          href: null,
-          title: 'Consumo',
+          href: showConsumptionTab ? '/consumption' : null,
+          title: 'Consumos',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="receipt-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -73,6 +78,23 @@ export default function TabLayout() {
         options={{
           href: null,
           title: 'Entrega de QR',
+        }}
+      />
+      <Tabs.Screen
+        name="institutional-users"
+        options={{
+          href: isInstitutionalPortal ? '/institutional-users' : null,
+          title: 'Usuarios',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="institutional-budget"
+        options={{
+          href: null,
+          title: 'Partida',
         }}
       />
       <Tabs.Screen

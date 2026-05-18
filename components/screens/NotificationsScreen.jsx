@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, DeviceEventEmitter, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ENV } from '../../constants/env';
-import { hasPermission, ROLE_IDS } from '../../constants/roles';
+import { hasPermission, isConsumerProfile, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
@@ -20,9 +20,9 @@ export default function NotificationsScreen() {
   const autoOpenedTransactionsRef = useRef(new Set());
   const loadNotificationsPromiseRef = useRef(null);
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
-  const usesPaymentDecisionAlert = [ROLE_IDS.CLIENT, ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(
-    Number(user?.id_perfil ?? 0)
-  );
+  const usesPaymentDecisionAlert =
+    isConsumerProfile(user?.id_perfil) ||
+    [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   const parseNotificationData = useCallback((notification) => {
     if (!notification) {
@@ -249,7 +249,7 @@ export default function NotificationsScreen() {
 
   const navigateClientHome = useCallback(() => {
     DeviceEventEmitter.emit('closeClientQrModal');
-    router.replace(usesPaymentDecisionAlert && Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT ? '/profile' : '/(tabs)');
+    router.replace(usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil) ? '/profile' : '/(tabs)');
   }, [router, user?.id_perfil, usesPaymentDecisionAlert]);
 
   const approvePayment = useCallback(async (transactionId) => {
@@ -357,7 +357,7 @@ export default function NotificationsScreen() {
       if (isPaymentApprovedLike(notification, notificationData)) {
         DeviceEventEmitter.emit('refreshClientBalanceNow');
         DeviceEventEmitter.emit('closeClientQrModal');
-        router.replace(usesPaymentDecisionAlert && Number(user?.id_perfil ?? 0) !== ROLE_IDS.CLIENT ? '/profile' : '/(tabs)');
+        router.replace(usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil) ? '/profile' : '/(tabs)');
       }
     } catch (error) {
       console.error('Error procesando notificacion:', error);

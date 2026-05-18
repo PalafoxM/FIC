@@ -26,7 +26,7 @@ import SignatureCanvas from "react-native-signature-canvas";
 import * as ImageManipulator from "expo-image-manipulator";
 import { ENV } from "../../constants/env";
 // ------------------------------------------------------------
-import { hasPermission } from "../../constants/roles";
+import { hasPermission, ROLE_IDS } from "../../constants/roles";
 import { useAuth } from "../../hooks/useAuth";
 import AccessDenied from "../AccessDenied";
 
@@ -36,7 +36,15 @@ const STEP_BACK = "back";
 const STEP_REVIEW = "review";
 const STEP_SIGNATURE = "signature";
 const STEP_SUMMARY = "summary";
-const SELF_ACTIVATION_PROFILE_IDS = new Set([1, 3, 4, 6]);
+const SELF_ACTIVATION_PROFILE_IDS = new Set([
+  ROLE_IDS.ADMIN,
+  ROLE_IDS.CLIENT,
+  ROLE_IDS.MANAGER,
+  ROLE_IDS.CASHIER,
+  ROLE_IDS.SECUL,
+  ROLE_IDS.FIC,
+  ROLE_IDS.UG,
+]);
 // DIMENSIONES DEL MARCO DE CAPTURA --------------------------------------------
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CAMERA_CONTAINER_WIDTH = SCREEN_WIDTH - 40;
@@ -244,7 +252,7 @@ export default function CashierProcessScreen() {
   const isClientActivation =
     activationMode === "client" &&
     SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
-  const isNativeClientProfile = Number(user?.id_perfil ?? 0) === 3;
+  const isNativeClientProfile = Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
   const usesClientActivationEndpoints =
     isClientActivation && isNativeClientProfile;
   const requiresTiReviewAfterSelfService =

@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ROLE_IDS } from '../../constants/roles';
+import { isConsumerProfile, ROLE_IDS } from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
@@ -28,11 +28,13 @@ const PayHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
-  const canViewConsumption = [ROLE_IDS.ADMIN, ROLE_IDS.CLIENT, ROLE_IDS.MANAGER].includes(
-    Number(user?.id_perfil ?? 0)
-  );
-  const canCreateReport = [ROLE_IDS.CLIENT, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
-  const isClient = Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
+  const canViewConsumption =
+    [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0)) ||
+    isConsumerProfile(user?.id_perfil);
+  const canCreateReport =
+    isConsumerProfile(user?.id_perfil) ||
+    Number(user?.id_perfil ?? 0) === ROLE_IDS.MANAGER;
+  const isClient = isConsumerProfile(user?.id_perfil);
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   const reportOptions = [

@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import { ENV } from '../constants/env';
-import { ROLE_IDS } from '../constants/roles';
+import { isConsumerProfile, ROLE_IDS } from '../constants/roles';
 import { useApi } from './useApi';
 import { useAuth } from './useAuth';
 
@@ -135,7 +135,7 @@ export const usePaymentRequestAlerts = () => {
 
   useEffect(() => {
     const numericPerfil = Number(user?.id_perfil ?? 0);
-    const isClient = numericPerfil === ROLE_IDS.CLIENT;
+    const isClient = isConsumerProfile(numericPerfil);
     const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
     const isManager = numericPerfil === ROLE_IDS.MANAGER;
     const usesPaymentDecisionAlert = isClient || isAdmin || isManager;

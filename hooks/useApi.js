@@ -178,6 +178,139 @@ const extractHotelHospedajesRows = (payload) => {
   return [];
 };
 
+const extractCollectionRows = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.rows)) {
+    return payload.rows;
+  }
+
+  if (Array.isArray(payload?.result)) {
+    return payload.result;
+  }
+
+  if (Array.isArray(payload?.respuesta)) {
+    return payload.respuesta;
+  }
+
+  if (Array.isArray(payload?.data?.rows)) {
+    return payload.data.rows;
+  }
+
+  if (Array.isArray(payload?.data?.result)) {
+    return payload.data.result;
+  }
+
+  if (Array.isArray(payload?.data?.respuesta)) {
+    return payload.data.respuesta;
+  }
+
+  return [];
+};
+
+const normalizeInstitutionalUserRecord = (record = {}, index = 0) => ({
+  ...record,
+  id_usuario:
+    record?.id_usuario ??
+    record?.idUsuario ??
+    record?.id ??
+    `usuario-${index}`,
+  id_partida:
+    record?.id_partida ??
+    record?.idPartida ??
+    record?.partida_id ??
+    null,
+  id_perfil:
+    record?.id_perfil ??
+    record?.idPerfil ??
+    null,
+  id_establecimiento:
+    record?.id_establecimiento ??
+    record?.idEstablecimiento ??
+    null,
+  nombre_completo:
+    String(record?.nombre_completo ?? '').trim() ||
+    [record?.nombre, record?.primer_apellido, record?.segundo_apellido]
+      .filter(Boolean)
+      .join(' ')
+      .trim() ||
+    record?.usuario ||
+    'Usuario sin nombre',
+  usuario:
+    String(record?.usuario ?? record?.username ?? '').trim(),
+  correo:
+    String(record?.correo ?? record?.email ?? '').trim(),
+  perfil_label:
+    String(record?.perfil_label ?? record?.dsc_perfil ?? record?.perfil ?? '').trim(),
+  partida_label:
+    String(record?.partida_label ?? record?.dsc_partida ?? record?.partida ?? '').trim(),
+  qr_activo:
+    Number(record?.qr_activo ?? record?.activo_qr ?? 0) === 1,
+  saldo:
+    Number(record?.saldo ?? record?.saldo_actual ?? record?.monto_deposito ?? 0),
+});
+
+const normalizePartidaRecord = (record = {}, index = 0) => ({
+  ...record,
+  id_partida:
+    record?.id_partida ??
+    record?.idPartida ??
+    record?.id ??
+    `partida-${index}`,
+  clave_partida:
+    String(
+      record?.clave_partida ??
+      record?.partida ??
+      record?.codigo ??
+      record?.clave ??
+      '2210'
+    ).trim(),
+  nombre_partida:
+    String(
+      record?.nombre_partida ??
+      record?.dsc_partida ??
+      record?.descripcion ??
+      record?.nombre ??
+      'Partida 2210'
+    ).trim(),
+  total:
+    Number(
+      record?.total ??
+      record?.monto_total ??
+      record?.importe_total ??
+      record?.saldo_total ??
+      0
+    ),
+  disponible:
+    Number(
+      record?.disponible ??
+      record?.saldo_disponible ??
+      record?.monto_disponible ??
+      record?.importe_disponible ??
+      0
+    ),
+  ejercido:
+    Number(
+      record?.ejercido ??
+      record?.monto_ejercido ??
+      record?.importe_ejercido ??
+      0
+    ),
+  usuarios:
+    Number(
+      record?.usuarios ??
+      record?.usuarios_activos ??
+      record?.total_usuarios ??
+      0
+    ),
+});
+
 const decodeJwtPayload = (token) => {
   try {
     const parts = String(token || '').split('.');
@@ -808,6 +941,69 @@ export const useApi = () => {
     }
   };
 
+  const getInstitutionalUsers = async () => {
+    const data = await getPhpJsonResponse({
+      path: '/Inicio/usuariosFic',
+      method: 'GET',
+      fallbackMessage: 'Consultando usuarios institucionales',
+    });
+
+    const rows = extractCollectionRows(data);
+
+    return {
+      success: true,
+      data: rows.map((row, index) => normalizeInstitutionalUserRecord(row, index)),
+      message:
+        data?.respuesta ||
+        data?.message ||
+        'Usuarios institucionales consultados correctamente',
+    };
+  };
+
+  const getInstitutionalPartidas = async () => {
+    const data = await getPhpJsonResponse({
+      path: '/Inicio/partidasFic',
+      method: 'GET',
+      fallbackMessage: 'Consultando partidas institucionales',
+    });
+
+    const rows = extractCollectionRows(data);
+
+    return {
+      success: true,
+      data: rows.map((row, index) => normalizePartidaRecord(row, index)),
+      message:
+        data?.respuesta ||
+        data?.message ||
+        'Partidas institucionales consultadas correctamente',
+    };
+  };
+
+  const getInstitutionalPartidasDashboard = async () => {
+    const data = await getPhpJsonResponse({
+      path: '/Inicio/getDashboardPartidasFic',
+      method: 'POST',
+      body: {},
+      fallbackMessage: 'Consultando dashboard de partidas institucionales',
+    });
+
+    const rows = extractCollectionRows(data);
+    const normalizedRows = rows.map((row, index) => normalizePartidaRecord(row, index));
+    const firstRow =
+      normalizedRows[0] ??
+      normalizePartidaRecord(data?.data ?? data ?? {}, 0);
+
+    return {
+      success: true,
+      data: normalizedRows.length > 0 ? normalizedRows : [firstRow],
+      summary: firstRow,
+      message:
+        data?.respuesta ||
+        data?.message ||
+        'Dashboard de partidas institucionales consultado correctamente',
+    };
+  };
+
   return {
     createPaymentRequest,
     createTransaction,
@@ -816,6 +1012,9 @@ export const useApi = () => {
     getPaymentReports,
     createManagerRequest,
     getHotelHospedajes,
+    getInstitutionalPartidas,
+    getInstitutionalPartidasDashboard,
+    getInstitutionalUsers,
     getHotelOrderByQr,
     getUserTransactions,
     registerHotelCheckIn,

@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, DeviceEventEmitter, Text, View } from 'react-native';
+import { isConsumerProfile } from '../constants/roles';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { usePaymentRequestAlerts } from '../hooks/usePaymentRequestAlerts';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -35,6 +36,7 @@ function RootLayoutContent() {
   const segments = useSegments();
   const numericPerfil = Number(user?.id_perfil ?? 0);
   const shouldRouteToProfileOnBalanceView = numericPerfil === 1 || numericPerfil === 4;
+  const isConsumer = isConsumerProfile(numericPerfil);
 
   usePushNotifications();
   usePaymentRequestAlerts();
@@ -73,7 +75,7 @@ function RootLayoutContent() {
       } else if (isPaymentApprovedLike(data)) {
         DeviceEventEmitter.emit('refreshClientBalanceNow');
         DeviceEventEmitter.emit('closeClientQrModal');
-        router.push(shouldRouteToProfileOnBalanceView ? '/profile' : '/(tabs)');
+        router.push(shouldRouteToProfileOnBalanceView && !isConsumer ? '/profile' : '/(tabs)');
       } else if (data.type === 'QR_READY' || data.type === 'QR_ACTIVATION_REJECTED') {
         DeviceEventEmitter.emit('refreshClientQrActivationState');
         DeviceEventEmitter.emit('refreshClientBalanceNow');
@@ -85,7 +87,7 @@ function RootLayoutContent() {
       receivedSubscription.remove();
       subscription.remove();
     };
-  }, [router, shouldRouteToProfileOnBalanceView]);
+  }, [isConsumer, router, shouldRouteToProfileOnBalanceView]);
 
   if (loading) {
     return (

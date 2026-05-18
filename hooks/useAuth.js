@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getInstitutionalEstablishment, ROLE_IDS } from '../constants/roles';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
@@ -80,13 +81,51 @@ const normalizeEstablishments = (payload, userRecord) => {
     .filter((item) => item.id_establecimiento !== null);
 };
 
+const applyInstitutionalEstablishment = (baseUser, baseEstablishments = []) => {
+  const institutionalEstablishment = getInstitutionalEstablishment(baseUser?.id_perfil);
+
+  if (!institutionalEstablishment) {
+    return {
+      normalizedUser: baseUser,
+      establecimientos: baseEstablishments,
+    };
+  }
+
+  const normalizedInstitutionalEstablishment = {
+    id_establecimiento: institutionalEstablishment.id_establecimiento,
+    dsc_establecimiento:
+      baseUser?.dsc_establecimiento ??
+      baseUser?.establecimiento_nombre ??
+      institutionalEstablishment.dsc_establecimiento,
+    id_tipo:
+      baseUser?.id_tipo_establecimiento ??
+      baseUser?.id_tipo ??
+      institutionalEstablishment.id_tipo,
+  };
+
+  return {
+    normalizedUser: {
+      ...baseUser,
+      id_establecimiento: institutionalEstablishment.id_establecimiento,
+      id_partida: baseUser?.id_partida ?? institutionalEstablishment.id_partida ?? null,
+      id_tipo_establecimiento:
+        baseUser?.id_tipo_establecimiento ??
+        baseUser?.id_tipo ??
+        institutionalEstablishment.id_tipo,
+      dsc_establecimiento: normalizedInstitutionalEstablishment.dsc_establecimiento,
+      establecimiento_nombre: normalizedInstitutionalEstablishment.dsc_establecimiento,
+    },
+    establecimientos: [normalizedInstitutionalEstablishment],
+  };
+};
+
 const normalizeAuthenticatedUser = (payload, userRecord) => {
   if (!userRecord) {
     return null;
   }
 
   const establecimientos = normalizeEstablishments(payload, userRecord);
-  const normalizedUser = {
+  const baseUser = {
     ...userRecord,
     saldo:
       userRecord?.monto_deposito ??
@@ -99,12 +138,17 @@ const normalizeAuthenticatedUser = (payload, userRecord) => {
       null,
   };
 
-  if (establecimientos.length > 0) {
-    normalizedUser.establecimientos = establecimientos;
+  const {
+    normalizedUser,
+    establecimientos: resolvedEstablishments,
+  } = applyInstitutionalEstablishment(baseUser, establecimientos);
+
+  if (resolvedEstablishments.length > 0) {
+    normalizedUser.establecimientos = resolvedEstablishments;
   }
 
   if (
-    normalizedUser.id_perfil === 5 &&
+    Number(normalizedUser.id_perfil) === ROLE_IDS.BUSINESS_MANAGER &&
     !normalizedUser.establecimientos &&
     normalizedUser.id_establecimiento
   ) {
@@ -484,8 +528,7 @@ export function AuthProvider({ children }) {
       const hydratedUserRow = normalizeTableRows(userResponse?.data)?.[0] ?? null;
       const qrRows = normalizeTableRows(qrResponse?.data);
       const validQrRow = qrRows.find((row) => isQrCurrentlyValid(row)) ?? null;
-
-      return {
+      const hydratedUser = {
         ...baseUser,
         ...(hydratedUserRow ?? {}),
         saldo:
@@ -506,6 +549,13 @@ export function AuthProvider({ children }) {
         vigente_hasta: validQrRow?.vigente_hasta ?? qrRows?.[0]?.vigente_hasta ?? null,
         ...normalizeQrStatus(validQrRow ?? qrRows?.[0] ?? null),
       };
+
+      return normalizeAuthenticatedUser(
+        {
+          establecimientos: baseUser?.establecimientos,
+        },
+        hydratedUser
+      );
     } catch (currentError) {
       console.error('Error hydrating authenticated user:', currentError);
       return baseUser;

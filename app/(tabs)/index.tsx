@@ -15,7 +15,14 @@ import {
   View,
 } from 'react-native';
 import ClientQRGenerator from '../../components/ClientQRGenerator';
-import { getRoleConfig, getRoleLabel, ROLE_IDS } from '../../constants/roles';
+import {
+  getRoleConfig,
+  getRoleLabel,
+  isConsumerProfile,
+  isInstitutionalPortalProfile,
+  resolveInstitutionalPartida,
+  ROLE_IDS,
+} from '../../constants/roles';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -27,14 +34,54 @@ const ADMIN_FILTERS = [
   { id: ROLE_IDS.MANAGER, label: 'Gestor' },
   { id: ROLE_IDS.BUSINESS_MANAGER, label: 'Gerente' },
   { id: ROLE_IDS.RECEPTION, label: 'Recepcion' },
+  { id: ROLE_IDS.SECUL, label: 'SECUL' },
+  { id: ROLE_IDS.FIC, label: 'FIC' },
+  { id: ROLE_IDS.UG, label: 'UG' },
+];
+
+const buildAdminOverviewCards = () => [
+  {
+    key: 'partidas',
+    title: 'Partidas',
+    description: 'Consulta el resumen administrativo y la informacion asociada a partidas institucionales.',
+  },
+  {
+    key: 'usuarios',
+    title: 'Usuarios',
+    description: 'Consulta usuarios, su perfil, establecimiento y estado de QR.',
+  },
+  {
+    key: 'establecimientos',
+    title: 'Establecimientos',
+    description: 'Acceso de referencia a participantes y establecimientos del ecosistema.',
+  },
+  {
+    key: 'pagos',
+    title: 'Pagos',
+    description: 'Consulta pagos registrados, montos, totales y trazabilidad operativa.',
+  },
+  {
+    key: 'solicitudes',
+    title: 'Solicitudes',
+    description: 'Revisa solicitudes de activacion QR pendientes de atencion.',
+  },
+  {
+    key: 'reportes',
+    title: 'Reportes',
+    description: 'Consulta reportes de pagos y da seguimiento a su resolucion.',
+  },
+  {
+    key: 'movimientos_hospedaje',
+    title: 'Movimientos de hospedaje',
+    description: 'Vista de referencia para el flujo hotelero y sus movimientos asociados.',
+  },
 ];
 
 const buildAdminCards = () => [
   {
     key: 'reports',
-    title: 'Reportes',
+    title: 'Reportes y pagos',
     description: 'Consulta reportes de pagos, pagos registrados y solicitudes de activacion QR.',
-    actionLabel: 'Vista administrativa disponible',
   },
 ];
 
@@ -316,12 +363,21 @@ export default function HomeScreen() {
   const roleConfig = getRoleConfig(user?.id_perfil);
   const isProvider =
     user?.id_perfil === ROLE_IDS.PROVIDER || user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
-  const isClient = user?.id_perfil === ROLE_IDS.CLIENT;
+  const isClient = isConsumerProfile(user?.id_perfil);
+  const isInstitutionalPortal = isInstitutionalPortalProfile(user?.id_perfil);
   const isAdmin = user?.id_perfil === ROLE_IDS.ADMIN;
   const isManagerProfile = user?.id_perfil === ROLE_IDS.MANAGER;
   const isCashier = user?.id_perfil === ROLE_IDS.CASHIER;
   const isReception = user?.id_perfil === ROLE_IDS.RECEPTION;
   const isAdminOrManager = isAdmin || isManagerProfile;
+  const effectiveInstitutionalPartida = useMemo(
+    () => resolveInstitutionalPartida(user),
+    [user]
+  );
+  const institutionalPartidaLabel =
+    effectiveInstitutionalPartida?.clave_partida ||
+    effectiveInstitutionalPartida?.nombre_partida ||
+    'Partida asignada';
   const baseProviderEstablishments = useMemo(() => {
     const rawList = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
 
@@ -1150,6 +1206,33 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>{roleConfig.homeSubtitle}</Text>
         </View>
 
+        {isInstitutionalPortal && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Accesos institucionales</Text>
+
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/institutional-budget')}>
+              <Text style={styles.cardTitle}>Ver partida</Text>
+              <Text style={styles.cardDescription}>
+                {`Consulta ${institutionalPartidaLabel} filtrada para tu perfil sin mostrar otras partidas.`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/profile')}>
+              <Text style={styles.cardTitle}>Mi perfil</Text>
+              <Text style={styles.cardDescription}>
+                Revisa tu saldo disponible, QR, datos basicos y el historial de consumos propios.
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/institutional-users')}>
+              <Text style={styles.cardTitle}>Usuarios</Text>
+              <Text style={styles.cardDescription}>
+                {`Vista de solo consulta con los usuarios visibles de ${institutionalPartidaLabel}.`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {isProvider && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Acciones de proveedor</Text>
@@ -1215,9 +1298,9 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {isClient && (
+        {isClient && !isInstitutionalPortal && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Acciones de cliente</Text>
+            <Text style={styles.sectionTitle}>Acciones de consumo</Text>
 
             <View style={styles.balanceCard}>
               <Text style={styles.balanceLabel}>Saldo disponible</Text>
@@ -1235,12 +1318,23 @@ export default function HomeScreen() {
         {isAdminOrManager && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Reportes</Text>
+              <Text style={styles.sectionTitle}>Panel TI</Text>
+              {buildAdminOverviewCards().map((card) => (
+                <View key={card.key} style={styles.card}>
+                  <Text style={styles.cardTitle}>{card.title}</Text>
+                  <Text style={styles.cardDescription}>{card.description}</Text>
+                  <Text style={styles.cardMeta}>Vista administrativa disponible</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Pagos y reportes</Text>
               {buildAdminCards().map((card) => (
                 <View key={card.key} style={styles.card}>
                   <Text style={styles.cardTitle}>{card.title}</Text>
                   <Text style={styles.cardDescription}>{card.description}</Text>
-                  <Text style={styles.cardMeta}>{card.actionLabel}</Text>
+                  <Text style={styles.cardMeta}>Vista administrativa disponible</Text>
 
                   {isAdmin ? (
                     <>
