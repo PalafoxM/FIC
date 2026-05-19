@@ -103,7 +103,6 @@ const getRecordTimestamp = (record) =>
 const GENERIC_ESTABLISHMENT_LABELS = new Set([
   'establecimiento',
   'establecimiento asignado',
-  'establecimiento principal',
   'sin establecimiento',
 ]);
 
@@ -379,9 +378,14 @@ export default function HomeScreen() {
     effectiveInstitutionalPartida?.nombre_partida ||
     'Partida asignada';
   const baseProviderEstablishments = useMemo(() => {
-    const rawList = Array.isArray(user?.establecimientos) ? user.establecimientos : [];
+    const rawList =
+      user?.establecimientos ??
+      user?.assignedEstablishments ??
+      user?.proveedorEstablecimientos ??
+      user?.establishments ??
+      [];
 
-    if (rawList.length > 0) {
+    if (Array.isArray(rawList) && rawList.length > 0) {
       return rawList
         .map((establecimiento) => ({
           ...establecimiento,
@@ -395,17 +399,8 @@ export default function HomeScreen() {
         .filter((establecimiento) => establecimiento.id_establecimiento !== null);
     }
 
-    if (isProvider && user?.id_establecimiento) {
-      return [
-        {
-          id_establecimiento: user.id_establecimiento,
-          dsc_establecimiento: getEstablishmentDisplayName(user),
-        },
-      ];
-    }
-
     return [];
-  }, [isProvider, user]);
+  }, [user]);
 
   const providerEstablishments =
     providerEstablishmentsView.length > 0 ? providerEstablishmentsView : baseProviderEstablishments;
@@ -1235,14 +1230,18 @@ export default function HomeScreen() {
 
         {isProvider && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Acciones de proveedor</Text>
+            <Text style={styles.sectionTitle}>
+              {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
+                ? 'Operacion comercial'
+                : 'Acciones de proveedor'}
+            </Text>
 
             {providerEstablishments.length > 0 && (
               <View style={styles.establishmentsCard}>
                 <Text style={styles.establishmentsLabel}>
                   {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
                     ? 'Establecimiento asignado'
-                    : 'Establecimiento activo para cobro'}
+                    : 'Establecimientos ligados para operar'}
                 </Text>
                 <View style={styles.establishmentsList}>
                   {providerEstablishments.map((establecimiento) => {
@@ -1267,6 +1266,16 @@ export default function HomeScreen() {
                     );
                   })}
                 </View>
+              </View>
+            )}
+
+            {providerEstablishments.length === 0 && (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyBoxText}>
+                  {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
+                    ? 'No tienes un establecimiento ligado disponible para operar en este momento.'
+                    : 'No tienes establecimientos ligados disponibles para operar. Cuando backend relacione establecimientos con tu usuario proveedor, apareceran aqui.'}
+                </Text>
               </View>
             )}
 

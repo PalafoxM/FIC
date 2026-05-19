@@ -53,9 +53,12 @@ const normalizeEstablishments = (payload, userRecord) => {
   const rawList =
     userRecord?.establecimientos ??
     userRecord?.proveedorEstablecimientos ??
+    userRecord?.assignedEstablishments ??
+    userRecord?.establishments ??
     payload?.establecimientos ??
     payload?.proveedorEstablecimientos ??
     payload?.assignedEstablishments ??
+    payload?.establishments ??
     [];
 
   if (!Array.isArray(rawList)) {
@@ -127,6 +130,14 @@ const normalizeAuthenticatedUser = (payload, userRecord) => {
   const establecimientos = normalizeEstablishments(payload, userRecord);
   const baseUser = {
     ...userRecord,
+    no_proveedor:
+      userRecord?.no_proveedor ??
+      userRecord?.numero_proveedor ??
+      userRecord?.proveedor_numero ??
+      payload?.no_proveedor ??
+      payload?.numero_proveedor ??
+      payload?.proveedor_numero ??
+      null,
     saldo:
       userRecord?.monto_deposito ??
       userRecord?.saldo ??

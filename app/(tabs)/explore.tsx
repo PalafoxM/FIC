@@ -39,6 +39,39 @@ const getEmptyManagerForm = () => ({
   correo: '',
 });
 
+const getProviderLinkedEstablishments = (user) => {
+  const rawList =
+    user?.establecimientos ??
+    user?.assignedEstablishments ??
+    user?.proveedorEstablecimientos ??
+    user?.establishments ??
+    [];
+
+  if (!Array.isArray(rawList)) {
+    return [];
+  }
+
+  return rawList
+    .map((item, index) => ({
+      id_establecimiento:
+        item?.id_establecimiento ??
+        item?.idEstablecimiento ??
+        item?.id ??
+        null,
+      dsc_establecimiento:
+        item?.dsc_establecimiento ??
+        item?.establecimiento_nombre ??
+        item?.nombre ??
+        item?.name ??
+        `Establecimiento ${index + 1}`,
+      id_tipo: item?.id_tipo ?? item?.idTipo ?? null,
+      direccion: item?.direccion ?? null,
+      telefono: item?.telefono ?? null,
+      ubicacion: item?.ubicacion ?? null,
+    }))
+    .filter((item) => item.id_establecimiento !== null);
+};
+
 export default function ExploreScreen() {
   const { user, getTable, saveTable } = useAuth();
   const { createManagerRequest } = useApi();
@@ -53,6 +86,10 @@ export default function ExploreScreen() {
 
   const isProvider = user?.id_perfil === ROLE_IDS.PROVIDER;
   const isBusinessManager = user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
+  const providerLinkedEstablishments = useMemo(
+    () => getProviderLinkedEstablishments(user),
+    [user]
+  );
 
   const title = useMemo(
     () => (isProvider ? 'Mis establecimientos' : 'Establecimientos participantes'),
@@ -61,7 +98,7 @@ export default function ExploreScreen() {
 
   const subtitle = useMemo(() => {
     if (isProvider) {
-      return 'Revisa tus establecimientos y administra a los gerentes de negocio asignados.';
+      return 'Consulta los establecimientos ligados a tu usuario proveedor y los gerentes de negocio relacionados.';
     }
 
     return 'Consulta nombre, tipo y direccion de los establecimientos visibles dentro del programa.';
@@ -151,23 +188,42 @@ export default function ExploreScreen() {
         return;
       }
 
-      const establecimientos = await getTable({
-        tabla: 'establecimiento',
-        where: {
-          visible: 1,
-          no_proveedor: user?.id_usuario,
-        },
-        order: 'dsc_establecimiento ASC',
-      });
+      if (providerLinkedEstablishments.length === 0) {
+        setItems([]);
+        return;
+      }
 
-      const gerentes = await getTable({
-        tabla: 'usuario',
-        where: {
-          visible: 1,
-          id_perfil: 5,
+      const [establecimientos, gerentes] = await Promise.all([
+        getTable({
+          tabla: 'establecimiento',
+          where: {
+            visible: 1,
+          },
+          order: 'dsc_establecimiento ASC',
+        }),
+        getTable({
+          tabla: 'usuario',
+          where: {
+            visible: 1,
+            id_perfil: 5,
+          },
+          order: 'nombre ASC',
+        }),
+      ]);
+
+      const providerEstablishmentIds = new Set(
+        providerLinkedEstablishments.map((item) => String(item.id_establecimiento))
+      );
+      const establecimientosMap = (Array.isArray(establecimientos) ? establecimientos : []).reduce(
+        (accumulator, establecimiento) => {
+          const key = String(establecimiento?.id_establecimiento ?? '');
+          if (key && providerEstablishmentIds.has(key)) {
+            accumulator[key] = establecimiento;
+          }
+          return accumulator;
         },
-        order: 'nombre ASC',
-      });
+        {}
+      );
 
       const gerentesPorEstablecimiento = gerentes.reduce((acc, gerente) => {
         const key = String(gerente.id_establecimiento ?? '');
@@ -184,15 +240,21 @@ export default function ExploreScreen() {
       }, {});
 
       setItems(
-        establecimientos.map((item) => ({
-          id: item.id_establecimiento,
-          title: item.dsc_establecimiento || 'Establecimiento',
-          type: getTipoLabel(item.id_tipo),
-          address: item.direccion || 'Direccion pendiente',
-          phone: item.telefono || 'Telefono pendiente',
-          locationUrl: item.ubicacion || '',
-          managers: gerentesPorEstablecimiento[String(item.id_establecimiento)] || [],
-        }))
+        providerLinkedEstablishments.map((item) => {
+          const matchedEstablishment =
+            establecimientosMap[String(item.id_establecimiento)] ?? item;
+
+          return {
+            id: matchedEstablishment.id_establecimiento,
+            title: matchedEstablishment.dsc_establecimiento || 'Establecimiento',
+            type: getTipoLabel(matchedEstablishment.id_tipo),
+            address: matchedEstablishment.direccion || 'Direccion pendiente',
+            phone: matchedEstablishment.telefono || 'Telefono pendiente',
+            locationUrl: matchedEstablishment.ubicacion || '',
+            managers:
+              gerentesPorEstablecimiento[String(matchedEstablishment.id_establecimiento)] || [],
+          };
+        })
       );
     } catch (error) {
       console.error('Error loading explore data:', error);
@@ -201,7 +263,7 @@ export default function ExploreScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [getTable, isBusinessManager, isProvider, user?.id_usuario]);
+  }, [getTable, isBusinessManager, isProvider, providerLinkedEstablishments, user?.id_usuario]);
 
   useEffect(() => {
     loadData();
@@ -354,7 +416,9 @@ export default function ExploreScreen() {
             <Text style={styles.emptyText}>
               {searchQuery.trim()
                 ? 'No encontramos establecimientos con ese criterio de busqueda.'
-                : 'No hay informacion disponible para mostrar.'}
+                : isProvider
+                  ? 'No tienes establecimientos ligados disponibles para consulta.'
+                  : 'No hay informacion disponible para mostrar.'}
             </Text>
           </View>
         ) : (

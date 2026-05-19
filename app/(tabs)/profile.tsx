@@ -75,18 +75,6 @@ const getAssignedEstablishments = (user) => {
     ];
   }
 
-  if (user?.id_perfil === ROLE_IDS.PROVIDER && user?.id_establecimiento) {
-    return [
-      {
-        id: user.id_establecimiento,
-        name:
-          user?.dsc_establecimiento ??
-          user?.establecimiento_nombre ??
-          'Establecimiento principal',
-      },
-    ];
-  }
-
   return [];
 };
 
@@ -539,7 +527,7 @@ export default function ProfileScreen() {
             <Text style={styles.metaLabel}>
               {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
                 ? 'Establecimiento asignado'
-                : 'Establecimientos asignados'}
+                : 'Establecimientos ligados'}
             </Text>
 
             {assignedEstablishments.length > 0 ? (
@@ -553,7 +541,7 @@ export default function ProfileScreen() {
               ))
             ) : (
               <Text style={styles.metaHint}>
-                Aun no recibimos la lista completa de establecimientos desde backend.
+                No tienes establecimientos ligados disponibles en este momento.
               </Text>
             )}
           </View>
