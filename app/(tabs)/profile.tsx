@@ -39,6 +39,8 @@ const getHotelStatusTone = (value) => {
   return 'pending';
 };
 
+const formatCurrency = (value) => `$${Number(value ?? 0).toFixed(2)}`;
+
 const getAssignedEstablishments = (user) => {
   const rawList =
     user?.establecimientos ??
@@ -127,6 +129,19 @@ export default function ProfileScreen() {
     String(activeEstablecimientoId ?? '') === String(assignedEstablishments[0]?.id ?? '')
       ? 'Activo en app'
       : 'Disponible';
+  const receptionConsumptionSummary = useMemo(() => {
+    return receptionOrders.reduce(
+      (accumulator, order) => ({
+        consumoDevengado:
+          accumulator.consumoDevengado +
+          Number(order?.tarifa_total_hospedaje_devengada ?? 0),
+        totalAsignado:
+          accumulator.totalAsignado +
+          Number(order?.tarifa_total_hospedaje ?? order?.tarifa_total ?? 0),
+      }),
+      { consumoDevengado: 0, totalAsignado: 0 }
+    );
+  }, [receptionOrders]);
 
   const avatarLetter = (user?.nombre || user?.usuario || '?').charAt(0).toUpperCase();
 
@@ -363,6 +378,20 @@ export default function ProfileScreen() {
                 <Text style={styles.receptionMetricLabel}>Módulo principal</Text>
                 <Text style={styles.receptionMetricValue}>Recepción hotelera</Text>
               </View>
+
+              <View style={styles.receptionMetricCard}>
+                <Text style={styles.receptionMetricLabel}>Consumo acumulado</Text>
+                <Text style={styles.receptionMetricValue}>
+                  {formatCurrency(receptionConsumptionSummary.consumoDevengado)}
+                </Text>
+              </View>
+
+              <View style={styles.receptionMetricCard}>
+                <Text style={styles.receptionMetricLabel}>Total asignado</Text>
+                <Text style={styles.receptionMetricValue}>
+                  {formatCurrency(receptionConsumptionSummary.totalAsignado)}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.metaBlock}>
@@ -377,7 +406,7 @@ export default function ProfileScreen() {
                 <View>
                   <Text style={styles.receptionTableTitle}>Hospedajes recientes</Text>
                   <Text style={styles.receptionTableSubtitle}>
-                    Resumen de consulta con folio, noches, estatus y check in.
+                    Resumen de consulta con folio, noches programadas/ocupadas, total asignado y monto devengado.
                   </Text>
                 </View>
 
@@ -425,10 +454,11 @@ export default function ProfileScreen() {
                         </Text>
                       </View>
 
-                      <View style={styles.receptionTableSecondaryCell}>
+                  <View style={styles.receptionTableSecondaryCell}>
                         <Text style={styles.receptionTableNights}>
-                          {Number(order?.noches ?? 0)}
+                          {Number(order?.noches_ocupadas ?? 0)}/{Number(order?.noches_programadas ?? order?.noches ?? 0)}
                         </Text>
+                        <Text style={styles.receptionTableMetaCompact}>ocup./prog.</Text>
                       </View>
 
                       <View style={styles.receptionTableStatusCell}>
@@ -439,6 +469,9 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={styles.receptionTableRoomType}>
                           {order?.tipo_habitacion || 'Sin habitacion'}
+                        </Text>
+                        <Text style={styles.receptionTableRoomType}>
+                          Devengado {formatCurrency(order?.tarifa_total_hospedaje_devengada ?? 0)}
                         </Text>
                       </View>
                     </View>
@@ -863,6 +896,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#5F6782',
     lineHeight: 18,
+  },
+  receptionTableMetaCompact: {
+    fontSize: 11,
+    color: '#5F6782',
+    marginTop: 2,
   },
   receptionTableNights: {
     fontSize: 22,

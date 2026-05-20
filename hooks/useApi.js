@@ -129,20 +129,56 @@ const normalizeHotelHospedajeRecord = (record = {}, index = 0) => {
     tipo_habitacion:
       String(record?.tipo_habitacion ?? record?.dsc_tipo_habitacion ?? '').trim(),
     noches: Number(record?.noches ?? record?.noches_calculadas ?? 0),
+    noches_programadas: Number(
+      record?.noches_programadas ??
+      record?.noches ??
+      record?.noches_calculadas ??
+      0
+    ),
+    noches_ocupadas: Number(record?.noches_ocupadas ?? record?.nochesDevengadas ?? 0),
     estatus_hospedaje: normalizedStatus || 'pendiente',
     check_in_at: record?.check_in_at ?? null,
     fecha_check_in: record?.fecha_check_in ?? null,
     fecha_check_out: record?.fecha_check_out ?? null,
+    check_out_at: record?.check_out_at ?? null,
     tarifa_noche:
       Number(record?.tarifa_noche_calculada ?? record?.tarifa_noche ?? 0),
+    tarifa_total_hospedaje:
+      Number(
+        record?.tarifa_total_hospedaje ??
+        record?.tarifa_total_calculada ??
+        record?.tarifa_total ??
+        0
+      ),
+    tarifa_total_hospedaje_devengada:
+      Number(
+        record?.tarifa_total_hospedaje_devengada ??
+        record?.tarifa_total_devengada ??
+        record?.monto_devengado ??
+        0
+      ),
+    saldo_pendiente_hospedaje:
+      Number(
+        record?.saldo_pendiente_hospedaje ??
+        record?.remanente_hospedaje ??
+        record?.saldo_pendiente ??
+        0
+      ),
     tarifa_total:
-      Number(record?.tarifa_total_calculada ?? record?.tarifa_total_hospedaje ?? 0),
+      Number(
+        record?.tarifa_total_hospedaje ??
+        record?.tarifa_total_calculada ??
+        record?.tarifa_total ??
+        0
+      ),
     orden_hospedaje_url:
       record?.orden_hospedaje_url ??
       record?.orden_hospedaje_pdf_url ??
       null,
     puede_hacer_check_in:
       Number(record?.puede_hacer_check_in ?? record?.puede_check_in ?? 0) === 1,
+    puede_hacer_check_out:
+      Number(record?.puede_hacer_check_out ?? record?.puede_check_out ?? 0) === 1,
   };
 };
 
@@ -846,7 +882,7 @@ export const useApi = () => {
 
     return {
       success: true,
-      data: data?.data ?? null,
+      data: data?.data ? normalizeHotelHospedajeRecord(data.data, 0) : null,
       message: data?.respuesta || data?.message || 'Orden consultada correctamente',
     };
   };
@@ -866,8 +902,28 @@ export const useApi = () => {
 
     return {
       success: true,
-      data: data?.data ?? null,
+      data: data?.data ? normalizeHotelHospedajeRecord(data.data, 0) : null,
       message: data?.respuesta || data?.message || 'Check in registrado correctamente',
+    };
+  };
+
+  const registerHotelCheckOut = async ({ id_usuario_hospedaje, observaciones_check_out = '' }) => {
+    const payload = {
+      id_usuario_hospedaje: Number(id_usuario_hospedaje ?? 0),
+      observaciones_check_out: String(observaciones_check_out ?? '').trim(),
+    };
+
+    const data = await getHotelResponse(
+      '/check-out',
+      'POST',
+      payload,
+      'Registrando check out'
+    );
+
+    return {
+      success: true,
+      data: data?.data ? normalizeHotelHospedajeRecord(data.data, 0) : null,
+      message: data?.respuesta || data?.message || 'Check out registrado correctamente',
     };
   };
 
@@ -1018,6 +1074,7 @@ export const useApi = () => {
     getHotelOrderByQr,
     getUserTransactions,
     registerHotelCheckIn,
+    registerHotelCheckOut,
     approveTransaction,
     rejectTransaction,
     approvePaymentRequest,

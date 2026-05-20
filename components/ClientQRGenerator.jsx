@@ -27,6 +27,14 @@ const resolveActivationStatus = (status) => {
   return '';
 };
 
+const buildActivationRetryMessage = (status) => {
+  const motivo = String(status?.motivo_rechazo ?? '').trim();
+  const baseMessage =
+    'Tu solicitud fue rechazada. Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.';
+
+  return motivo ? `${baseMessage}\n\nMotivo: ${motivo}` : baseMessage;
+};
+
 const ClientQRGenerator = () => {
   const router = useRouter();
   const { user, getClientAvailableBalance, getClientQrData, getClientQrActivationStatus } = useAuth();
@@ -92,7 +100,7 @@ const ClientQRGenerator = () => {
     }
 
     if (resolvedStatus === 'rechazada') {
-      return 'Reintenta tu activacion';
+      return 'Vuelve a cargar documentos';
     }
 
     return 'Comienza tu activacion';
@@ -132,8 +140,10 @@ const ClientQRGenerator = () => {
         if (resolveActivationStatus(qrRecord) === 'rechazada' && String(qrRecord?.motivo_rechazo ?? '').trim()) {
           Alert.alert(
             'Atenci\u00f3n',
-            `Tu solicitud fue rechazada.\n\nMotivo: ${String(qrRecord.motivo_rechazo).trim()}`
+            buildActivationRetryMessage(qrRecord)
           );
+        } else if (resolveActivationStatus(qrRecord) === 'rechazada') {
+          Alert.alert('Atenci\u00f3n', buildActivationRetryMessage(qrRecord));
         }
 
         router.push({
@@ -262,7 +272,14 @@ const ClientQRGenerator = () => {
       {resolveActivationStatus(qrStatus) === 'rechazada' && String(qrStatus?.motivo_rechazo ?? '').trim() ? (
         <View style={styles.rejectionNote}>
           <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
-          <Text style={styles.rejectionText}>{String(qrStatus.motivo_rechazo).trim()}</Text>
+          <Text style={styles.rejectionText}>{buildActivationRetryMessage(qrStatus)}</Text>
+        </View>
+      ) : resolveActivationStatus(qrStatus) === 'rechazada' ? (
+        <View style={styles.rejectionNote}>
+          <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
+          <Text style={styles.rejectionText}>
+            Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.
+          </Text>
         </View>
       ) : null}
 

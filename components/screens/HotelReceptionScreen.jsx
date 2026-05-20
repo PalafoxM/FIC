@@ -69,6 +69,7 @@ const resolveHospedajeRecordId = (record) =>
   ) || null;
 
 const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Si' : 'No');
+const formatCurrency = (value) => `$${Number(value ?? 0).toFixed(2)}`;
 
 const resolveResponsibleReceptionLabel = (record) => {
   const directLabel =
@@ -217,13 +218,15 @@ const buildPdfViewerHtml = (pdfBase64) => `<!DOCTYPE html>
 export default function HotelReceptionScreen() {
   const router = useRouter();
   const { user, getAccessToken } = useAuth();
-  const { getHotelOrderByQr, registerHotelCheckIn } = useApi();
+  const { getHotelOrderByQr, registerHotelCheckIn, registerHotelCheckOut } = useApi();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [processingPdf, setProcessingPdf] = useState(false);
   const [savingCheckIn, setSavingCheckIn] = useState(false);
+  const [savingCheckOut, setSavingCheckOut] = useState(false);
   const [observacionesCheckIn, setObservacionesCheckIn] = useState('');
+  const [observacionesCheckOut, setObservacionesCheckOut] = useState('');
   const [orderSummary, setOrderSummary] = useState(null);
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
   const [pdfViewerHtml, setPdfViewerHtml] = useState('');
@@ -269,6 +272,7 @@ export default function HotelReceptionScreen() {
       const response = await getHotelOrderByQr(qrCode);
       setOrderSummary(response?.data ?? null);
       setObservacionesCheckIn('');
+      setObservacionesCheckOut('');
     } catch (error) {
       Alert.alert('Atencion', error.message || 'No se pudo consultar la orden del huesped.');
       resetScanner();
@@ -414,6 +418,34 @@ export default function HotelReceptionScreen() {
     }
   };
 
+  const handleCheckOut = async () => {
+    if (!hospedajeRecordId) {
+      Alert.alert('Atencion', 'No se encontro el identificador de hospedaje para registrar el check out.');
+      return;
+    }
+
+    try {
+      setSavingCheckOut(true);
+      const response = await registerHotelCheckOut({
+        id_usuario_hospedaje: hospedajeRecordId,
+        observaciones_check_out: observacionesCheckOut,
+      });
+
+      setOrderSummary((current) => ({
+        ...(current ?? {}),
+        ...(response?.data ?? {}),
+        puede_check_out: false,
+        puede_hacer_check_out: false,
+      }));
+
+      Alert.alert('Operacion exitosa', response?.message || 'Check out registrado correctamente.');
+    } catch (error) {
+      Alert.alert('Atencion', error.message || 'No se pudo registrar el check out.');
+    } finally {
+      setSavingCheckOut(false);
+    }
+  };
+
   const handleStartScan = async () => {
     const granted = await ensureCameraPermission();
     if (!granted) {
@@ -423,6 +455,7 @@ export default function HotelReceptionScreen() {
 
     setOrderSummary(null);
     setObservacionesCheckIn('');
+    setObservacionesCheckOut('');
     resetScanner();
   };
 
@@ -520,7 +553,7 @@ export default function HotelReceptionScreen() {
         >
           <Text style={styles.headerTitle}>Resumen del huesped</Text>
           <Text style={styles.headerSubtitle}>
-            Revisa la habitacion, la vigencia del hospedaje y registra el check in cuando corresponda.
+            Revisa el hospedaje, distingue el total asignado del monto devengado y registra check in o check out cuando corresponda.
           </Text>
 
           <View style={styles.card}>
@@ -559,11 +592,43 @@ export default function HotelReceptionScreen() {
 
             <View style={styles.inlineRow}>
               <View style={styles.inlineBlock}>
-                <Text style={styles.label}>Noches</Text>
+                <Text style={styles.label}>Noches programadas</Text>
                 <Text style={styles.value}>
-                  {orderSummary?.noches !== null && orderSummary?.noches !== undefined
-                    ? String(orderSummary.noches)
+                  {orderSummary?.noches_programadas !== null && orderSummary?.noches_programadas !== undefined
+                    ? String(orderSummary.noches_programadas)
                     : 'Sin definir'}
+                </Text>
+              </View>
+              <View style={styles.inlineBlock}>
+                <Text style={styles.label}>Noches ocupadas</Text>
+                <Text style={styles.value}>
+                  {orderSummary?.noches_ocupadas !== null && orderSummary?.noches_ocupadas !== undefined
+                    ? String(orderSummary.noches_ocupadas)
+                    : '0'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.inlineRow}>
+              <View style={styles.inlineBlock}>
+                <Text style={styles.label}>Total asignado</Text>
+                <Text style={styles.value}>
+                  {formatCurrency(orderSummary?.tarifa_total_hospedaje ?? orderSummary?.tarifa_total ?? 0)}
+                </Text>
+              </View>
+              <View style={styles.inlineBlock}>
+                <Text style={styles.label}>Monto devengado</Text>
+                <Text style={styles.value}>
+                  {formatCurrency(orderSummary?.tarifa_total_hospedaje_devengada ?? 0)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.inlineRow}>
+              <View style={styles.inlineBlock}>
+                <Text style={styles.label}>Saldo pendiente</Text>
+                <Text style={styles.value}>
+                  {formatCurrency(orderSummary?.saldo_pendiente_hospedaje ?? 0)}
                 </Text>
               </View>
               <View style={styles.inlineBlock}>
@@ -577,6 +642,11 @@ export default function HotelReceptionScreen() {
 
             <Text style={styles.label}>Puede hacer check in</Text>
             <Text style={styles.value}>{formatBooleanStatus(orderSummary?.puede_check_in)}</Text>
+
+            <Text style={styles.label}>Puede hacer check out</Text>
+            <Text style={styles.value}>
+              {formatBooleanStatus(orderSummary?.puede_hacer_check_out ?? orderSummary?.puede_check_out)}
+            </Text>
           </View>
 
           <View style={styles.actionColumn}>
@@ -624,6 +694,30 @@ export default function HotelReceptionScreen() {
             >
               <Text style={styles.primaryButtonText}>
                 {savingCheckIn ? 'Registrando check in...' : 'Check in'}
+              </Text>
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.observationsInput}
+              value={observacionesCheckOut}
+              onChangeText={setObservacionesCheckOut}
+              placeholder="Observaciones de check out (opcional)"
+              placeholderTextColor="#7A7A7A"
+              multiline
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                styles.checkoutButton,
+                (!(orderSummary?.puede_hacer_check_out ?? orderSummary?.puede_check_out) || savingCheckOut) &&
+                  styles.disabledButton,
+              ]}
+              onPress={handleCheckOut}
+              disabled={!(orderSummary?.puede_hacer_check_out ?? orderSummary?.puede_check_out) || savingCheckOut}
+            >
+              <Text style={styles.primaryButtonText}>
+                {savingCheckOut ? 'Registrando check out...' : 'Check out'}
               </Text>
             </TouchableOpacity>
 
@@ -842,6 +936,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  checkoutButton: {
+    backgroundColor: '#1F7A4C',
   },
   primaryButtonText: {
     color: '#FFFFFF',

@@ -92,6 +92,32 @@ const resolveActivationStatus = (status) => {
   return "";
 };
 
+const canRestartDocumentFlow = (status) => {
+  const resolvedStatus = resolveActivationStatus(status);
+  const expediente = String(status?.expediente_estatus ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (resolvedStatus === "rechazada") {
+    return true;
+  }
+
+  return [
+    "capturado",
+    "pendiente_documentos",
+    "pendiente_documental",
+    "documentos_pendientes",
+  ].includes(expediente);
+};
+
+const buildActivationRetryMessage = (status) => {
+  const motivo = String(status?.motivo_rechazo ?? "").trim();
+  const baseMessage =
+    "La solicitud fue rechazada. Debes volver a cargar los documentos y reenviar la solicitud para continuar con la activacion.";
+
+  return motivo ? `${baseMessage}\n\nMotivo: ${motivo}` : baseMessage;
+};
+
 const normalizeRouteParam = (value) => {
   if (Array.isArray(value)) {
     return String(value[0] ?? "").trim();
@@ -392,6 +418,10 @@ export default function CashierProcessScreen() {
             return;
           }
 
+          if (activationStatus && canRestartDocumentFlow(activationStatus)) {
+            Alert.alert("Atencion", buildActivationRetryMessage(activationStatus));
+          }
+
           const resolvedFolio =
             String(activationStatus?.folio ?? "").trim() ||
             routeFolio ||
@@ -567,10 +597,18 @@ export default function CashierProcessScreen() {
               : [],
             ...mergeBenefitSummary(richSummary, qrRecord, user),
           });
+
+          if (richSummary && canRestartDocumentFlow(richSummary)) {
+            Alert.alert("Atencion", buildActivationRetryMessage(richSummary));
+          }
         }
       } else {
         const summary = await getCashierDeliverySummary(folio);
         setDeliverySummary(summary);
+
+        if (summary && canRestartDocumentFlow(summary)) {
+          Alert.alert("Atencion", buildActivationRetryMessage(summary));
+        }
       }
     } catch (error) {
       console.error("Error validating cashier folio:", error);
@@ -1011,7 +1049,7 @@ export default function CashierProcessScreen() {
         setDeliverySummary(mergedSummary);
         showSuccessAlert(
           response?.respuesta ||
-            "Solicitud de activacion enviada correctamente.",
+            "Solicitud enviada correctamente. Si TI la rechaza, podras volver a cargar documentos y reenviarla.",
           resolveOrderUrl(response?.data, response, mergedSummary),
         );
       } catch (error) {
@@ -1256,26 +1294,30 @@ export default function CashierProcessScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {isClientActivation
-              ? "Comienza tu activación"
-              : "Folio del interesado"}
-          </Text>
-          <Text style={styles.cardDescription}>
-            {isClientActivation
-              ? "Completa tu expediente documental para que TI revise y active tu QR."
-              : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          {isClientActivation
+            ? canRestartDocumentFlow(deliverySummary)
+              ? "Vuelve a cargar documentos"
+              : "Comienza tu activación"
+            : "Folio del interesado"}
+        </Text>
+        <Text style={styles.cardDescription}>
+          {isClientActivation
+            ? canRestartDocumentFlow(deliverySummary)
+              ? "Tu solicitud fue rechazada o regreso al inicio documental. Vuelve a cargar los documentos y reenvia la solicitud para continuar."
+              : "Completa tu expediente documental para que TI revise y active tu QR."
+            : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
+        </Text>
 
           {isClientActivation &&
           String(deliverySummary?.motivo_rechazo ?? "").trim() ? (
             <View style={styles.rejectionHint}>
               <Text style={styles.rejectionHintTitle}>
-                Motivo del rechazo anterior
+                Solicitud rechazada
               </Text>
               <Text style={styles.rejectionHintText}>
-                {String(deliverySummary.motivo_rechazo).trim()}
+                {buildActivationRetryMessage(deliverySummary)}
               </Text>
             </View>
           ) : null}
@@ -1308,7 +1350,9 @@ export default function CashierProcessScreen() {
                 ? isClientActivation
                   ? "Preparando activacion..."
                   : "Validando folio..."
-                : "Continuar"}
+                : isClientActivation && canRestartDocumentFlow(deliverySummary)
+                  ? "Volver a cargar documentos"
+                  : "Continuar"}
             </Text>
           </TouchableOpacity>
         </View>

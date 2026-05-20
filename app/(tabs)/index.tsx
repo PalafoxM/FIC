@@ -1133,7 +1133,10 @@ export default function HomeScreen() {
       await rejectTiQrActivationRequest(rejectActivationTarget.id_usuario, trimmedReason);
       closeRejectActivationModal();
       await loadActivationRequestsView();
-      Alert.alert('Solicitud rechazada', 'La solicitud fue rechazada correctamente.');
+      Alert.alert(
+        'Solicitud rechazada',
+        'La solicitud fue rechazada. El expediente regreso al inicio documental y el usuario podra volver a cargar documentos para reenviarla.'
+      );
     } catch (error) {
       Alert.alert('Atención', error.message || 'No se pudo rechazar la solicitud.');
     } finally {
@@ -1338,6 +1341,87 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Solicitudes de activación QR</Text>
+              <Text style={styles.sectionDescription}>
+                Revisa, aprueba o rechaza primero las solicitudes documentales enviadas por clientes.
+              </Text>
+
+              <View style={styles.searchBlock}>
+                <Text style={styles.inputLabel}>Buscar solicitudes</Text>
+                <TextInput
+                  style={styles.input}
+                  value={activationRequestsSearch}
+                  onChangeText={setActivationRequestsSearch}
+                  placeholder="Buscar por usuario, folio, estatus o motivo"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              {loadingActivationRequests ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyBoxText}>Cargando solicitudes...</Text>
+                </View>
+              ) : visibleActivationRequests.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyBoxText}>No hay solicitudes de activación para mostrar.</Text>
+                </View>
+              ) : (
+                <>
+                  {visibleActivationRequests.map((record) => (
+                    <View key={`${record.id_usuario}-${record.folio}`} style={styles.reportCard}>
+                      <View style={styles.userCardHeader}>
+                        <Text style={styles.userCardTitle}>{record.fullName || 'Sin usuario'}</Text>
+                        <Text style={styles.userCardId}>{record.solicitud_activacion_estatus || 'pendiente'}</Text>
+                      </View>
+
+                      <Text style={styles.userCardMeta}>Usuario: #{record.id_usuario}</Text>
+                      <Text style={styles.userCardMeta}>Folio: {record.folio || 'Sin folio'}</Text>
+                      <Text style={styles.userCardMeta}>QR activo: {Number(record.qr_activo ?? 0) === 1 ? 'Sí' : 'No'}</Text>
+                      <Text style={styles.userCardMeta}>
+                        Expediente completo: {record.expediente_completo ? 'Sí' : 'No'}
+                      </Text>
+                      <Text style={styles.userCardMeta}>
+                        Expediente: {record.expediente_estatus || 'Sin estatus'}
+                      </Text>
+                      <Text style={styles.userCardMeta}>Fecha solicitud: {record.fec_reg || 'Sin fecha'}</Text>
+                      {String(record?.motivo_rechazo ?? '').trim() ? (
+                        <Text style={styles.userCardMeta}>Motivo: {String(record.motivo_rechazo).trim()}</Text>
+                      ) : null}
+
+                      {String(record?.solicitud_activacion_estatus ?? '').toLowerCase() === 'pendiente' ? (
+                        <View style={styles.reportActions}>
+                          <TouchableOpacity
+                            style={[styles.reportStatusButton, savingActivationDecision && styles.disabledButton]}
+                            disabled={savingActivationDecision}
+                            onPress={() => handleApproveActivationRequest(record.id_usuario)}
+                          >
+                            <Text style={styles.reportStatusButtonText}>Aprobar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.reportStatusButton, styles.reportStatusButtonDanger, savingActivationDecision && styles.disabledButton]}
+                            disabled={savingActivationDecision}
+                            onPress={() => openRejectActivationModal(record)}
+                          >
+                            <Text style={styles.reportStatusButtonText}>Rechazar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+
+                  {filteredActivationRequests.length > visibleActivationRequestsCount ? (
+                    <TouchableOpacity
+                      style={styles.loadMoreButton}
+                      onPress={() => setVisibleActivationRequestsCount((current) => current + 10)}
+                    >
+                      <Text style={styles.loadMoreButtonText}>Ver mas solicitudes</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              )}
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Pagos y reportes</Text>
               {buildAdminCards().map((card) => (
                 <View key={card.key} style={styles.card}>
@@ -1477,92 +1561,11 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Solicitudes de activación QR</Text>
-              <Text style={styles.sectionDescription}>
-                Revisa, aprueba o rechaza las solicitudes documentales enviadas por clientes.
-              </Text>
-
-              <View style={styles.searchBlock}>
-                <Text style={styles.inputLabel}>Buscar solicitudes</Text>
-                <TextInput
-                  style={styles.input}
-                  value={activationRequestsSearch}
-                  onChangeText={setActivationRequestsSearch}
-                  placeholder="Buscar por usuario, folio, estatus o motivo"
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {loadingActivationRequests ? (
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyBoxText}>Cargando solicitudes...</Text>
-                </View>
-              ) : visibleActivationRequests.length === 0 ? (
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyBoxText}>No hay solicitudes de activación para mostrar.</Text>
-                </View>
-              ) : (
-                <>
-                  {visibleActivationRequests.map((record) => (
-                    <View key={`${record.id_usuario}-${record.folio}`} style={styles.reportCard}>
-                      <View style={styles.userCardHeader}>
-                        <Text style={styles.userCardTitle}>{record.fullName || 'Sin usuario'}</Text>
-                        <Text style={styles.userCardId}>{record.solicitud_activacion_estatus || 'pendiente'}</Text>
-                      </View>
-
-                      <Text style={styles.userCardMeta}>Usuario: #{record.id_usuario}</Text>
-                      <Text style={styles.userCardMeta}>Folio: {record.folio || 'Sin folio'}</Text>
-                      <Text style={styles.userCardMeta}>QR activo: {Number(record.qr_activo ?? 0) === 1 ? 'Sí' : 'No'}</Text>
-                      <Text style={styles.userCardMeta}>
-                        Expediente completo: {record.expediente_completo ? 'Sí' : 'No'}
-                      </Text>
-                      <Text style={styles.userCardMeta}>
-                        Expediente: {record.expediente_estatus || 'Sin estatus'}
-                      </Text>
-                      <Text style={styles.userCardMeta}>Fecha solicitud: {record.fec_reg || 'Sin fecha'}</Text>
-                      {String(record?.motivo_rechazo ?? '').trim() ? (
-                        <Text style={styles.userCardMeta}>Motivo: {String(record.motivo_rechazo).trim()}</Text>
-                      ) : null}
-
-                      {String(record?.solicitud_activacion_estatus ?? '').toLowerCase() === 'pendiente' ? (
-                        <View style={styles.reportActions}>
-                          <TouchableOpacity
-                            style={[styles.reportStatusButton, savingActivationDecision && styles.disabledButton]}
-                            disabled={savingActivationDecision}
-                            onPress={() => handleApproveActivationRequest(record.id_usuario)}
-                          >
-                            <Text style={styles.reportStatusButtonText}>Aprobar</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.reportStatusButton, styles.reportStatusButtonDanger, savingActivationDecision && styles.disabledButton]}
-                            disabled={savingActivationDecision}
-                            onPress={() => openRejectActivationModal(record)}
-                          >
-                            <Text style={styles.reportStatusButtonText}>Rechazar</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-                    </View>
-                  ))}
-
-                  {filteredActivationRequests.length > visibleActivationRequestsCount ? (
-                    <TouchableOpacity
-                      style={styles.loadMoreButton}
-                      onPress={() => setVisibleActivationRequestsCount((current) => current + 10)}
-                    >
-                      <Text style={styles.loadMoreButtonText}>Ver mas solicitudes</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </>
-              )}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Usuarios</Text>
+              <Text style={styles.sectionTitle}>Solicitudes de gerente / recepción</Text>
               <Text style={styles.sectionDescription}>
                 {isAdmin
-                  ? 'Consulta usuarios y deposita creditos a los perfiles permitidos.'
-                  : 'Vista de consulta homologada con la web para seguimiento de usuarios.'}
+                  ? 'Consulta despues las solicitudes y referencias de personal. Usa los filtros para priorizar gerente y recepción sin cambiar la tabla actual.'
+                  : 'Vista de consulta homologada con la web para seguimiento de personal y usuarios.'}
               </Text>
 
               <ScrollView
