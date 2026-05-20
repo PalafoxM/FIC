@@ -70,6 +70,37 @@ const resolveHospedajeRecordId = (record) =>
 
 const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Si' : 'No');
 
+const resolveResponsibleReceptionLabel = (record) => {
+  const directLabel =
+    record?.recepcion_responsable_nombre ??
+    record?.responsable_recepcion_nombre ??
+    record?.nombre_responsable_recepcion ??
+    record?.recepcion_nombre ??
+    record?.responsable_nombre ??
+    record?.nombre_responsable ??
+    record?.usuario_recepcion_nombre ??
+    null;
+
+  if (String(directLabel ?? '').trim()) {
+    return String(directLabel).trim();
+  }
+
+  const fullName = [
+    record?.recepcion_responsable_nombre,
+    record?.recepcion_responsable_primer_apellido,
+    record?.recepcion_responsable_segundo_apellido,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  if (fullName) {
+    return fullName;
+  }
+
+  return '';
+};
+
 const buildPdfViewerHtml = (pdfBase64) => `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -204,6 +235,10 @@ export default function HotelReceptionScreen() {
   });
 
   const hospedajeRecordId = useMemo(() => resolveHospedajeRecordId(orderSummary), [orderSummary]);
+  const responsibleReceptionLabel = useMemo(
+    () => resolveResponsibleReceptionLabel(orderSummary),
+    [orderSummary]
+  );
 
   if (!hasPermission(user?.id_perfil, 'hotelReception')) {
     return (
@@ -500,6 +535,13 @@ export default function HotelReceptionScreen() {
 
             <Text style={styles.label}>Hotel</Text>
             <Text style={styles.value}>{orderSummary?.hotel_nombre || 'Sin hotel disponible'}</Text>
+
+            {responsibleReceptionLabel ? (
+              <>
+                <Text style={styles.label}>Recepcion responsable</Text>
+                <Text style={styles.value}>{responsibleReceptionLabel}</Text>
+              </>
+            ) : null}
 
             <Text style={styles.label}>Tipo de habitacion</Text>
             <Text style={styles.value}>{orderSummary?.tipo_habitacion || 'Sin tipo disponible'}</Text>

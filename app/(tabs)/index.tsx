@@ -53,7 +53,7 @@ const buildAdminOverviewCards = () => [
   {
     key: 'establecimientos',
     title: 'Establecimientos',
-    description: 'Acceso de referencia a participantes y establecimientos del ecosistema.',
+    description: 'Acceso de referencia a participantes y establecimientos del ecosistema. En hoteles, el mantenimiento debe entenderse como consulta y ajuste de tarifas, no como CRUD completo.',
   },
   {
     key: 'pagos',
