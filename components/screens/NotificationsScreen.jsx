@@ -1,14 +1,26 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, DeviceEventEmitter, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ENV } from '../../constants/env';
-import { hasPermission, isConsumerProfile, ROLE_IDS } from '../../constants/roles';
-import { useApi } from '../../hooks/useApi';
-import { useAuth } from '../../hooks/useAuth';
-import AccessDenied from '../AccessDenied';
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  DeviceEventEmitter,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { ENV } from "../../constants/env";
+import {
+  hasPermission,
+  isConsumerProfile,
+  ROLE_IDS,
+} from "../../constants/roles";
+import { useApi } from "../../hooks/useApi";
+import { useAuth } from "../../hooks/useAuth";
+import AccessDenied from "../AccessDenied";
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
@@ -19,7 +31,9 @@ export default function NotificationsScreen() {
   const { approvePaymentRequest, rejectPaymentRequest } = useApi();
   const autoOpenedTransactionsRef = useRef(new Set());
   const loadNotificationsPromiseRef = useRef(null);
-  const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
+  const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(
+    Number(user?.id_perfil ?? 0),
+  );
   const usesPaymentDecisionAlert =
     isConsumerProfile(user?.id_perfil) ||
     [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
@@ -29,7 +43,7 @@ export default function NotificationsScreen() {
       return {};
     }
 
-    if (typeof notification.data === 'string') {
+    if (typeof notification.data === "string") {
       try {
         return JSON.parse(notification.data);
       } catch {
@@ -40,144 +54,199 @@ export default function NotificationsScreen() {
     return notification.data || {};
   }, []);
 
-  const isPaymentApprovedLike = useCallback((notification, notificationData = parseNotificationData(notification)) => {
-    const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
-    const normalizedStatus = String(
-      notificationData?.status ??
-      notificationData?.paymentStatus ??
-      notificationData?.resolvedStatus ??
-      ''
-    ).trim().toUpperCase();
-    const title = String(notification?.title ?? '').trim().toLowerCase();
-    const body = String(notification?.body ?? notificationData?.body ?? notificationData?.message ?? '').trim().toLowerCase();
-
-    if (normalizedType === 'PAYMENT_APPROVED') {
-      return true;
-    }
-
-    if (
-      ['PAYMENT_SUCCESS', 'PAYMENT_COMPLETED', 'NIP_PAYMENT_APPROVED', 'PAYMENT_CAPTURED', 'PAYMENT_APPLIED'].includes(
-        normalizedType
+  const isPaymentApprovedLike = useCallback(
+    (notification, notificationData = parseNotificationData(notification)) => {
+      const normalizedType = String(
+        notificationData?.type ?? notification?.type ?? "",
       )
-    ) {
-      return true;
-    }
+        .trim()
+        .toUpperCase();
+      const normalizedStatus = String(
+        notificationData?.status ??
+          notificationData?.paymentStatus ??
+          notificationData?.resolvedStatus ??
+          "",
+      )
+        .trim()
+        .toUpperCase();
+      const title = String(notification?.title ?? "")
+        .trim()
+        .toLowerCase();
+      const body = String(
+        notification?.body ??
+          notificationData?.body ??
+          notificationData?.message ??
+          "",
+      )
+        .trim()
+        .toLowerCase();
 
-    if (normalizedStatus === 'APPROVED') {
-      return true;
-    }
+      if (normalizedType === "PAYMENT_APPROVED") {
+        return true;
+      }
 
-    return (
-      (title.includes('pago') || title.includes('cobro') || body.includes('pago') || body.includes('cobro')) &&
-      (title.includes('aprob') || title.includes('complet') || title.includes('aplicad') || body.includes('aprob') || body.includes('complet') || body.includes('aplicad'))
-    );
-  }, [parseNotificationData]);
+      if (
+        [
+          "PAYMENT_SUCCESS",
+          "PAYMENT_COMPLETED",
+          "NIP_PAYMENT_APPROVED",
+          "PAYMENT_CAPTURED",
+          "PAYMENT_APPLIED",
+        ].includes(normalizedType)
+      ) {
+        return true;
+      }
 
-  const resolveNotificationStatus = useCallback((notification, notificationData = parseNotificationData(notification)) => {
-    const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
-    const normalizedStatus = String(
-      notificationData?.status ??
-      notificationData?.paymentStatus ??
-      notificationData?.resolvedStatus ??
-      notification?.status ??
-      ''
-    ).trim().toLowerCase();
+      if (normalizedStatus === "APPROVED") {
+        return true;
+      }
 
-    if (isPaymentApprovedLike(notification, notificationData) || normalizedStatus === 'approved') {
-      return 'approved';
-    }
+      return (
+        (title.includes("pago") ||
+          title.includes("cobro") ||
+          body.includes("pago") ||
+          body.includes("cobro")) &&
+        (title.includes("aprob") ||
+          title.includes("complet") ||
+          title.includes("aplicad") ||
+          body.includes("aprob") ||
+          body.includes("complet") ||
+          body.includes("aplicad"))
+      );
+    },
+    [parseNotificationData],
+  );
 
-    if (
-      normalizedType === 'PAYMENT_REJECTED' ||
-      normalizedType === 'PAYMENT_DECLINED' ||
-      normalizedStatus === 'rejected' ||
-      normalizedStatus === 'declined'
-    ) {
-      return 'rejected';
-    }
+  const resolveNotificationStatus = useCallback(
+    (notification, notificationData = parseNotificationData(notification)) => {
+      const normalizedType = String(
+        notificationData?.type ?? notification?.type ?? "",
+      )
+        .trim()
+        .toUpperCase();
+      const normalizedStatus = String(
+        notificationData?.status ??
+          notificationData?.paymentStatus ??
+          notificationData?.resolvedStatus ??
+          notification?.status ??
+          "",
+      )
+        .trim()
+        .toLowerCase();
 
-    return 'pending';
-  }, [isPaymentApprovedLike, parseNotificationData]);
+      if (
+        isPaymentApprovedLike(notification, notificationData) ||
+        normalizedStatus === "approved"
+      ) {
+        return "approved";
+      }
 
-  const enrichNotificationStatus = useCallback((notification) => {
-    const notificationData = parseNotificationData(notification);
-    const resolvedStatus = resolveNotificationStatus(notification, notificationData);
-    const totalAmount = Number(notificationData.total ?? notificationData.amount ?? 0);
+      if (
+        normalizedType === "PAYMENT_REJECTED" ||
+        normalizedType === "PAYMENT_DECLINED" ||
+        normalizedStatus === "rejected" ||
+        normalizedStatus === "declined"
+      ) {
+        return "rejected";
+      }
 
-    if (resolvedStatus === 'approved') {
-      return {
-        ...notification,
-        parsedData: notificationData,
-        resolvedStatus,
-        title: notification.title || 'Operacion exitosa',
-        body:
-          notification.body ||
-          (totalAmount > 0
-            ? `Pago completado por $${totalAmount.toFixed(2)}`
-            : 'Pago completado correctamente'),
-      };
-    }
+      return "pending";
+    },
+    [isPaymentApprovedLike, parseNotificationData],
+  );
 
-    if (resolvedStatus === 'rejected') {
-      return {
-        ...notification,
-        parsedData: notificationData,
-        resolvedStatus,
-        title: notification.title || 'Atencion',
-        body:
-          notification.body ||
-          (totalAmount > 0
-            ? `Pago rechazado por $${totalAmount.toFixed(2)}`
-            : 'Pago rechazado'),
-      };
-    }
+  const enrichNotificationStatus = useCallback(
+    (notification) => {
+      const notificationData = parseNotificationData(notification);
+      const resolvedStatus = resolveNotificationStatus(
+        notification,
+        notificationData,
+      );
+      const totalAmount = Number(
+        notificationData.total ?? notificationData.amount ?? 0,
+      );
 
-    if (notificationData?.type !== 'PAYMENT_REQUEST') {
-      return {
-        ...notification,
-        parsedData: notificationData,
-        resolvedStatus: 'pending',
-      };
-    }
-
-    return {
-      ...notification,
-      parsedData: notificationData,
-      resolvedStatus: 'pending',
-    };
-  }, [parseNotificationData, resolveNotificationStatus]);
-
-  const updateNotificationStatusLocally = useCallback((transactionId, resolvedStatus) => {
-    const normalizedTransactionId = String(transactionId ?? '');
-
-    if (!normalizedTransactionId) {
-      return;
-    }
-
-    setNotifications((currentNotifications) =>
-      currentNotifications.map((notification) => {
-        const parsedData = notification.parsedData ?? parseNotificationData(notification);
-        const matchesTransaction = String(parsedData?.transactionId ?? '') === normalizedTransactionId;
-
-        if (!matchesTransaction) {
-          return notification;
-        }
-
-        const nextData = {
-          ...parsedData,
-          status: resolvedStatus,
-          paymentStatus: resolvedStatus,
-          resolvedStatus,
-        };
-
-        return enrichNotificationStatus({
+      if (resolvedStatus === "approved") {
+        return {
           ...notification,
-          data: nextData,
-          parsedData: nextData,
-        });
-      })
-    );
-  }, [enrichNotificationStatus, parseNotificationData]);
+          parsedData: notificationData,
+          resolvedStatus,
+          title: notification.title || "Operacion exitosa",
+          body:
+            notification.body ||
+            (totalAmount > 0
+              ? `Pago completado por $${totalAmount.toFixed(2)}`
+              : "Pago completado correctamente"),
+        };
+      }
+
+      if (resolvedStatus === "rejected") {
+        return {
+          ...notification,
+          parsedData: notificationData,
+          resolvedStatus,
+          title: notification.title || "Atencion",
+          body:
+            notification.body ||
+            (totalAmount > 0
+              ? `Pago rechazado por $${totalAmount.toFixed(2)}`
+              : "Pago rechazado"),
+        };
+      }
+
+      if (notificationData?.type !== "PAYMENT_REQUEST") {
+        return {
+          ...notification,
+          parsedData: notificationData,
+          resolvedStatus: "pending",
+        };
+      }
+
+      return {
+        ...notification,
+        parsedData: notificationData,
+        resolvedStatus: "pending",
+      };
+    },
+    [parseNotificationData, resolveNotificationStatus],
+  );
+
+  const updateNotificationStatusLocally = useCallback(
+    (transactionId, resolvedStatus) => {
+      const normalizedTransactionId = String(transactionId ?? "");
+
+      if (!normalizedTransactionId) {
+        return;
+      }
+
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) => {
+          const parsedData =
+            notification.parsedData ?? parseNotificationData(notification);
+          const matchesTransaction =
+            String(parsedData?.transactionId ?? "") === normalizedTransactionId;
+
+          if (!matchesTransaction) {
+            return notification;
+          }
+
+          const nextData = {
+            ...parsedData,
+            status: resolvedStatus,
+            paymentStatus: resolvedStatus,
+            resolvedStatus,
+          };
+
+          return enrichNotificationStatus({
+            ...notification,
+            data: nextData,
+            parsedData: nextData,
+          });
+        }),
+      );
+    },
+    [enrichNotificationStatus, parseNotificationData],
+  );
 
   const loadNotifications = useCallback(async () => {
     if (loadNotificationsPromiseRef.current) {
@@ -187,20 +256,20 @@ export default function NotificationsScreen() {
     const runLoadNotifications = async () => {
       try {
         setLoading(true);
-        const token = await AsyncStorage.getItem('token');
+        const token = await AsyncStorage.getItem("token");
         const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
-        console.log('Notifications screen URL:', notificationsUrl);
+        console.log("Notifications screen URL:", notificationsUrl);
 
         const response = await fetch(notificationsUrl, {
           headers: {
-            ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
+            ...(ENV.tokenApi && { "X-API-Token": ENV.tokenApi }),
             ...(token && { Authorization: `Bearer ${token}` }),
           },
         });
 
         const rawResponse = await response.text();
         const data = rawResponse ? JSON.parse(rawResponse) : null;
-        console.log('Notifications screen status:', response.status);
+        console.log("Notifications screen status:", response.status);
 
         if (data?.success) {
           const rows = Array.isArray(data.data) ? data.data : [];
@@ -213,10 +282,13 @@ export default function NotificationsScreen() {
           setVisibleCount(10);
           setNotifications(enrichedRows);
         } else {
-          console.log('Notifications screen respuesta:', data?.respuesta || rawResponse || 'Sin respuesta');
+          console.log(
+            "Notifications screen respuesta:",
+            data?.respuesta || rawResponse || "Sin respuesta",
+          );
         }
       } catch (error) {
-        console.error('Error loading notifications:', error);
+        console.error("Error loading notifications:", error);
       } finally {
         setLoading(false);
         loadNotificationsPromiseRef.current = null;
@@ -236,131 +308,157 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
-    }, [loadNotifications])
+    }, [loadNotifications]),
   );
 
-  useEffect(() => {
-    const subscription = Notifications.addNotificationReceivedListener(() => {
-      loadNotifications();
-    });
-
-    return () => subscription.remove();
-  }, [loadNotifications]);
-
   const navigateClientHome = useCallback(() => {
-    DeviceEventEmitter.emit('closeClientQrModal');
-    router.replace(usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil) ? '/profile' : '/(tabs)');
+    DeviceEventEmitter.emit("closeClientQrModal");
+    router.replace(
+      usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil)
+        ? "/profile"
+        : "/(tabs)",
+    );
   }, [router, user?.id_perfil, usesPaymentDecisionAlert]);
 
-  const approvePayment = useCallback(async (transactionId) => {
-    try {
-      const data = await approvePaymentRequest(transactionId);
+  const approvePayment = useCallback(
+    async (transactionId) => {
+      try {
+        const data = await approvePaymentRequest(transactionId);
 
-      if (data?.success) {
-        updateNotificationStatusLocally(transactionId, 'approved');
-        DeviceEventEmitter.emit('refreshClientBalanceNow');
+        if (data?.success) {
+          updateNotificationStatusLocally(transactionId, "approved");
+          DeviceEventEmitter.emit("refreshClientBalanceNow");
+          Alert.alert(
+            "Operaci\u00f3n exitosa",
+            "El pago ha sido aprobado exitosamente. Volveras a Inicio para ver tu saldo actualizado.",
+          );
+          setTimeout(() => {
+            navigateClientHome();
+          }, 1200);
+          return;
+        }
+
         Alert.alert(
-          'Operaci\u00f3n exitosa',
-          'El pago ha sido aprobado exitosamente. Volveras a Inicio para ver tu saldo actualizado.'
+          "Atenci\u00f3n",
+          data?.respuesta || "No se pudo aprobar el pago",
         );
-        setTimeout(() => {
-          navigateClientHome();
-        }, 1200);
+      } catch (error) {
+        console.error("Error aprobando pago:", error);
+        Alert.alert(
+          "Atenci\u00f3n",
+          error.message || "No se pudo completar la aprobacion",
+        );
+      }
+    },
+    [
+      approvePaymentRequest,
+      navigateClientHome,
+      updateNotificationStatusLocally,
+    ],
+  );
+
+  const rejectPayment = useCallback(
+    async (transactionId) => {
+      try {
+        const data = await rejectPaymentRequest(transactionId);
+
+        if (data?.success) {
+          updateNotificationStatusLocally(transactionId, "rejected");
+          Alert.alert("Atenci\u00f3n", "El pago ha sido rechazado");
+          return;
+        }
+
+        Alert.alert(
+          "Atenci\u00f3n",
+          data?.respuesta || "No se pudo rechazar el pago",
+        );
+      } catch (error) {
+        console.error("Error rechazando pago:", error);
+        Alert.alert(
+          "Atenci\u00f3n",
+          error.message || "No se pudo completar el rechazo",
+        );
+      }
+    },
+    [rejectPaymentRequest, updateNotificationStatusLocally],
+  );
+
+  const openPaymentRequestDialog = useCallback(
+    (notificationData) => {
+      if (!notificationData?.transactionId) {
         return;
       }
 
-      Alert.alert('Atenci\u00f3n', data?.respuesta || 'No se pudo aprobar el pago');
-    } catch (error) {
-      console.error('Error aprobando pago:', error);
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar la aprobacion');
-    }
-  }, [approvePaymentRequest, navigateClientHome, updateNotificationStatusLocally]);
-
-  const rejectPayment = useCallback(async (transactionId) => {
-    try {
-      const data = await rejectPaymentRequest(transactionId);
-
-      if (data?.success) {
-        updateNotificationStatusLocally(transactionId, 'rejected');
-        Alert.alert('Atenci\u00f3n', 'El pago ha sido rechazado');
-        return;
-      }
-
-      Alert.alert('Atenci\u00f3n', data?.respuesta || 'No se pudo rechazar el pago');
-    } catch (error) {
-      console.error('Error rechazando pago:', error);
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo completar el rechazo');
-    }
-  }, [rejectPaymentRequest, updateNotificationStatusLocally]);
-
-  const openPaymentRequestDialog = useCallback((notificationData) => {
-    if (!notificationData?.transactionId) {
-      return;
-    }
-
-    Alert.alert(
-      'Solicitud de pago',
-      `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
-      [
-        {
-          text: 'Aprobar',
-          onPress: () => approvePayment(notificationData.transactionId),
-        },
-        {
-          text: 'Rechazar',
-          style: 'destructive',
-          onPress: () => rejectPayment(notificationData.transactionId),
-        },
-      ]
-    );
-  }, [approvePayment, rejectPayment]);
+      Alert.alert(
+        "Solicitud de pago",
+        `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
+        [
+          {
+            text: "Aprobar",
+            onPress: () => approvePayment(notificationData.transactionId),
+          },
+          {
+            text: "Rechazar",
+            style: "destructive",
+            onPress: () => rejectPayment(notificationData.transactionId),
+          },
+        ],
+      );
+    },
+    [approvePayment, rejectPayment],
+  );
 
   const handleNotificationPress = async (notification) => {
     try {
-      const notificationData = notification.parsedData ?? parseNotificationData(notification);
+      const notificationData =
+        notification.parsedData ?? parseNotificationData(notification);
 
-      if (notificationData?.type === 'PAYMENT_REQUEST') {
-        if (notification.resolvedStatus === 'approved') {
+      if (notificationData?.type === "PAYMENT_REQUEST") {
+        if (notification.resolvedStatus === "approved") {
           Alert.alert(
-            'Operaci\u00f3n exitosa',
-            `Tu pago por $${notificationData.total ?? notificationData.amount} ya fue completado.`
+            "Operaci\u00f3n exitosa",
+            `Tu pago por $${notificationData.total ?? notificationData.amount} ya fue completado.`,
           );
           return;
         }
 
-        if (notification.resolvedStatus === 'rejected') {
+        if (notification.resolvedStatus === "rejected") {
           Alert.alert(
-            'Atenci\u00f3n',
-            `La solicitud por $${notificationData.total ?? notificationData.amount} ya fue rechazada.`
+            "Atenci\u00f3n",
+            `La solicitud por $${notificationData.total ?? notificationData.amount} ya fue rechazada.`,
           );
           return;
         }
 
         Alert.alert(
-          'Solicitud de pago',
+          "Solicitud de pago",
           `Monto: $${notificationData.total ?? notificationData.amount}\nDe: ${notificationData.vendorName}`,
           [
             {
-              text: 'Aprobar',
+              text: "Aprobar",
               onPress: () => approvePayment(notificationData.transactionId),
             },
             {
-              text: 'Rechazar',
-              style: 'destructive',
+              text: "Rechazar",
+              style: "destructive",
               onPress: () => rejectPayment(notificationData.transactionId),
             },
-          ]
+          ],
         );
         return;
       }
 
       if (isPaymentApprovedLike(notification, notificationData)) {
-        DeviceEventEmitter.emit('refreshClientBalanceNow');
-        DeviceEventEmitter.emit('closeClientQrModal');
-        router.replace(usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil) ? '/profile' : '/(tabs)');
+        DeviceEventEmitter.emit("refreshClientBalanceNow");
+        DeviceEventEmitter.emit("closeClientQrModal");
+        router.replace(
+          usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil)
+            ? "/profile"
+            : "/(tabs)",
+        );
       }
     } catch (error) {
-      console.error('Error procesando notificacion:', error);
+      console.error("Error procesando notificacion:", error);
     }
   };
 
@@ -370,8 +468,12 @@ export default function NotificationsScreen() {
     }
 
     const firstPendingPayment = notifications.find((notification) => {
-      const notificationData = notification.parsedData ?? parseNotificationData(notification);
-      return notificationData?.type === 'PAYMENT_REQUEST' && notification.resolvedStatus === 'pending';
+      const notificationData =
+        notification.parsedData ?? parseNotificationData(notification);
+      return (
+        notificationData?.type === "PAYMENT_REQUEST" &&
+        notification.resolvedStatus === "pending"
+      );
     });
 
     if (!firstPendingPayment) {
@@ -379,10 +481,14 @@ export default function NotificationsScreen() {
     }
 
     const firstPendingData =
-      firstPendingPayment.parsedData ?? parseNotificationData(firstPendingPayment);
-    const transactionKey = String(firstPendingData?.transactionId ?? '');
+      firstPendingPayment.parsedData ??
+      parseNotificationData(firstPendingPayment);
+    const transactionKey = String(firstPendingData?.transactionId ?? "");
 
-    if (!transactionKey || autoOpenedTransactionsRef.current.has(transactionKey)) {
+    if (
+      !transactionKey ||
+      autoOpenedTransactionsRef.current.has(transactionKey)
+    ) {
       return;
     }
 
@@ -392,9 +498,14 @@ export default function NotificationsScreen() {
     }, 250);
 
     return () => clearTimeout(openTimeout);
-  }, [notifications, openPaymentRequestDialog, parseNotificationData, usesPaymentDecisionAlert]);
+  }, [
+    notifications,
+    openPaymentRequestDialog,
+    parseNotificationData,
+    usesPaymentDecisionAlert,
+  ]);
 
-  if (!hasPermission(user?.id_perfil, 'notifications')) {
+  if (!hasPermission(user?.id_perfil, "notifications")) {
     return (
       <AccessDenied
         title="Notificaciones restringidas"
@@ -406,23 +517,23 @@ export default function NotificationsScreen() {
   const visibleNotifications = notifications.slice(0, visibleCount);
   const canShowMore = notifications.length > visibleCount;
   const getAdminStatusIcon = (status) => {
-    if (status === 'approved') {
+    if (status === "approved") {
       return {
-        name: 'checkmark-circle',
-        color: '#263B80',
+        name: "checkmark-circle",
+        color: "#263B80",
       };
     }
 
-    if (status === 'rejected') {
+    if (status === "rejected") {
       return {
-        name: 'close-circle',
-        color: '#B23A48',
+        name: "close-circle",
+        color: "#B23A48",
       };
     }
 
     return {
-      name: 'alert-circle',
-      color: '#B23A48',
+      name: "alert-circle",
+      color: "#B23A48",
     };
   };
 
@@ -433,22 +544,28 @@ export default function NotificationsScreen() {
         <RefreshControl
           refreshing={loading}
           onRefresh={loadNotifications}
-          colors={['#263B80']}
+          colors={["#263B80"]}
           tintColor="#263B80"
         />
       }
     >
       {showBackButton ? (
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push("/profile")}
+        >
           <Text style={styles.backButtonText}>Regresar</Text>
         </TouchableOpacity>
       ) : null}
 
       <Text style={styles.title}>Notificaciones</Text>
 
-      <TouchableOpacity style={styles.refreshButton} onPress={loadNotifications}>
+      <TouchableOpacity
+        style={styles.refreshButton}
+        onPress={loadNotifications}
+      >
         <Text style={styles.refreshButtonText}>
-          {loading ? 'Actualizando...' : 'Actualizar'}
+          {loading ? "Actualizando..." : "Actualizar"}
         </Text>
       </TouchableOpacity>
 
@@ -464,7 +581,10 @@ export default function NotificationsScreen() {
             return (
               <TouchableOpacity
                 key={notification.id ?? `notification-${index}`}
-                style={[styles.notificationCard, styles.notificationCardWithIcon]}
+                style={[
+                  styles.notificationCard,
+                  styles.notificationCardWithIcon,
+                ]}
                 onPress={() => handleNotificationPress(notification)}
               >
                 <Ionicons
@@ -473,12 +593,14 @@ export default function NotificationsScreen() {
                   color={statusIcon.color}
                   style={styles.statusIcon}
                 />
-                <Text style={styles.notificationTitle}>{notification.title}</Text>
+                <Text style={styles.notificationTitle}>
+                  {notification.title}
+                </Text>
                 <Text style={styles.notificationBody}>{notification.body}</Text>
                 <Text style={styles.notificationDate}>
                   {notification.created_at
                     ? new Date(notification.created_at).toLocaleString()
-                    : 'Sin fecha'}
+                    : "Sin fecha"}
                 </Text>
               </TouchableOpacity>
             );
@@ -501,98 +623,98 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 20,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 20,
   },
   backButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
+    alignSelf: "flex-start",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
     borderRadius: 8,
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   backButtonText: {
-    color: '#263B80',
-    fontWeight: '700',
+    color: "#263B80",
+    fontWeight: "700",
   },
   refreshButton: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#FFFFFF',
+    alignSelf: "flex-end",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
     marginBottom: 12,
   },
   refreshButtonText: {
-    color: '#263B80',
-    fontWeight: '600',
+    color: "#263B80",
+    fontWeight: "600",
   },
   empty: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 40,
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   notificationCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 15,
     paddingLeft: 22,
     borderRadius: 10,
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    position: 'relative',
+    position: "relative",
   },
   notificationCardWithIcon: {
     paddingLeft: 46,
   },
   statusIcon: {
-    position: 'absolute',
+    position: "absolute",
     left: 14,
     top: 16,
   },
   notificationTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 5,
   },
   notificationBody: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 5,
   },
   notificationDate: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
   },
   loadMoreButton: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
     borderRadius: 10,
     marginTop: 6,
     marginBottom: 24,
     paddingVertical: 12,
   },
   loadMoreButtonText: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
