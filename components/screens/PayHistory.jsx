@@ -76,6 +76,7 @@ const PayHistory = () => {
   };
 
   const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`;
+  const hasValidPositiveId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
   const getPaymentTypeLabel = (item) => item.tipo_pago || item.dsc_tipo_pago || 'Tipo no disponible';
   const getMovementKind = (item) => {
     const rawType = [
@@ -107,6 +108,16 @@ const PayHistory = () => {
     item.clienteLabel ||
     item.usuario_nombre ||
     'Cliente no disponible';
+  const getSafeMovementIdLabel = (item) => {
+    const candidateId = item?.id_pagos ?? item?.id ?? item?._id ?? null;
+    return hasValidPositiveId(candidateId)
+      ? `#${Number(candidateId)}`
+      : 'sin identificador valido';
+  };
+  const hasReportablePaymentId = (item) => {
+    const candidateId = item?.id_pagos ?? item?.id_pago ?? item?.paymentId ?? null;
+    return hasValidPositiveId(candidateId);
+  };
 
   const formatDate = (dateString) => {
     try {
@@ -153,7 +164,7 @@ const PayHistory = () => {
     const paymentId = selectedSale.id_pagos ?? selectedSale.id_pago ?? null;
     const saleSnapshot = selectedSale;
 
-    if (!paymentId) {
+    if (!hasValidPositiveId(paymentId)) {
       Alert.alert(
         'Reporte no disponible',
         'Este movimiento no tiene un identificador de pago valido para reportarse.'
@@ -206,18 +217,17 @@ const PayHistory = () => {
       });
 
       closeReportModal();
+      await loadSales();
 
       Alert.alert(
         'Reporte enviado',
         response?.message || 'Tu reporte fue enviado al equipo TI para revision.'
       );
     } catch (error) {
-      const permissionMessage = String(error?.message || '').includes('permisos');
-
       Alert.alert(
         'Atenci\u00f3n',
-        permissionMessage
-          ? 'El backend rechazo el permiso para crear este reporte. Revisa la regla POST /api/reportes/create: cliente y gestor pueden crear reportes; solo TI puede leerlos y cambiar estatus.'
+        Number(error?.status ?? 0) === 403
+          ? 'Tu perfil no tiene permisos para crear reportes.'
           : error.message || 'No se pudo enviar el reporte.'
       );
     }
@@ -229,13 +239,15 @@ const PayHistory = () => {
         onPress={() =>
           Alert.alert(
             `Detalle de ${getMovementTitle(item).toLowerCase()}`,
-            `${getMovementTitle(item)} #${item.id_pagos || item.id || item._id}\nEstablecimiento: ${getEstablishmentLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nHora: ${formatTime(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
+            `${getMovementTitle(item)} ${getSafeMovementIdLabel(item)}\nEstablecimiento: ${getEstablishmentLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nHora: ${formatTime(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
           )
         }
       >
         <View style={styles.saleHeader}>
           <View style={styles.saleHeaderLeft}>
-            <Text style={styles.saleId}>{getMovementTitle(item)} #{item.id_pagos || item.id || item._id}</Text>
+            <Text style={styles.saleId}>
+              {getMovementTitle(item)} {getSafeMovementIdLabel(item)}
+            </Text>
             <View
               style={[
                 styles.movementBadge,
@@ -274,7 +286,7 @@ const PayHistory = () => {
         </View>
       </TouchableOpacity>
 
-      {canCreateReport && getMovementKind(item) !== 'abono' && (
+      {canCreateReport && getMovementKind(item) !== 'abono' && hasReportablePaymentId(item) && (
         <View style={styles.saleActions}>
           <TouchableOpacity style={styles.reportButton} onPress={() => openReportModal(item)}>
             <Text style={styles.reportButtonText}>Levantar reporte</Text>

@@ -98,9 +98,14 @@ const SalesHistory = () => {
   };
 
   const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`;
+  const hasValidPositiveId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
   const getPaymentTypeLabel = (item) => item.tipo_pago || item.dsc_tipo_pago || 'Tipo no disponible';
   const getEvidenceStatusLabel = (item) =>
     item.evidencias_completas ? 'Evidencias completas' : 'Pendiente de evidencias';
+  const getSafePaymentIdLabel = (item) => {
+    const candidateId = item?.id_pagos ?? item?.id ?? item?._id ?? null;
+    return hasValidPositiveId(candidateId) ? `#${Number(candidateId)}` : 'sin identificador valido';
+  };
 
   const formatDate = (dateString) => {
     try {
@@ -123,12 +128,12 @@ const SalesHistory = () => {
       onPress={() =>
         Alert.alert(
           'Detalle de venta',
-          `Pago #${item.id_pagos || item.id || item._id}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
+          `Pago ${getSafePaymentIdLabel(item)}\nTipo: ${getPaymentTypeLabel(item)}\nMonto: ${formatCurrency(item.monto || item.amount)}\nPropina: ${formatCurrency(item.propina || 0)}\nTotal: ${formatCurrency(item.total || item.totalAmount || item.amount)}\nFecha: ${formatDate(item.fec_reg || item.createdAt || item.date)}\nEvidencias: ${getEvidenceStatusLabel(item)}`
         )
       }
     >
       <View style={styles.saleHeader}>
-        <Text style={styles.saleId}>Pago #{item.id_pagos || item.id || item._id}</Text>
+        <Text style={styles.saleId}>Pago {getSafePaymentIdLabel(item)}</Text>
         <Text style={styles.saleAmount}>{formatCurrency(item.total || item.totalAmount || item.amount)}</Text>
       </View>
       <View style={styles.saleDetails}>

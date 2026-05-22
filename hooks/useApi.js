@@ -44,21 +44,25 @@ const normalizeReportRecord = (payload, fallback = {}) => {
     (Array.isArray(payload?.data) ? payload.data[0] : payload?.data) ??
     payload ??
     {};
+  const resolvedReportId =
+    report?.id_reporte ??
+    report?.reportId ??
+    report?.id ??
+    fallback.id_reporte ??
+    null;
+  const resolvedPaymentId =
+    report?.id_pagos ??
+    report?.paymentId ??
+    report?.id_pago ??
+    fallback.id_pagos ??
+    null;
+  const hasValidReportId = Number.isFinite(Number(resolvedReportId)) && Number(resolvedReportId) > 0;
+  const hasValidPaymentId = Number.isFinite(Number(resolvedPaymentId)) && Number(resolvedPaymentId) > 0;
 
   return {
     ...report,
-    id_reporte:
-      report?.id_reporte ??
-      report?.reportId ??
-      report?.id ??
-      fallback.id_reporte ??
-      null,
-    id_pagos:
-      report?.id_pagos ??
-      report?.paymentId ??
-      report?.id_pago ??
-      fallback.id_pagos ??
-      null,
+    id_reporte: resolvedReportId,
+    id_pagos: resolvedPaymentId,
     id_usuario:
       report?.id_usuario ??
       report?.clientId ??
@@ -87,7 +91,40 @@ const normalizeReportRecord = (payload, fallback = {}) => {
       report?.movementDate ??
       fallback.fecha_movimiento ??
       null,
+    has_valid_report_id: hasValidReportId,
+    has_valid_payment_id: hasValidPaymentId,
+    has_inconsistent_identifiers: !hasValidReportId || !hasValidPaymentId,
+    report_identifier_label: hasValidReportId ? `#${Number(resolvedReportId)}` : 'Inconsistente',
+    payment_identifier_label: hasValidPaymentId ? `#${Number(resolvedPaymentId)}` : 'Inconsistente',
   };
+};
+
+const REPORT_CREATE_FORBIDDEN_MESSAGE = 'Tu perfil no tiene permisos para crear reportes.';
+const REPORT_STATUS_FORBIDDEN_MESSAGE = 'Solo el perfil TI puede cambiar el estatus de los reportes.';
+const REPORT_INCONSISTENT_RESPONSE_MESSAGE =
+  'Se detecto una inconsistencia al procesar el reporte. Contacta a TI para revision.';
+
+const isValidPositiveId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+
+const ensureValidReportIdentifiers = (reportRecord, contextLabel, diagnostics = {}) => {
+  if (
+    isValidPositiveId(reportRecord?.id_reporte) &&
+    isValidPositiveId(reportRecord?.id_pagos)
+  ) {
+    return reportRecord;
+  }
+
+  console.error('Reporte inconsistente detectado:', {
+    contextLabel,
+    reportRecord,
+    diagnostics,
+  });
+
+  const error = new Error(REPORT_INCONSISTENT_RESPONSE_MESSAGE);
+  error.code = 'INVALID_REPORT_RECORD';
+  error.reportRecord = reportRecord;
+  error.diagnostics = diagnostics;
+  throw error;
 };
 
 const normalizeHotelHospedajeRecord = (record = {}, index = 0) => {
@@ -704,23 +741,32 @@ export const useApi = () => {
         reportData?.id_pago ??
         reportData?.paymentId ??
         reportData?.idPago ??
-        1
+        0
       );
+      const userId = Number(reportData?.id_usuario ?? 0);
+
+      if (!isValidPositiveId(paymentId)) {
+        throw new Error('Este movimiento no tiene un identificador de pago valido para reportarse.');
+      }
+
+      if (!isValidPositiveId(userId)) {
+        throw new Error('No se encontro un usuario valido para crear el reporte.');
+      }
 
       payload = {
         id_pagos: paymentId,
         id_pago: paymentId,
         paymentId,
-        id_usuario: Number(reportData?.id_usuario ?? 1),
+        id_usuario: userId,
         id_establecimiento:
           reportData?.id_establecimiento !== undefined && reportData?.id_establecimiento !== null
             ? Number(reportData.id_establecimiento)
             : null,
         tipo_reporte: String(reportData?.tipo_reporte ?? '').trim(),
         descripcion: String(reportData?.descripcion ?? '').trim(),
-        monto: Number(reportData?.monto ?? 1),
-        propina: Number(reportData?.propina ?? 1),
-        total: Number(reportData?.total ?? 1),
+        monto: Number(reportData?.monto ?? 0),
+        propina: Number(reportData?.propina ?? 0),
+        total: Number(reportData?.total ?? 0),
         fecha_movimiento: reportData?.fecha_movimiento ?? null,
       };
 
@@ -736,11 +782,25 @@ export const useApi = () => {
         },
         'Creando reporte de pago'
       );
+      const normalizedReport = normalizeReportRecord(data, {
+        id_usuario: payload.id_usuario,
+        id_establecimiento: payload.id_establecimiento,
+        tipo_reporte: payload.tipo_reporte,
+        descripcion: payload.descripcion,
+        monto: payload.monto,
+        propina: payload.propina,
+        total: payload.total,
+        fecha_movimiento: payload.fecha_movimiento,
+      });
 
       return {
         success: true,
         message: data?.message || data?.respuesta || 'Reporte creado correctamente',
-        data: normalizeReportRecord(data, payload),
+        data: ensureValidReportIdentifiers(normalizedReport, 'createPaymentReport', {
+          payload,
+          authDebug,
+          responseData: data,
+        }),
       };
     } catch (error) {
       console.error('API Error - createPaymentReport:', {
@@ -750,6 +810,11 @@ export const useApi = () => {
         payload,
         authDebug,
       });
+      if (Number(error?.status ?? 0) === 403) {
+        const forbiddenError = new Error(REPORT_CREATE_FORBIDDEN_MESSAGE);
+        forbiddenError.status = 403;
+        throw forbiddenError;
+      }
       if (String(error?.message || '').includes('Creando reporte de pago devolvió una respuesta no válida')) {
         throw new Error(
           'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/create.'
@@ -780,11 +845,7 @@ export const useApi = () => {
 
       return {
         success: true,
-        data: rows.map((row, index) =>
-          normalizeReportRecord(row, {
-            id_reporte: row?.id_reporte ?? index,
-          })
-        ),
+        data: rows.map((row) => normalizeReportRecord(row)),
       };
     } catch (error) {
       console.error('API Error - getPaymentReports:', error);
@@ -808,13 +869,17 @@ export const useApi = () => {
         },
         'Actualizando estatus de reporte'
       );
+      const normalizedReport = normalizeReportRecord(data?.data ?? data, {
+        estatus,
+      });
 
       return {
         success: true,
         message: data?.message || data?.respuesta || 'Reporte actualizado correctamente',
-        data: normalizeReportRecord(data?.data ?? data, {
-          id_reporte: Number(idReporte ?? 0),
+        data: ensureValidReportIdentifiers(normalizedReport, 'updatePaymentReportStatus', {
+          idReporte,
           estatus,
+          responseData: data,
         }),
       };
     } catch (error) {
@@ -823,6 +888,11 @@ export const useApi = () => {
         throw new Error(
           'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/update-status.'
         );
+      }
+      if (Number(error?.status ?? 0) === 403) {
+        const forbiddenError = new Error(REPORT_STATUS_FORBIDDEN_MESSAGE);
+        forbiddenError.status = 403;
+        throw forbiddenError;
       }
       throw error;
     }

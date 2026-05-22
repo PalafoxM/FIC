@@ -100,6 +100,47 @@ const getRecordTimestamp = (record) =>
       0
   ).getTime();
 
+const getSafeReportIdLabel = (record) =>
+  record?.report_identifier_label ||
+  (Number.isFinite(Number(record?.id_reporte)) && Number(record.id_reporte) > 0
+    ? `#${Number(record.id_reporte)}`
+    : 'Inconsistente');
+
+const getSafePaymentIdLabel = (record) =>
+  record?.payment_identifier_label ||
+  (Number.isFinite(Number(record?.id_pagos)) && Number(record.id_pagos) > 0
+    ? `#${Number(record.id_pagos)}`
+    : 'Inconsistente');
+
+const getUserTarifaDiariaLabel = (record) =>
+  String(
+    record?.tarifa_diaria_label ??
+      record?.dsc_tarifa_diaria ??
+      record?.tarifa_diaria ??
+      record?.tarifaDiaria ??
+      record?.nivel_label ??
+      record?.dsc_nivel ??
+      record?.nivel ??
+      ''
+  ).trim() || 'Sin tarifa diaria';
+
+const getUserPartidaLabel = (record) =>
+  String(
+    record?.partida_label ??
+      record?.dsc_partida ??
+      record?.nombre_partida ??
+      record?.clave_partida ??
+      record?.partida ??
+      record?.id_partida ??
+      ''
+  ).trim() || 'Sin partida';
+
+const getUserFolioLabel = (record) =>
+  String(record?.folio_entrega ?? record?.folio ?? '').trim() || 'Sin folio';
+
+const getUserSubfolioLabel = (record) =>
+  String(record?.subfolio_entrega ?? record?.subfolio ?? '').trim() || 'Sin subfolio';
+
 const GENERIC_ESTABLISHMENT_LABELS = new Set([
   'establecimiento',
   'establecimiento asignado',
@@ -456,6 +497,10 @@ export default function HomeScreen() {
           ...usuarioRecord,
           fullName: buildFullName(usuarioRecord),
           roleLabel: getRoleLabel(usuarioRecord.id_perfil),
+          tarifaDiariaLabel: getUserTarifaDiariaLabel(usuarioRecord),
+          partidaLabel: getUserPartidaLabel(usuarioRecord),
+          folioEntregaLabel: getUserFolioLabel(usuarioRecord),
+          subfolioEntregaLabel: getUserSubfolioLabel(usuarioRecord),
           qrCliente: qrClientesMap[String(usuarioRecord.id_usuario ?? '')] ?? null,
           establecimientoLabel:
             establecimientosMap[String(usuarioRecord.id_establecimiento ?? '')] || 'Sin establecimiento',
@@ -624,6 +669,9 @@ export default function HomeScreen() {
           usuarioLabel: usuariosMap[String(reportRecord.id_usuario ?? '')] || 'Sin usuario',
           establecimientoLabel:
             establecimientosMap[String(reportRecord.id_establecimiento ?? '')] || 'Sin establecimiento',
+          qaInconsistencyLabel: reportRecord?.has_inconsistent_identifiers
+            ? 'Identificadores inconsistentes detectados por backend.'
+            : '',
         }))
       );
       setVisibleReportsCount(10);
@@ -1082,7 +1130,12 @@ export default function HomeScreen() {
       await loadReportsView();
       Alert.alert('Reporte actualizado', 'El estatus del reporte fue actualizado correctamente.');
     } catch (error) {
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo actualizar el reporte.');
+      Alert.alert(
+        'Atenci\u00f3n',
+        Number(error?.status ?? 0) === 403
+          ? 'Solo el perfil TI puede cambiar el estatus de los reportes.'
+          : error.message || 'No se pudo actualizar el reporte.'
+      );
     }
   };
 
@@ -1460,13 +1513,20 @@ export default function HomeScreen() {
                         </View>
                       ) : (
                         <>
-                          {visibleReports.map((record) => (
-                            <View key={String(record.id_reporte)} style={styles.reportCard}>
+                          {visibleReports.map((record, index) => (
+                            <View
+                              key={String(record.id_reporte ?? `report-row-${index}`)}
+                              style={styles.reportCard}
+                            >
                               <View style={styles.userCardHeader}>
-                                <Text style={styles.userCardTitle}>Reporte #{record.id_reporte}</Text>
+                                <Text style={styles.userCardTitle}>
+                                  Reporte {getSafeReportIdLabel(record)}
+                                </Text>
                                 <Text style={styles.userCardId}>{record.estatus || 'pendiente'}</Text>
                               </View>
-                              <Text style={styles.userCardMeta}>Pago relacionado: #{record.id_pagos || 'N/D'}</Text>
+                              <Text style={styles.userCardMeta}>
+                                Pago relacionado: {getSafePaymentIdLabel(record)}
+                              </Text>
                               <Text style={styles.userCardMeta}>Cliente: {record.usuarioLabel}</Text>
                               <Text style={styles.userCardMeta}>
                                 Establecimiento: {record.establecimientoLabel}
@@ -1476,21 +1536,26 @@ export default function HomeScreen() {
                               <Text style={styles.userCardMeta}>
                                 Fecha del movimiento: {record.fecha_movimiento || 'Sin fecha'}
                               </Text>
+                              {record.qaInconsistencyLabel ? (
+                                <Text style={styles.userCardMeta}>{record.qaInconsistencyLabel}</Text>
+                              ) : null}
 
-                              <View style={styles.reportActions}>
-                                <TouchableOpacity
-                                  style={styles.reportStatusButton}
-                                  onPress={() => handleReportStatusChange(record.id_reporte, 'en_revision')}
-                                >
-                                  <Text style={styles.reportStatusButtonText}>En revision</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={[styles.reportStatusButton, styles.reportStatusButtonSuccess]}
-                                  onPress={() => handleReportStatusChange(record.id_reporte, 'resuelto')}
-                                >
-                                  <Text style={styles.reportStatusButtonText}>Resuelto</Text>
-                                </TouchableOpacity>
-                              </View>
+                              {record.has_valid_report_id ? (
+                                <View style={styles.reportActions}>
+                                  <TouchableOpacity
+                                    style={styles.reportStatusButton}
+                                    onPress={() => handleReportStatusChange(record.id_reporte, 'en_revision')}
+                                  >
+                                    <Text style={styles.reportStatusButtonText}>En revision</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={[styles.reportStatusButton, styles.reportStatusButtonSuccess]}
+                                    onPress={() => handleReportStatusChange(record.id_reporte, 'resuelto')}
+                                  >
+                                    <Text style={styles.reportStatusButtonText}>Resuelto</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
                             </View>
                           ))}
 
@@ -1602,19 +1667,20 @@ export default function HomeScreen() {
                 visibleUsers.map((record) => (
                   <View key={String(record.id_usuario)} style={styles.userCard}>
                     <View style={styles.userCardHeader}>
-                      <Text style={styles.userCardTitle}>{record.fullName}</Text>
-                      <Text style={styles.userCardId}>ID {record.id_usuario}</Text>
+                      <Text style={styles.userCardTitle}>ID Usuario: {record.id_usuario}</Text>
+                      <Text style={styles.userCardId}>Usuario: {record.usuario || 'N/D'}</Text>
                     </View>
 
-                    <Text style={styles.userCardMeta}>Usuario: {record.usuario || 'N/D'}</Text>
+                    <Text style={styles.userCardMeta}>Nombre completo: {record.fullName || 'Sin nombre'}</Text>
                     <Text style={styles.userCardMeta}>Perfil: {record.roleLabel}</Text>
+                    <Text style={styles.userCardMeta}>Tarifa diaria: {record.tarifaDiariaLabel}</Text>
+                    <Text style={styles.userCardMeta}>Partida: {record.partidaLabel}</Text>
+                    <Text style={styles.userCardMeta}>Folio: {record.folioEntregaLabel}</Text>
+                    <Text style={styles.userCardMeta}>Subfolio: {record.subfolioEntregaLabel}</Text>
                     <Text style={styles.userCardMeta}>
                       Establecimiento: {record.establecimientoLabel}
                     </Text>
                     <Text style={styles.userCardMeta}>Correo: {record.correo || 'Sin correo'}</Text>
-                    <Text style={styles.userCardMeta}>
-                      QR: {record.qrCliente?.codigo_qr || 'Sin QR generado'}
-                    </Text>
 
                     {isAdmin && isDepositoCreditosAllowedForPerfil(record.id_perfil) && (
                       <View style={styles.userActions}>
