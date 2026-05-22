@@ -1,100 +1,122 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Alert, AppState, DeviceEventEmitter } from 'react-native';
-import { ENV } from '../constants/env';
-import { isConsumerProfile, ROLE_IDS } from '../constants/roles';
-import { useApi } from './useApi';
-import { useAuth } from './useAuth';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
+import { useEffect, useRef } from "react";
+import { Alert, AppState, DeviceEventEmitter } from "react-native";
+import { ENV } from "../constants/env";
+import { isConsumerProfile, ROLE_IDS } from "../constants/roles";
+import { useApi } from "./useApi";
+import { useAuth } from "./useAuth";
 
-const POLL_INTERVAL_MS = 10000;
-const POLL_RETRY_INTERVAL_MS = 30000;
-const POLL_MAX_RETRY_INTERVAL_MS = 120000;
-const MAX_PERSISTED_NOTIFICATION_IDS = 100;
+// =========================== UTILIDADES ===========================
 
 const parseNotificationData = (notification) => {
-  if (!notification) {
-    return {};
-  }
-
-  if (typeof notification.data === 'string') {
+  if (!notification) return {};
+  if (typeof notification.data === "string") {
     try {
       return JSON.parse(notification.data);
     } catch {
       return {};
     }
   }
-
   return notification.data || {};
 };
 
-const isPaymentApprovedLike = (notification, notificationData = parseNotificationData(notification)) => {
-  const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+const isPaymentApprovedLike = (
+  notification,
+  notificationData = parseNotificationData(notification),
+) => {
+  const normalizedType = String(
+    notificationData?.type ?? notification?.type ?? "",
+  )
+    .trim()
+    .toUpperCase();
   const normalizedStatus = String(
     notificationData?.status ??
-    notificationData?.paymentStatus ??
-    notificationData?.resolvedStatus ??
-    ''
-  ).trim().toUpperCase();
-  const title = String(notification?.title ?? '').trim().toLowerCase();
-  const body = String(notification?.body ?? notificationData?.body ?? notificationData?.message ?? '').trim().toLowerCase();
+      notificationData?.paymentStatus ??
+      notificationData?.resolvedStatus ??
+      "",
+  )
+    .trim()
+    .toUpperCase();
+  const title = String(notification?.title ?? "")
+    .trim()
+    .toLowerCase();
+  const body = String(
+    notification?.body ??
+      notificationData?.body ??
+      notificationData?.message ??
+      "",
+  )
+    .trim()
+    .toLowerCase();
 
-  if (normalizedType === 'PAYMENT_APPROVED') {
-    return true;
-  }
-
+  if (normalizedType === "PAYMENT_APPROVED") return true;
   if (
-    ['PAYMENT_SUCCESS', 'PAYMENT_COMPLETED', 'NIP_PAYMENT_APPROVED', 'PAYMENT_CAPTURED', 'PAYMENT_APPLIED'].includes(
-      normalizedType
-    )
-  ) {
+    [
+      "PAYMENT_SUCCESS",
+      "PAYMENT_COMPLETED",
+      "NIP_PAYMENT_APPROVED",
+      "PAYMENT_CAPTURED",
+      "PAYMENT_APPLIED",
+    ].includes(normalizedType)
+  )
     return true;
-  }
-
-  if (normalizedStatus === 'APPROVED') {
-    return true;
-  }
-
+  if (normalizedStatus === "APPROVED") return true;
   return (
-    (title.includes('pago') || title.includes('cobro') || body.includes('pago') || body.includes('cobro')) &&
-    (title.includes('aprob') || title.includes('complet') || title.includes('aplicad') || body.includes('aprob') || body.includes('complet') || body.includes('aplicad'))
+    (title.includes("pago") ||
+      title.includes("cobro") ||
+      body.includes("pago") ||
+      body.includes("cobro")) &&
+    (title.includes("aprob") ||
+      title.includes("complet") ||
+      title.includes("aplicad") ||
+      body.includes("aprob") ||
+      body.includes("complet") ||
+      body.includes("aplicad"))
   );
 };
 
 const buildNotificationIdentity = (notification, currentUserId = null) => {
   const notificationData = parseNotificationData(notification);
-  const normalizedType = String(notificationData?.type ?? notification?.type ?? '').trim().toUpperCase();
+  const normalizedType = String(
+    notificationData?.type ?? notification?.type ?? "",
+  )
+    .trim()
+    .toUpperCase();
   const normalizedUserId = String(
     currentUserId ??
-    notificationData?.id_usuario ??
-    notification?.user_id ??
-    ''
+      notificationData?.id_usuario ??
+      notification?.user_id ??
+      "",
   ).trim();
 
-  if (normalizedType === 'QR_READY') {
-    const folio = String(notificationData?.folio ?? notificationData?.folio_entrega ?? '').trim();
-    return `passive:${normalizedType}:${normalizedUserId}:${folio || 'self'}`;
+  if (normalizedType === "QR_READY") {
+    const folio = String(
+      notificationData?.folio ?? notificationData?.folio_entrega ?? "",
+    ).trim();
+    return `passive:${normalizedType}:${normalizedUserId}:${folio || "self"}`;
   }
-
-  if (normalizedType === 'QR_ACTIVATION_REJECTED') {
-    const folio = String(notificationData?.folio ?? notificationData?.folio_entrega ?? '').trim();
+  if (normalizedType === "QR_ACTIVATION_REJECTED") {
+    const folio = String(
+      notificationData?.folio ?? notificationData?.folio_entrega ?? "",
+    ).trim();
     const motivo = String(
       notificationData?.motivo_rechazo ??
-      notificationData?.motivo ??
-      notification?.body ??
-      ''
+        notificationData?.motivo ??
+        notification?.body ??
+        "",
     ).trim();
-    return `passive:${normalizedType}:${normalizedUserId}:${folio || 'self'}:${motivo || 'no-reason'}`;
+    return `passive:${normalizedType}:${normalizedUserId}:${folio || "self"}:${motivo || "no-reason"}`;
   }
-
   if (isPaymentApprovedLike(notification, notificationData)) {
     const transactionId = String(
-      notificationData?.transactionId ??
-      notificationData?.transaction_id ??
-      ''
+      notificationData?.transactionId ?? notificationData?.transaction_id ?? "",
     ).trim();
-    const amount = String(notificationData?.total ?? notificationData?.amount ?? '').trim();
-    return `passive:${normalizedType}:${normalizedUserId}:${transactionId || 'no-transaction'}:${amount || 'no-amount'}`;
+    const amount = String(
+      notificationData?.total ?? notificationData?.amount ?? "",
+    ).trim();
+    return `passive:${normalizedType}:${normalizedUserId}:${transactionId || "no-transaction"}:${amount || "no-amount"}`;
   }
 
   const explicitId =
@@ -104,357 +126,382 @@ const buildNotificationIdentity = (notification, currentUserId = null) => {
     notificationData?.notificationId ??
     notificationData?.id ??
     null;
-
-  if (explicitId !== null && explicitId !== undefined && String(explicitId).trim() !== '') {
+  if (
+    explicitId !== null &&
+    explicitId !== undefined &&
+    String(explicitId).trim() !== ""
+  ) {
     return `id:${String(explicitId).trim()}`;
   }
 
   const fingerprint = [
-    notificationData?.type ?? notification?.type ?? 'notification',
-    notificationData?.transactionId ?? '',
-    notificationData?.id_usuario ?? notification?.user_id ?? '',
-    notification?.title ?? '',
-    notification?.body ?? '',
-    notification?.created_at ?? notificationData?.created_at ?? '',
+    notificationData?.type ?? notification?.type ?? "notification",
+    notificationData?.transactionId ?? "",
+    notificationData?.id_usuario ?? notification?.user_id ?? "",
+    notification?.title ?? "",
+    notification?.body ?? "",
+    notification?.created_at ?? notificationData?.created_at ?? "",
   ]
-    .map((value) => String(value ?? '').trim())
-    .join('|');
-
+    .map((v) => String(v ?? "").trim())
+    .join("|");
   return `fp:${fingerprint}`;
 };
 
+// =========================== HOOK PRINCIPAL ===========================
+
 export const usePaymentRequestAlerts = () => {
   const { user } = useAuth();
-  const { approvePaymentRequest, getTransactionStatus, rejectPaymentRequest } = useApi();
+  const { approvePaymentRequest, getTransactionStatus, rejectPaymentRequest } =
+    useApi();
   const router = useRouter();
   const shownNotificationIdsRef = useRef(new Set());
   const alertOpenRef = useRef(false);
-  const pollTimeoutRef = useRef(null);
-  const pollingBackoffMsRef = useRef(POLL_INTERVAL_MS);
-  const networkErrorLoggedRef = useRef(false);
+  const checkingPromiseRef = useRef(null);
+  const hasRunInitialCheckRef = useRef(false);
+  const prevUserIdRef = useRef(user?.id_usuario);
 
-  useEffect(() => {
-    const numericPerfil = Number(user?.id_perfil ?? 0);
-    const isClient = isConsumerProfile(numericPerfil);
-    const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
-    const isManager = numericPerfil === ROLE_IDS.MANAGER;
-    const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
-    const navigateToAvailableBalance = () => {
-      DeviceEventEmitter.emit('closeClientQrModal');
-      DeviceEventEmitter.emit('refreshClientBalanceNow');
-      router.replace(usesPaymentDecisionAlert && !isClient ? '/profile' : '/(tabs)');
-    };
-    const persistedNotificationIdsKey = `seenPassiveNotificationIds:${user?.id_usuario ?? 'anonymous'}`;
+  // =========================== FUNCIONES INTERNAS ===========================
 
-    if (!usesPaymentDecisionAlert || !user?.id_usuario) {
-      return undefined;
+  const persistShownNotificationIds = async (persistedNotificationIdsKey) => {
+    try {
+      const ids = Array.from(shownNotificationIdsRef.current).slice(-100);
+      await AsyncStorage.setItem(
+        persistedNotificationIdsKey,
+        JSON.stringify(ids),
+      );
+    } catch (error) {
+      console.error("Error persisting shown notification ids:", error);
     }
+  };
 
-    let isMounted = true;
+  const markNotificationAsShown = async (
+    notificationIdentity,
+    persistedNotificationIdsKey,
+    persist = false,
+  ) => {
+    if (!notificationIdentity) return;
+    shownNotificationIdsRef.current.add(notificationIdentity);
+    if (persist) await persistShownNotificationIds(persistedNotificationIdsKey);
+  };
 
-    const persistShownNotificationIds = async () => {
+  const showPaymentDecisionAlert = (notificationData, onApprove, onReject) => {
+    const amount = Number(
+      notificationData?.total ?? notificationData?.amount ?? 0,
+    );
+    const vendorName = notificationData?.vendorName || "Proveedor";
+    alertOpenRef.current = true;
+    Alert.alert(
+      "Solicitud de pago",
+      `Monto: $${amount.toFixed(2)}\nDe: ${vendorName}`,
+      [
+        {
+          text: "Aprobar",
+          onPress: () => {
+            alertOpenRef.current = false;
+            onApprove();
+          },
+        },
+        {
+          text: "Rechazar",
+          style: "destructive",
+          onPress: () => {
+            alertOpenRef.current = false;
+            onReject();
+          },
+        },
+      ],
+      {
+        cancelable: false,
+        onDismiss: () => {
+          alertOpenRef.current = false;
+        },
+      },
+    );
+  };
+
+  const showManagerNotificationAlert = (notification, notificationData) => {
+    const title = notification?.title || "Notificacion";
+    const body =
+      notification?.body ||
+      notificationData?.body ||
+      notificationData?.message ||
+      "Tienes una nueva notificacion operativa.";
+    alertOpenRef.current = true;
+    Alert.alert(
+      title,
+      body,
+      [
+        {
+          text: "Despues",
+          style: "cancel",
+          onPress: () => {
+            alertOpenRef.current = false;
+          },
+        },
+        {
+          text: "Ver notificaciones",
+          onPress: () => {
+            alertOpenRef.current = false;
+            router.push("/alerts");
+          },
+        },
+      ],
+      {
+        cancelable: false,
+        onDismiss: () => {
+          alertOpenRef.current = false;
+        },
+      },
+    );
+  };
+
+  const showPaymentApprovedAlert = (
+    notification,
+    notificationData,
+    navigateToBalance,
+  ) => {
+    const amount = Number(
+      notificationData?.total ?? notificationData?.amount ?? 0,
+    );
+    const title = notification?.title || "Pago aplicado";
+    const body =
+      notification?.body ||
+      notificationData?.body ||
+      notificationData?.message ||
+      (amount > 0
+        ? `Se aplico un cobro por $${amount.toFixed(2)}. Tu saldo disponible ya fue actualizado.`
+        : "Se aplico un cobro correctamente.");
+    alertOpenRef.current = true;
+    Alert.alert(
+      title,
+      body,
+      [
+        {
+          text: "Despues",
+          style: "cancel",
+          onPress: () => {
+            alertOpenRef.current = false;
+          },
+        },
+        {
+          text: "Ver saldo",
+          onPress: () => {
+            alertOpenRef.current = false;
+            navigateToBalance();
+          },
+        },
+      ],
+      {
+        cancelable: false,
+        onDismiss: () => {
+          alertOpenRef.current = false;
+        },
+      },
+    );
+  };
+
+  // Función que revisa notificaciones y muestra alertas (si hay alguna pendiente)
+  const checkPendingPaymentRequests = async () => {
+    if (checkingPromiseRef.current) return checkingPromiseRef.current;
+    if (alertOpenRef.current) return;
+
+    checkingPromiseRef.current = (async () => {
       try {
-        const persistedIds = Array.from(shownNotificationIdsRef.current).slice(-MAX_PERSISTED_NOTIFICATION_IDS);
-        await AsyncStorage.setItem(persistedNotificationIdsKey, JSON.stringify(persistedIds));
-      } catch (error) {
-        console.error('Error persisting shown notification ids:', error);
-      }
-    };
+        const token = await AsyncStorage.getItem("token");
+        if (!token) return;
 
-    const markNotificationAsShown = async (notificationIdentity, persist = false) => {
-      if (!notificationIdentity) {
-        return;
-      }
-
-      shownNotificationIdsRef.current.add(notificationIdentity);
-      if (persist) {
-        await persistShownNotificationIds();
-      }
-    };
-
-    const showPaymentDecisionAlert = (notificationData) => {
-      const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
-      const vendorName = notificationData?.vendorName || 'Proveedor';
-
-      alertOpenRef.current = true;
-
-      Alert.alert(
-        'Solicitud de pago',
-        `Monto: $${amount.toFixed(2)}\nDe: ${vendorName}`,
-        [
-          {
-            text: 'Aprobar',
-            onPress: async () => {
-              alertOpenRef.current = false;
-              try {
-                const response = await approvePaymentRequest(notificationData.transactionId);
-                if (response?.success) {
-                  DeviceEventEmitter.emit('refreshClientBalanceNow');
-                  Alert.alert(
-                    'Operaci\u00f3n exitosa',
-                    usesPaymentDecisionAlert
-                      ? 'El pago fue aprobado. Te llevaremos al perfil para revisar tu monto disponible.'
-                      : 'El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.'
-                  );
-                  setTimeout(() => {
-                    DeviceEventEmitter.emit('closeClientQrModal');
-                    router.replace(usesPaymentDecisionAlert ? '/profile' : '/(tabs)');
-                  }, 1200);
-                  return;
-                }
-
-                Alert.alert('Atenci\u00f3n', response?.respuesta || 'No se pudo aprobar el pago.');
-              } catch (error) {
-                Alert.alert('Atenci\u00f3n', error.message || 'No se pudo aprobar el pago.');
-              }
-            },
-          },
-          {
-            text: 'Rechazar',
-            style: 'destructive',
-            onPress: async () => {
-              alertOpenRef.current = false;
-              try {
-                const response = await rejectPaymentRequest(notificationData.transactionId);
-                if (response?.success) {
-                  Alert.alert('Atenci\u00f3n', 'La solicitud fue rechazada.');
-                  return;
-                }
-
-                Alert.alert('Atenci\u00f3n', response?.respuesta || 'No se pudo rechazar el pago.');
-              } catch (error) {
-                Alert.alert('Atenci\u00f3n', error.message || 'No se pudo rechazar el pago.');
-              }
-            },
-          },
-        ],
-        {
-          cancelable: false,
-          onDismiss: () => {
-            alertOpenRef.current = false;
-          },
-        }
-      );
-    };
-
-    const showManagerNotificationAlert = (notification) => {
-      const notificationData = parseNotificationData(notification);
-      const title = notification?.title || 'Notificacion';
-      const body =
-        notification?.body ||
-        notificationData?.body ||
-        notificationData?.message ||
-        'Tienes una nueva notificacion operativa.';
-
-      alertOpenRef.current = true;
-
-      Alert.alert(
-        title,
-        body,
-        [
-          {
-            text: 'Despues',
-            style: 'cancel',
-            onPress: () => {
-              alertOpenRef.current = false;
-            },
-          },
-          {
-            text: 'Ver notificaciones',
-            onPress: () => {
-              alertOpenRef.current = false;
-              router.push('/alerts');
-            },
-          },
-        ],
-        {
-          cancelable: false,
-          onDismiss: () => {
-            alertOpenRef.current = false;
-          },
-        }
-      );
-    };
-
-    const showPaymentApprovedAlert = (notification) => {
-      const notificationData = parseNotificationData(notification);
-      const amount = Number(notificationData?.total ?? notificationData?.amount ?? 0);
-      const title = notification?.title || 'Pago aplicado';
-      const body =
-        notification?.body ||
-        notificationData?.body ||
-        notificationData?.message ||
-        (amount > 0
-          ? `Se aplico un cobro por $${amount.toFixed(2)}. Tu saldo disponible ya fue actualizado.`
-          : 'Se aplico un cobro correctamente. Tu saldo disponible ya fue actualizado.');
-
-      alertOpenRef.current = true;
-
-      Alert.alert(
-        title,
-        body,
-        [
-          {
-            text: 'Despues',
-            style: 'cancel',
-            onPress: () => {
-              alertOpenRef.current = false;
-            },
-          },
-          {
-            text: 'Ver saldo',
-            onPress: () => {
-              alertOpenRef.current = false;
-              navigateToAvailableBalance();
-            },
-          },
-        ],
-        {
-          cancelable: false,
-          onDismiss: () => {
-            alertOpenRef.current = false;
-          },
-        }
-      );
-    };
-
-    const checkPendingPaymentRequests = async () => {
-      if (!isMounted || alertOpenRef.current) {
-        return;
-      }
-
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          return;
-        }
-
-        const notificationsUrl = `${ENV.apiBaseUrl}/notifications/my-notifications`;
-        const response = await fetch(notificationsUrl, {
+        const url = `${ENV.apiBaseUrl}/notifications/my-notifications`;
+        const response = await fetch(url, {
           headers: {
-            ...(ENV.tokenApi && { 'X-API-Token': ENV.tokenApi }),
+            ...(ENV.tokenApi && { "X-API-Token": ENV.tokenApi }),
             Authorization: `Bearer ${token}`,
           },
         });
-
-        const rawResponse = await response.text();
-        const data = rawResponse ? JSON.parse(rawResponse) : null;
-
-        if (!response.ok || !data?.success) {
-          networkErrorLoggedRef.current = false;
-          pollingBackoffMsRef.current = POLL_INTERVAL_MS;
-          return;
-        }
+        const raw = await response.text();
+        const data = raw ? JSON.parse(raw) : null;
+        if (!response.ok || !data?.success) return;
 
         const rows = Array.isArray(data?.data) ? data.data : [];
-        const sortedRows = [...rows].sort((left, right) => {
-          const leftDate = new Date(left?.created_at ?? 0).getTime();
-          const rightDate = new Date(right?.created_at ?? 0).getTime();
-          return rightDate - leftDate;
-        });
+        const sorted = [...rows].sort(
+          (a, b) => new Date(b?.created_at ?? 0) - new Date(a?.created_at ?? 0),
+        );
 
-        for (const notification of sortedRows) {
-          const notificationIdentity = buildNotificationIdentity(notification, user?.id_usuario);
-          const notificationData = parseNotificationData(notification);
-          const transactionId = notificationData?.transactionId;
+        const numericPerfil = Number(user?.id_perfil ?? 0);
+        const isClient = isConsumerProfile(numericPerfil);
+        const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
+        const isManager = numericPerfil === ROLE_IDS.MANAGER;
+        const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
+        const persistedKey = `seenPassiveNotificationIds:${user?.id_usuario ?? "anonymous"}`;
 
-          if (notificationIdentity && shownNotificationIdsRef.current.has(notificationIdentity)) {
+        for (const notif of sorted) {
+          const identity = buildNotificationIdentity(notif, user?.id_usuario);
+          if (identity && shownNotificationIdsRef.current.has(identity))
+            continue;
+
+          const notifData = parseNotificationData(notif);
+          const transactionId = notifData?.transactionId;
+
+          // Solicitud de pago pendiente
+          if (notifData?.type === "PAYMENT_REQUEST" && transactionId) {
+            try {
+              const statusRes = await getTransactionStatus(transactionId);
+              const resolvedStatus = statusRes?.data?.status ?? "pending";
+              await markNotificationAsShown(identity, persistedKey, false);
+              if (resolvedStatus !== "pending") continue;
+
+              const approve = async () => {
+                try {
+                  const res = await approvePaymentRequest(transactionId);
+                  if (res?.success) {
+                    DeviceEventEmitter.emit("refreshClientBalanceNow");
+                    Alert.alert(
+                      "Operación exitosa",
+                      usesPaymentDecisionAlert
+                        ? "El pago fue aprobado. Te llevaremos al perfil para revisar tu monto disponible."
+                        : "El pago fue aprobado. Volveras a Inicio para ver tu saldo actualizado.",
+                    );
+                    setTimeout(() => {
+                      DeviceEventEmitter.emit("closeClientQrModal");
+                      router.replace(
+                        usesPaymentDecisionAlert ? "/profile" : "/(tabs)",
+                      );
+                    }, 1200);
+                  } else {
+                    Alert.alert(
+                      "Atención",
+                      res?.respuesta || "No se pudo aprobar el pago.",
+                    );
+                  }
+                } catch (err) {
+                  Alert.alert(
+                    "Atención",
+                    err.message || "No se pudo aprobar el pago.",
+                  );
+                }
+              };
+              const reject = async () => {
+                try {
+                  const res = await rejectPaymentRequest(transactionId);
+                  if (res?.success)
+                    Alert.alert("Atención", "La solicitud fue rechazada.");
+                  else
+                    Alert.alert(
+                      "Atención",
+                      res?.respuesta || "No se pudo rechazar el pago.",
+                    );
+                } catch (err) {
+                  Alert.alert(
+                    "Atención",
+                    err.message || "No se pudo rechazar el pago.",
+                  );
+                }
+              };
+              showPaymentDecisionAlert(notifData, approve, reject);
+              return; // Solo mostramos la primera alerta pendiente
+            } catch {
+              await markNotificationAsShown(identity, persistedKey, false);
+            }
             continue;
           }
 
-          if (notificationData?.type !== 'PAYMENT_REQUEST' || !transactionId) {
-            if (usesPaymentDecisionAlert && isPaymentApprovedLike(notification, notificationData)) {
-              await markNotificationAsShown(notificationIdentity, true);
-              showPaymentApprovedAlert(notification);
-              break;
-            }
-
-            if (usesPaymentDecisionAlert && (notificationData?.type === 'QR_READY' || notificationData?.type === 'QR_ACTIVATION_REJECTED')) {
-              await markNotificationAsShown(notificationIdentity, true);
-              showManagerNotificationAlert(notification);
-              break;
-            }
-            continue;
+          // Pago aprobado
+          if (
+            usesPaymentDecisionAlert &&
+            isPaymentApprovedLike(notif, notifData)
+          ) {
+            await markNotificationAsShown(identity, persistedKey, true);
+            const navigateToBalance = () => {
+              DeviceEventEmitter.emit("closeClientQrModal");
+              DeviceEventEmitter.emit("refreshClientBalanceNow");
+              router.replace(
+                usesPaymentDecisionAlert && !isClient ? "/profile" : "/(tabs)",
+              );
+            };
+            showPaymentApprovedAlert(notif, notifData, navigateToBalance);
+            return;
           }
 
-          try {
-            const statusResponse = await getTransactionStatus(transactionId);
-            const resolvedStatus = statusResponse?.data?.status ?? 'pending';
-
-            await markNotificationAsShown(notificationIdentity, false);
-
-            if (resolvedStatus !== 'pending') {
-              continue;
-            }
-
-            showPaymentDecisionAlert(notificationData);
-            break;
-          } catch {
-            await markNotificationAsShown(notificationIdentity, false);
+          // QR listo o rechazado
+          if (
+            usesPaymentDecisionAlert &&
+            (notifData?.type === "QR_READY" ||
+              notifData?.type === "QR_ACTIVATION_REJECTED")
+          ) {
+            await markNotificationAsShown(identity, persistedKey, true);
+            showManagerNotificationAlert(notif, notifData);
+            return;
           }
         }
-        networkErrorLoggedRef.current = false;
-        pollingBackoffMsRef.current = POLL_INTERVAL_MS;
       } catch (error) {
-        const normalizedMessage = String(error?.message || '').toLowerCase();
-        const isNetworkError = normalizedMessage.includes('network request failed');
-
-        if (!isNetworkError || !networkErrorLoggedRef.current) {
-          console.error('Error polling payment request alerts:', error);
-        }
-
-        if (isNetworkError) {
-          networkErrorLoggedRef.current = true;
-          pollingBackoffMsRef.current = Math.min(
-            Math.max(pollingBackoffMsRef.current, POLL_RETRY_INTERVAL_MS) * 2,
-            POLL_MAX_RETRY_INTERVAL_MS
-          );
-        } else {
-          networkErrorLoggedRef.current = false;
-          pollingBackoffMsRef.current = POLL_INTERVAL_MS;
-        }
+        console.error("Error checking payment requests:", error);
       } finally {
-        if (isMounted) {
-          pollTimeoutRef.current = setTimeout(
-            checkPendingPaymentRequests,
-            pollingBackoffMsRef.current
-          );
-        }
+        checkingPromiseRef.current = null;
       }
-    };
+    })();
 
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        if (pollTimeoutRef.current) {
-          clearTimeout(pollTimeoutRef.current);
-          pollTimeoutRef.current = null;
-        }
-        checkPendingPaymentRequests();
-      }
-    });
+    return checkingPromiseRef.current;
+  };
 
-    const initializePolling = async () => {
+  // =========================== EFECTOS ===========================
+
+  useEffect(() => {
+    const numericPerfil = Number(user?.id_perfil ?? 0);
+    const usesPaymentDecisionAlert =
+      isConsumerProfile(numericPerfil) ||
+      numericPerfil === ROLE_IDS.ADMIN ||
+      numericPerfil === ROLE_IDS.MANAGER;
+    if (!usesPaymentDecisionAlert || !user?.id_usuario) return;
+
+    if (prevUserIdRef.current !== user?.id_usuario) {
+      prevUserIdRef.current = user?.id_usuario;
+      hasRunInitialCheckRef.current = false;
+      shownNotificationIdsRef.current.clear();
+    }
+
+    let isMounted = true;
+    const persistedKey = `seenPassiveNotificationIds:${user?.id_usuario}`;
+
+    // Cargar IDs ya mostrados desde almacenamiento
+    const loadPersistedIds = async () => {
       try {
-        const persistedIdsRaw = await AsyncStorage.getItem(persistedNotificationIdsKey);
-        const persistedIds = persistedIdsRaw ? JSON.parse(persistedIdsRaw) : [];
-        shownNotificationIdsRef.current = new Set(Array.isArray(persistedIds) ? persistedIds : []);
-      } catch (error) {
+        const raw = await AsyncStorage.getItem(persistedKey);
+        const ids = raw ? JSON.parse(raw) : [];
+        shownNotificationIdsRef.current = new Set(
+          Array.isArray(ids) ? ids : [],
+        );
+      } catch {
         shownNotificationIdsRef.current = new Set();
       }
-
-      await checkPendingPaymentRequests();
     };
+    loadPersistedIds();
 
-    initializePolling();
+    // Listener para cuando la app vuelve a primer plano (recarga manual o reapertura)
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        if (nextAppState === "active" && isMounted) {
+          checkPendingPaymentRequests();
+        }
+      },
+    );
+
+    // Ejecutar solo una vez al montar (al iniciar sesión o recargar la app)
+    if (!hasRunInitialCheckRef.current) {
+      hasRunInitialCheckRef.current = true;
+      checkPendingPaymentRequests();
+    }
+
+    // Listener de notificaciones push entrantes (cuando llega una nueva notificación)
+    const pushSubscription = Notifications.addNotificationReceivedListener(
+      () => {
+        if (isMounted) checkPendingPaymentRequests();
+      },
+    );
 
     return () => {
       isMounted = false;
-      appStateSubscription?.remove?.();
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-        pollTimeoutRef.current = null;
-      }
-      alertOpenRef.current = false;
+      pushSubscription.remove();
+      appStateSubscription.remove();
     };
   }, [
     approvePaymentRequest,
@@ -465,4 +512,3 @@ export const usePaymentRequestAlerts = () => {
     user?.id_usuario,
   ]);
 };
-
