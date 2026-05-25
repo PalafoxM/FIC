@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -278,7 +278,8 @@ export default function CashierProcessScreen() {
   const isClientActivation =
     activationMode === "client" &&
     SELF_ACTIVATION_PROFILE_IDS.has(Number(user?.id_perfil ?? 0));
-  const isNativeClientProfile = Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
+  const isNativeClientProfile =
+    Number(user?.id_perfil ?? 0) === ROLE_IDS.CLIENT;
   const usesClientActivationEndpoints =
     isClientActivation && isNativeClientProfile;
   const requiresTiReviewAfterSelfService =
@@ -287,6 +288,33 @@ export default function CashierProcessScreen() {
     DeviceEventEmitter.emit("refreshClientQrActivationState");
     router.back();
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (step !== STEP_FOLIO) {
+        setStep(STEP_FOLIO);
+        setFrontPhoto(null);
+        setBackPhoto(null);
+        setSignatureDataUrl(null);
+        setDeliverySummary(null);
+        setFolio(routeFolio);
+      }
+    }, [routeFolio]),
+  );
+
+  const resetParam = useLocalSearchParams().reset;
+
+  useEffect(() => {
+    if (resetParam) {
+      setStep(STEP_FOLIO);
+      setFrontPhoto(null);
+      setBackPhoto(null);
+      setSignatureDataUrl(null);
+      setDeliverySummary(null);
+      setFolio(routeFolio);
+    }
+  }, [resetParam]);
+
   const confirmContinueActivation = (message) => {
     Alert.alert(
       "Continuar activacion",
@@ -419,7 +447,10 @@ export default function CashierProcessScreen() {
           }
 
           if (activationStatus && canRestartDocumentFlow(activationStatus)) {
-            Alert.alert("Atencion", buildActivationRetryMessage(activationStatus));
+            Alert.alert(
+              "Atencion",
+              buildActivationRetryMessage(activationStatus),
+            );
           }
 
           const resolvedFolio =
@@ -623,13 +654,13 @@ export default function CashierProcessScreen() {
 
     if (!permission?.granted) {
       const response = await requestPermission();
-        if (!response.granted) {
-          Alert.alert(
-            "Atencion",
-            "Necesitamos permiso de camara para capturar el documento oficial.",
-          );
-          return;
-        }
+      if (!response.granted) {
+        Alert.alert(
+          "Atencion",
+          "Necesitamos permiso de camara para capturar el documento oficial.",
+        );
+        return;
+      }
     }
 
     setStep(STEP_FRONT);
@@ -847,7 +878,8 @@ export default function CashierProcessScreen() {
       } else {
         // El OCR falló desde el inicio
         confirmContinueActivation(
-          result.respuesta || "No fue posible leer la CURP del documento. Verifica la iluminacion, la nitidez o continua manualmente si corresponde.",
+          result.respuesta ||
+            "No fue posible leer la CURP del documento. Verifica la iluminacion, la nitidez o continua manualmente si corresponde.",
         );
       }
     } catch (error) {
@@ -1294,28 +1326,26 @@ export default function CashierProcessScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>
-          {isClientActivation
-            ? canRestartDocumentFlow(deliverySummary)
-              ? "Vuelve a cargar documentos"
-              : "Comienza tu activación"
-            : "Folio del interesado"}
-        </Text>
-        <Text style={styles.cardDescription}>
-          {isClientActivation
-            ? canRestartDocumentFlow(deliverySummary)
-              ? "Tu solicitud fue rechazada o regreso al inicio documental. Vuelve a cargar los documentos y reenvia la solicitud para continuar."
-              : "Completa tu expediente documental para que TI revise y active tu QR."
-            : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
-        </Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {isClientActivation
+              ? canRestartDocumentFlow(deliverySummary)
+                ? "Vuelve a cargar documentos"
+                : "Comienza tu activación"
+              : "Folio del interesado"}
+          </Text>
+          <Text style={styles.cardDescription}>
+            {isClientActivation
+              ? canRestartDocumentFlow(deliverySummary)
+                ? "Tu solicitud fue rechazada o regreso al inicio documental. Vuelve a cargar los documentos y reenvia la solicitud para continuar."
+                : "Completa tu expediente documental para que TI revise y active tu QR."
+              : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
+          </Text>
 
           {isClientActivation &&
           String(deliverySummary?.motivo_rechazo ?? "").trim() ? (
             <View style={styles.rejectionHint}>
-              <Text style={styles.rejectionHintTitle}>
-                Solicitud rechazada
-              </Text>
+              <Text style={styles.rejectionHintTitle}>Solicitud rechazada</Text>
               <Text style={styles.rejectionHintText}>
                 {buildActivationRetryMessage(deliverySummary)}
               </Text>
@@ -1406,7 +1436,7 @@ export default function CashierProcessScreen() {
 
             <View style={styles.overlayBottom}>
               <Text style={styles.overlayHint}>
-                Mantén la credencial plana y bien iluminada
+                Mantén el documento plano y bien iluminado
               </Text>
             </View>
           </View>
@@ -1610,8 +1640,8 @@ export default function CashierProcessScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Resumen local del trámite</Text>
         <Text style={styles.cardDescription}>
-          La app ya reunió folio, documento oficial y firma. A continuación
-          se muestra el resumen real entregado por backend para el interesado.
+          La app ya reunió folio, documento oficial y firma. A continuación se
+          muestra el resumen real entregado por backend para el interesado.
         </Text>
 
         <View style={styles.summaryBox}>
@@ -2325,4 +2355,3 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 10,
   },
 });
-

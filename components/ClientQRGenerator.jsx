@@ -1,43 +1,60 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, DeviceEventEmitter, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
-import { hasPermission } from '../constants/roles';
-import { useAuth } from '../hooks/useAuth';
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  DeviceEventEmitter,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { hasPermission } from "../constants/roles";
+import { useAuth } from "../hooks/useAuth";
 
 const hasOwnProperty = (object, propertyName) =>
   Boolean(object) && Object.prototype.hasOwnProperty.call(object, propertyName);
 
 const resolveActivationStatus = (status) => {
-  const solicitud = String(status?.solicitud_activacion_estatus ?? '').trim().toLowerCase();
-  const expediente = String(status?.expediente_estatus ?? '').trim().toLowerCase();
+  const solicitud = String(status?.solicitud_activacion_estatus ?? "")
+    .trim()
+    .toLowerCase();
+  const expediente = String(status?.expediente_estatus ?? "")
+    .trim()
+    .toLowerCase();
 
-  if (solicitud === 'pendiente' || expediente === 'solicitado_ti') {
-    return 'pendiente';
+  if (solicitud === "pendiente" || expediente === "solicitado_ti") {
+    return "pendiente";
   }
 
-  if (solicitud === 'rechazada' || expediente === 'cancelado') {
-    return 'rechazada';
+  if (solicitud === "rechazada" || expediente === "cancelado") {
+    return "rechazada";
   }
 
-  if (solicitud === 'aprobada' || expediente === 'entregado') {
-    return 'aprobada';
+  if (solicitud === "aprobada" || expediente === "entregado") {
+    return "aprobada";
   }
 
-  return '';
+  return "";
 };
 
 const buildActivationRetryMessage = (status) => {
-  const motivo = String(status?.motivo_rechazo ?? '').trim();
+  const motivo = String(status?.motivo_rechazo ?? "").trim();
   const baseMessage =
-    'Tu solicitud fue rechazada. Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.';
+    "Tu solicitud fue rechazada. Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.";
 
   return motivo ? `${baseMessage}\n\nMotivo: ${motivo}` : baseMessage;
 };
 
 const ClientQRGenerator = () => {
   const router = useRouter();
-  const { user, getClientAvailableBalance, getClientQrData, getClientQrActivationStatus } = useAuth();
+  const {
+    user,
+    getClientAvailableBalance,
+    getClientQrData,
+    getClientQrActivationStatus,
+  } = useAuth();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [loadingQr, setLoadingQr] = useState(false);
@@ -45,11 +62,11 @@ const ClientQRGenerator = () => {
   const [statusResolved, setStatusResolved] = useState(false);
 
   const refreshClientQrState = useCallback(async () => {
-    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
+    if (!user || !hasPermission(user?.id_perfil, "clientQr")) {
       return null;
     }
 
-    DeviceEventEmitter.emit('refreshClientBalanceNow');
+    DeviceEventEmitter.emit("refreshClientBalanceNow");
 
     const [qrRecord, activationStatus] = await Promise.all([
       getClientQrData(user.id_usuario, { includeInactive: true }),
@@ -57,13 +74,13 @@ const ClientQRGenerator = () => {
       getClientAvailableBalance(user.id_usuario).catch(() => null),
     ]);
 
-    const resolvedQrActivo = hasOwnProperty(activationStatus, 'qr_activo')
+    const resolvedQrActivo = hasOwnProperty(activationStatus, "qr_activo")
       ? Number(activationStatus?.qr_activo ?? 0)
       : Number(qrRecord?.qr_activo ?? user?.qr_activo ?? 0);
-    const resolvedQrOperativo = hasOwnProperty(qrRecord, 'qr_operativo')
+    const resolvedQrOperativo = hasOwnProperty(qrRecord, "qr_operativo")
       ? Boolean(qrRecord?.qr_operativo)
       : resolvedQrActivo === 1;
-    const resolvedQrVencido = hasOwnProperty(qrRecord, 'qr_vencido')
+    const resolvedQrVencido = hasOwnProperty(qrRecord, "qr_vencido")
       ? Boolean(qrRecord?.qr_vencido)
       : false;
 
@@ -78,36 +95,44 @@ const ClientQRGenerator = () => {
     setQrStatus(mergedStatus);
     setStatusResolved(true);
     return mergedStatus;
-  }, [getClientAvailableBalance, getClientQrActivationStatus, getClientQrData, user]);
+  }, [
+    getClientAvailableBalance,
+    getClientQrActivationStatus,
+    getClientQrData,
+    user,
+  ]);
 
-  const getPrimaryCtaLabel = useCallback((status) => {
-    if (!statusResolved) {
-      return 'Consultando estado del QR...';
-    }
+  const getPrimaryCtaLabel = useCallback(
+    (status) => {
+      if (!statusResolved) {
+        return "Consultando estado del QR...";
+      }
 
-    const resolvedStatus = resolveActivationStatus(status);
-    const qrOperativo =
-      typeof status?.qr_operativo === 'boolean'
-        ? status.qr_operativo
-        : Number(status?.qr_activo ?? 0) === 1;
+      const resolvedStatus = resolveActivationStatus(status);
+      const qrOperativo =
+        typeof status?.qr_operativo === "boolean"
+          ? status.qr_operativo
+          : Number(status?.qr_activo ?? 0) === 1;
 
-    if (qrOperativo) {
-      return 'Generar QR para pagar';
-    }
+      if (qrOperativo) {
+        return "Generar QR para pagar";
+      }
 
-    if (resolvedStatus === 'pendiente') {
-      return 'Solicitud en revision';
-    }
+      if (resolvedStatus === "pendiente") {
+        return "Solicitud en revision";
+      }
 
-    if (resolvedStatus === 'rechazada') {
-      return 'Vuelve a cargar documentos';
-    }
+      if (resolvedStatus === "rechazada") {
+        return "Vuelve a cargar documentos";
+      }
 
-    return 'Comienza tu activacion';
-  }, [statusResolved]);
+      return "Comienza tu activacion";
+    },
+    [statusResolved],
+  );
 
   const generateClientQR = async () => {
-    if (!user || !hasPermission(user?.id_perfil, 'clientQr')) {
+    if (!user || !hasPermission(user?.id_perfil, "clientQr")) {
       return;
     }
 
@@ -116,51 +141,58 @@ const ClientQRGenerator = () => {
       const qrRecord = await refreshClientQrState();
       const qrCode = qrRecord?.codigo_qr ?? null;
       const qrOperativo =
-        typeof qrRecord?.qr_operativo === 'boolean'
+        typeof qrRecord?.qr_operativo === "boolean"
           ? qrRecord.qr_operativo
           : Number(qrRecord?.qr_activo ?? 0) === 1;
 
       if (!qrCode) {
         Alert.alert(
-          'Atenci\u00f3n',
-          'No tienes un código QR disponible. Revisa tu proceso de activación con caja SECTURI.'
+          "Atenci\u00f3n",
+          "No tienes un código QR disponible. Revisa tu proceso de activación con caja SECTURI.",
         );
         return;
       }
 
       if (!qrOperativo) {
-        if (resolveActivationStatus(qrRecord) === 'pendiente') {
+        if (resolveActivationStatus(qrRecord) === "pendiente") {
           Alert.alert(
-            'Atenci\u00f3n',
-            'Tu solicitud de activación ya fue enviada y se encuentra en revisión.'
+            "Atenci\u00f3n",
+            "Tu solicitud de activación ya fue enviada y se encuentra en revisión.",
           );
           return;
         }
 
-        if (resolveActivationStatus(qrRecord) === 'rechazada' && String(qrRecord?.motivo_rechazo ?? '').trim()) {
-          Alert.alert(
-            'Atenci\u00f3n',
-            buildActivationRetryMessage(qrRecord)
-          );
-        } else if (resolveActivationStatus(qrRecord) === 'rechazada') {
-          Alert.alert('Atenci\u00f3n', buildActivationRetryMessage(qrRecord));
+        if (
+          resolveActivationStatus(qrRecord) === "rechazada" &&
+          String(qrRecord?.motivo_rechazo ?? "").trim()
+        ) {
+          Alert.alert("Atenci\u00f3n", buildActivationRetryMessage(qrRecord));
+        } else if (resolveActivationStatus(qrRecord) === "rechazada") {
+          Alert.alert("Atenci\u00f3n", buildActivationRetryMessage(qrRecord));
         }
 
         router.push({
-          pathname: '/(tabs)/cashier-process',
+          pathname: "/(tabs)/cashier-process",
           params: {
-            mode: 'client',
+            mode: "client",
+            reset: Date.now(),
           },
         });
         return;
       }
 
       const clientPaymentInfo = {
-        type: 'client_payment',
+        type: "client_payment",
         id: user?.id_usuario ?? null,
         clientId: user?.id_usuario ?? null,
         clientUserId: user?.id_usuario ?? null,
-        clientName: [user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' '),
+        clientName: [
+          user?.nombre,
+          user?.primer_apellido,
+          user?.segundo_apellido,
+        ]
+          .filter(Boolean)
+          .join(" "),
         codigo_qr: qrCode,
         qr_code: qrCode,
         clientQrCode: qrCode,
@@ -171,7 +203,10 @@ const ClientQRGenerator = () => {
       setQrData(clientPaymentInfo);
       setShowQR(true);
     } catch (error) {
-      Alert.alert('Atención', error.message || 'No se pudo obtener el QR vigente del cliente');
+      Alert.alert(
+        "Atención",
+        error.message || "No se pudo obtener el QR vigente del cliente",
+      );
     } finally {
       setLoadingQr(false);
     }
@@ -184,19 +219,25 @@ const ClientQRGenerator = () => {
 
   useEffect(() => {
     refreshClientQrState().catch((error) => {
-      console.error('Error refreshing client QR activation state:', error);
+      console.error("Error refreshing client QR activation state:", error);
       setStatusResolved(true);
     });
 
-    const subscription = DeviceEventEmitter.addListener('closeClientQrModal', () => {
-      handleCloseQR();
-    });
-    const refreshSubscription = DeviceEventEmitter.addListener('refreshClientQrActivationState', () => {
-      refreshClientQrState().catch((error) => {
-        console.error('Error refreshing client QR activation state:', error);
-        setStatusResolved(true);
-      });
-    });
+    const subscription = DeviceEventEmitter.addListener(
+      "closeClientQrModal",
+      () => {
+        handleCloseQR();
+      },
+    );
+    const refreshSubscription = DeviceEventEmitter.addListener(
+      "refreshClientQrActivationState",
+      () => {
+        refreshClientQrState().catch((error) => {
+          console.error("Error refreshing client QR activation state:", error);
+          setStatusResolved(true);
+        });
+      },
+    );
 
     return () => {
       subscription.remove();
@@ -207,10 +248,13 @@ const ClientQRGenerator = () => {
   useFocusEffect(
     useCallback(() => {
       refreshClientQrState().catch((error) => {
-        console.error('Error refreshing client QR activation state on focus:', error);
+        console.error(
+          "Error refreshing client QR activation state on focus:",
+          error,
+        );
         setStatusResolved(true);
       });
-    }, [refreshClientQrState])
+    }, [refreshClientQrState]),
   );
 
   return (
@@ -218,37 +262,40 @@ const ClientQRGenerator = () => {
       <TouchableOpacity
         style={styles.menuItem}
         onPress={generateClientQR}
-        disabled={!hasPermission(user?.id_perfil, 'clientQr') || loadingQr}
+        disabled={!hasPermission(user?.id_perfil, "clientQr") || loadingQr}
       >
         <Text style={styles.menuItemText}>
           {loadingQr
-            ? 'Consultando estado del QR...'
+            ? "Consultando estado del QR..."
             : getPrimaryCtaLabel(qrStatus)}
         </Text>
       </TouchableOpacity>
 
-      {(typeof qrStatus?.qr_operativo === 'boolean'
+      {(typeof qrStatus?.qr_operativo === "boolean"
         ? !qrStatus.qr_operativo
         : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) !== 1) &&
-      String(qrStatus?.codigo_qr ?? user?.codigo_qr ?? '').trim() ? (
+      String(qrStatus?.codigo_qr ?? user?.codigo_qr ?? "").trim() ? (
         <TouchableOpacity
           style={styles.secondaryAction}
           onPress={() => {
-            const qrCode =
-              qrStatus?.codigo_qr ??
-              user?.codigo_qr ??
-              null;
+            const qrCode = qrStatus?.codigo_qr ?? user?.codigo_qr ?? null;
 
             if (!qrCode) {
               return;
             }
 
             setQrData({
-              type: 'client_payment',
+              type: "client_payment",
               id: user?.id_usuario ?? null,
               clientId: user?.id_usuario ?? null,
               clientUserId: user?.id_usuario ?? null,
-              clientName: [user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' '),
+              clientName: [
+                user?.nombre,
+                user?.primer_apellido,
+                user?.segundo_apellido,
+              ]
+                .filter(Boolean)
+                .join(" "),
               codigo_qr: qrCode,
               qr_code: qrCode,
               clientQrCode: qrCode,
@@ -263,22 +310,28 @@ const ClientQRGenerator = () => {
         </TouchableOpacity>
       ) : null}
 
-      {resolveActivationStatus(qrStatus) === 'pendiente' ? (
+      {resolveActivationStatus(qrStatus) === "pendiente" ? (
         <View style={styles.statusNote}>
-          <Text style={styles.statusNoteText}>Tu expediente ya fue enviado y esta en revision por TI.</Text>
+          <Text style={styles.statusNoteText}>
+            Tu expediente ya fue enviado y esta en revision por TI.
+          </Text>
         </View>
       ) : null}
 
-      {resolveActivationStatus(qrStatus) === 'rechazada' && String(qrStatus?.motivo_rechazo ?? '').trim() ? (
-        <View style={styles.rejectionNote}>
-          <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
-          <Text style={styles.rejectionText}>{buildActivationRetryMessage(qrStatus)}</Text>
-        </View>
-      ) : resolveActivationStatus(qrStatus) === 'rechazada' ? (
+      {resolveActivationStatus(qrStatus) === "rechazada" &&
+      String(qrStatus?.motivo_rechazo ?? "").trim() ? (
         <View style={styles.rejectionNote}>
           <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
           <Text style={styles.rejectionText}>
-            Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.
+            {buildActivationRetryMessage(qrStatus)}
+          </Text>
+        </View>
+      ) : resolveActivationStatus(qrStatus) === "rechazada" ? (
+        <View style={styles.rejectionNote}>
+          <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
+          <Text style={styles.rejectionText}>
+            Debes volver a cargar tus documentos y reenviar la solicitud para
+            continuar con la activacion.
           </Text>
         </View>
       ) : null}
@@ -297,10 +350,18 @@ const ClientQRGenerator = () => {
               <>
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>
-                    {[user?.nombre, user?.primer_apellido, user?.segundo_apellido].filter(Boolean).join(' ')}
+                    {[
+                      user?.nombre,
+                      user?.primer_apellido,
+                      user?.segundo_apellido,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   </Text>
                   <Text style={styles.userEmail}>{user?.correo}</Text>
-                  <Text style={styles.infoText}>Muestra este codigo al vendedor</Text>
+                  <Text style={styles.infoText}>
+                    Muestra este codigo al vendedor
+                  </Text>
                 </View>
 
                 <View style={styles.qrWrapper}>
@@ -314,33 +375,52 @@ const ClientQRGenerator = () => {
 
                 <View style={styles.instructions}>
                   <Text style={styles.instructionTitle}>
-                    {(typeof qrStatus?.qr_operativo === 'boolean'
-                      ? qrStatus.qr_operativo
-                      : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1)
-                      ? 'Como usar:'
-                      : 'QR visible pero inactivo'}
+                    {(
+                      typeof qrStatus?.qr_operativo === "boolean"
+                        ? qrStatus.qr_operativo
+                        : Number(
+                            qrStatus?.qr_activo ?? user?.qr_activo ?? 0,
+                          ) === 1
+                    )
+                      ? "Como usar:"
+                      : "QR visible pero inactivo"}
                   </Text>
-                  {(typeof qrStatus?.qr_operativo === 'boolean'
-                    ? qrStatus.qr_operativo
-                    : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) === 1) ? (
+                  {(
+                    typeof qrStatus?.qr_operativo === "boolean"
+                      ? qrStatus.qr_operativo
+                      : Number(qrStatus?.qr_activo ?? user?.qr_activo ?? 0) ===
+                        1
+                  ) ? (
                     <>
-                      <Text style={styles.instructionText}>1. Muestra este QR al vendedor</Text>
-                      <Text style={styles.instructionText}>2. El vendedor escaneara el codigo</Text>
-                      <Text style={styles.instructionText}>3. Confirma el pago en tu dispositivo</Text>
+                      <Text style={styles.instructionText}>
+                        1. Muestra este QR al vendedor
+                      </Text>
+                      <Text style={styles.instructionText}>
+                        2. El vendedor escaneara el codigo
+                      </Text>
+                      <Text style={styles.instructionText}>
+                        3. Confirma el pago en tu dispositivo
+                      </Text>
                     </>
                   ) : (
                     <>
                       <Text style={styles.instructionText}>
                         {qrStatus?.qr_vencido
-                          ? 'Tu QR vencio y ya no esta operativo para pagos.'
-                          : 'Tu QR no esta operativo para pagos.'}
+                          ? "Tu QR vencio y ya no esta operativo para pagos."
+                          : "Tu QR no esta operativo para pagos."}
                       </Text>
-                      <Text style={styles.instructionText}>Completa tu activacion documental para solicitar revision a TI.</Text>
+                      <Text style={styles.instructionText}>
+                        Completa tu activacion documental para solicitar
+                        revision a TI.
+                      </Text>
                     </>
                   )}
                 </View>
 
-                <TouchableOpacity style={styles.closeButton} onPress={handleCloseQR}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCloseQR}
+                >
                   <Text style={styles.closeButtonText}>Cerrar</Text>
                 </TouchableOpacity>
               </>
@@ -354,11 +434,11 @@ const ClientQRGenerator = () => {
 
 const styles = StyleSheet.create({
   menuItem: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     padding: 20,
     borderRadius: 10,
     marginBottom: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -366,137 +446,137 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   secondaryAction: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#263B80',
+    borderColor: "#263B80",
     padding: 16,
     borderRadius: 10,
     marginBottom: 15,
-    alignItems: 'center',
+    alignItems: "center",
   },
   secondaryActionText: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statusNote: {
-    backgroundColor: '#F7F9FE',
+    backgroundColor: "#F7F9FE",
     borderWidth: 1,
-    borderColor: '#D7DEEE',
+    borderColor: "#D7DEEE",
     borderRadius: 10,
     padding: 14,
     marginBottom: 15,
   },
   statusNoteText: {
-    color: '#263B80',
+    color: "#263B80",
     fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   rejectionNote: {
-    backgroundColor: '#FFF4F5',
+    backgroundColor: "#FFF4F5",
     borderWidth: 1,
-    borderColor: '#E9BBC2',
+    borderColor: "#E9BBC2",
     borderRadius: 10,
     padding: 14,
     marginBottom: 15,
   },
   rejectionTitle: {
-    color: '#B23A48',
+    color: "#B23A48",
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 6,
   },
   rejectionText: {
-    color: '#7B3943',
+    color: "#7B3943",
     fontSize: 14,
     lineHeight: 20,
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     padding: 20,
   },
   qrContainer: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     padding: 25,
     borderRadius: 15,
-    alignItems: 'center',
-    width: '100%',
+    alignItems: "center",
+    width: "100%",
     maxWidth: 350,
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 15,
-    color: '#263B80',
+    color: "#263B80",
   },
   userInfo: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
     padding: 15,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: "#F8F9FA",
     borderRadius: 10,
-    width: '100%',
+    width: "100%",
   },
   userName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#263B80',
+    fontWeight: "bold",
+    color: "#263B80",
     marginBottom: 5,
   },
   userEmail: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 10,
   },
   infoText: {
     fontSize: 12,
-    color: '#999',
-    fontStyle: 'italic',
+    color: "#999",
+    fontStyle: "italic",
   },
   qrWrapper: {
     padding: 15,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 10,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
   },
   instructions: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,
-    width: '100%',
+    width: "100%",
   },
   instructionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1976D2',
+    fontWeight: "bold",
+    color: "#1976D2",
     marginBottom: 10,
   },
   instructionText: {
     fontSize: 14,
-    color: '#424242',
+    color: "#424242",
     marginBottom: 5,
   },
   closeButton: {
-    backgroundColor: '#B23A48',
+    backgroundColor: "#B23A48",
     padding: 15,
     borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   closeButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 16,
   },
 });

@@ -363,6 +363,7 @@ export default function ProfileScreen() {
                 params: {
                   mode: "client",
                   folio,
+                  reset: Date.now(),
                 },
               });
             },

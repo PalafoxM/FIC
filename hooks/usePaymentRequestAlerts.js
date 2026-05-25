@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Alert, AppState, DeviceEventEmitter } from "react-native";
 import { ENV } from "../constants/env";
-import { isConsumerProfile, ROLE_IDS } from "../constants/roles";
 import { useApi } from "./useApi";
 import { useAuth } from "./useAuth";
 
@@ -326,11 +325,7 @@ export const usePaymentRequestAlerts = () => {
           (a, b) => new Date(b?.created_at ?? 0) - new Date(a?.created_at ?? 0),
         );
 
-        const numericPerfil = Number(user?.id_perfil ?? 0);
-        const isClient = isConsumerProfile(numericPerfil);
-        const isAdmin = numericPerfil === ROLE_IDS.ADMIN;
-        const isManager = numericPerfil === ROLE_IDS.MANAGER;
-        const usesPaymentDecisionAlert = isClient || isAdmin || isManager;
+        const usesPaymentDecisionAlert = true;
         const persistedKey = `seenPassiveNotificationIds:${user?.id_usuario ?? "anonymous"}`;
 
         for (const notif of sorted) {
@@ -445,12 +440,16 @@ export const usePaymentRequestAlerts = () => {
   // =========================== EFECTOS ===========================
 
   useEffect(() => {
-    const numericPerfil = Number(user?.id_perfil ?? 0);
-    const usesPaymentDecisionAlert =
-      isConsumerProfile(numericPerfil) ||
-      numericPerfil === ROLE_IDS.ADMIN ||
-      numericPerfil === ROLE_IDS.MANAGER;
-    if (!usesPaymentDecisionAlert || !user?.id_usuario) return;
+    hasRunInitialCheckRef.current = false;
+    shownNotificationIdsRef.current.clear();
+
+    if (user?.id_usuario) {
+      checkPendingPaymentRequests();
+    }
+  }, [user?.id_usuario]);
+
+  useEffect(() => {
+    if (!user?.id_usuario) return;
 
     if (prevUserIdRef.current !== user?.id_usuario) {
       prevUserIdRef.current = user?.id_usuario;
@@ -508,7 +507,6 @@ export const usePaymentRequestAlerts = () => {
     getTransactionStatus,
     rejectPaymentRequest,
     router,
-    user?.id_perfil,
     user?.id_usuario,
   ]);
 };

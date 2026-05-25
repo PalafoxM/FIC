@@ -12,14 +12,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.agustinmarin.pagoqrapp",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
       "package": "com.agustinmarin.pagoqrapp",
-      
+      "googleServicesFile": "./google-services.json",
+
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/LOGO.png",
@@ -27,8 +26,7 @@
         "monochromeImage": "./assets/images/LOGO.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-     
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -56,7 +54,10 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-camera",
+      "expo-font",
+      "expo-system-ui"
     ],
     "experiments": {
       "typedRoutes": true,
