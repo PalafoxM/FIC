@@ -67,7 +67,7 @@ const getHotelStatusTone = (value) => {
 
 const formatCurrency = (value) => `$${Number(value ?? 0).toFixed(2)}`;
 
-const getAssignedEstablishments = (user) => {
+const getAssignedEstablishments = (user, activeEstablecimientoId = null) => {
   const rawList =
     user?.establecimientos ??
     user?.assignedEstablishments ??
@@ -76,28 +76,32 @@ const getAssignedEstablishments = (user) => {
     [];
 
   if (Array.isArray(rawList) && rawList.length > 0) {
-    return rawList.map((item, index) => ({
-      id:
-        item?.id_establecimiento ??
-        item?.idEstablecimiento ??
-        item?.id ??
-        `establecimiento-${index}`,
-      name:
-        item?.dsc_establecimiento ??
-        item?.establecimiento_nombre ??
-        item?.nombre ??
-        item?.name ??
-        `Establecimiento ${index + 1}`,
-    }));
+    return rawList
+      .map((item, index) => ({
+        id:
+          item?.id_establecimiento ??
+          item?.idEstablecimiento ??
+          item?.id ??
+          `establecimiento-${index}`,
+        name:
+          item?.dsc_establecimiento ??
+          item?.establecimiento_nombre ??
+          item?.nombre ??
+          item?.name ??
+          `Establecimiento ${index + 1}`,
+      }))
+      .filter((item) => item.id !== null && item.id !== undefined);
   }
 
   if (
-    user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER &&
-    user?.id_establecimiento
+    (user?.id_perfil === ROLE_IDS.PROVIDER ||
+      user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER) &&
+    (user?.id_establecimiento || activeEstablecimientoId)
   ) {
+    const fallbackId = user?.id_establecimiento ?? activeEstablecimientoId;
     return [
       {
-        id: user.id_establecimiento,
+        id: fallbackId,
         name:
           user?.dsc_establecimiento ??
           user?.establecimiento_nombre ??
@@ -146,7 +150,10 @@ export default function ProfileScreen() {
   const showsAssignedEstablishments =
     user?.id_perfil === ROLE_IDS.PROVIDER ||
     user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
-  const assignedEstablishments = getAssignedEstablishments(user);
+  const assignedEstablishments = getAssignedEstablishments(
+    user,
+    activeEstablecimientoId,
+  );
 
   const displayName = [
     user?.nombre,
