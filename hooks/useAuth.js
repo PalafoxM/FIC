@@ -679,6 +679,35 @@ export function AuthProvider({ children }) {
     return normalizeTableRows(data);
   }, [getTableResponse]);
 
+  const getTablePage = useCallback(async (queryConfig) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('No hay token de autenticacion');
+    }
+
+    const { response, data } = await getTableResponse(queryConfig, token);
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.respuesta || data?.message || 'Error consultando datos');
+    }
+
+    const rows = normalizeTableRows(data);
+    const totalCandidates = [
+      data?.total,
+      data?.data?.total,
+      data?.pagination?.total,
+      data?.meta?.total,
+      data?.count,
+      data?.data?.count,
+    ];
+    const resolvedTotal = totalCandidates.find((value) => Number.isFinite(Number(value)));
+
+    return {
+      total: resolvedTotal !== undefined ? Number(resolvedTotal) : rows.length,
+      rows,
+    };
+  }, [getTableResponse]);
+
   const saveTable = useCallback(async ({ data, config, bitacora = {} }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
@@ -1553,6 +1582,7 @@ export function AuthProvider({ children }) {
       register,
       logout,
       getTable,
+      getTablePage,
       saveTable,
       saveDepositoCredito,
       setActiveEstablecimiento,
@@ -1592,6 +1622,7 @@ export function AuthProvider({ children }) {
       getSalesByClient,
       getSalesByProvider,
       getTable,
+      getTablePage,
       getClientQrData,
       presignClientQrActivation,
       presignCashierDeliveryExpediente,

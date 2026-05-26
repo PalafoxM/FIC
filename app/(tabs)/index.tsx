@@ -393,6 +393,7 @@ export default function HomeScreen() {
     setActiveEstablecimiento,
     getClientAvailableBalance,
     getTable,
+    getTablePage,
     getTiQrActivationRequests,
     approveTiQrActivationRequest,
     rejectTiQrActivationRequest,
@@ -403,7 +404,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const lastClientBalanceRefreshRef = useRef(0);
   const getClientAvailableBalanceRef = useRef(getClientAvailableBalance);
-  const loadUsersViewRef = useRef(null);
   const loadPaymentsViewRef = useRef(null);
   const loadReportsViewRef = useRef(null);
   const reportsEndpointUnavailableRef = useRef(false);
@@ -436,7 +436,12 @@ export default function HomeScreen() {
     [],
   );
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
-  const [visibleUsersCount, setVisibleUsersCount] = useState(10);
+  const [usersSearch, setUsersSearch] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPageSize] = useState(10);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersSortField, setUsersSortField] = useState("id_usuario");
+  const [usersSortOrder, setUsersSortOrder] = useState("desc");
   const [visiblePaymentsCount, setVisiblePaymentsCount] = useState(10);
   const [visibleReportsCount, setVisibleReportsCount] = useState(10);
   const [paymentsSearch, setPaymentsSearch] = useState("");
@@ -517,68 +522,58 @@ export default function HomeScreen() {
     try {
       setLoadingUsers(true);
 
-      const [usuarios, establecimientos, qrClientes] = await Promise.all([
-        getTable({
-          tabla: "usuario",
-          where: { visible: 1 },
-          order: "id_usuario DESC",
-        }),
-        getTable({
-          tabla: "establecimiento",
-          where: { visible: 1 },
-          order: "dsc_establecimiento ASC",
-        }),
-        getTable({
-          tabla: "qr_cliente",
-          where: {
-            activo: 1,
-            visible: 1,
-          },
-          order: "id_qr_cliente DESC",
-        }),
-      ]);
-
-      const establecimientosMap = establecimientos.reduce(
-        (accumulator, establecimiento) => {
-          accumulator[String(establecimiento.id_establecimiento)] =
-            establecimiento.dsc_establecimiento || "Sin establecimiento";
-          return accumulator;
-        },
-        {},
-      );
-      const qrClientesMap = qrClientes.reduce((accumulator, qrRecord) => {
-        const userId = String(qrRecord.id_usuario ?? "");
-        if (userId && !accumulator[userId]) {
-          accumulator[userId] = qrRecord;
-        }
-        return accumulator;
-      }, {});
+      const response = await getTablePage({
+        tabla: "usuario",
+        where: { visible: 1 },
+        offset: Math.max(usersPage - 1, 0) * usersPageSize,
+        limit: usersPageSize,
+        search: usersSearch.trim(),
+        sort: usersSortField,
+        order: usersSortOrder,
+        perfil: Number(selectedRoleFilter) > 0 ? Number(selectedRoleFilter) : null,
+        preview: isManagerProfile ? 1 : 0,
+      });
 
       setUsersView(
-        usuarios.map((usuarioRecord) => ({
+        response.rows.map((usuarioRecord) => ({
           ...usuarioRecord,
-          fullName: buildFullName(usuarioRecord),
-          roleLabel: getRoleLabel(usuarioRecord.id_perfil),
+          fullName:
+            String(usuarioRecord?.nombre_completo ?? "").trim() ||
+            buildFullName(usuarioRecord),
+          roleLabel:
+            String(usuarioRecord?.perfil_label ?? "").trim() ||
+            getRoleLabel(usuarioRecord.id_perfil),
           tarifaDiariaLabel: getUserTarifaDiariaLabel(usuarioRecord),
           partidaLabel: getUserPartidaLabel(usuarioRecord),
           folioEntregaLabel: getUserFolioLabel(usuarioRecord),
           subfolioEntregaLabel: getUserSubfolioLabel(usuarioRecord),
-          qrCliente:
-            qrClientesMap[String(usuarioRecord.id_usuario ?? "")] ?? null,
           establecimientoLabel:
-            establecimientosMap[
-              String(usuarioRecord.id_establecimiento ?? "")
-            ] || "Sin establecimiento",
+            String(usuarioRecord?.establecimiento_label ?? "").trim() ||
+            "Sin establecimiento",
+          hasActiveQr:
+            Number(usuarioRecord?.qr_activo ?? 0) === 1 ||
+            Boolean(String(usuarioRecord?.codigo_qr ?? "").trim()),
         })),
       );
-      setVisibleUsersCount(10);
+      setUsersTotal(Number(response.total ?? 0));
     } catch (error) {
       console.error("Error loading users view:", error);
       setUsersView([]);
+      setUsersTotal(0);
     } finally {
       setLoadingUsers(false);
     }
-  }, [getTable, isAdminOrManager]);
+  }, [
+    getTablePage,
+    isAdminOrManager,
+    isManagerProfile,
+    selectedRoleFilter,
+    usersPage,
+    usersPageSize,
+    usersSearch,
+    usersSortField,
+    usersSortOrder,
+  ]);
 
   const loadProviderEstablishmentsView = useCallback(async () => {
     if (!isProvider || baseProviderEstablishments.length === 0) {
@@ -827,8 +822,12 @@ export default function HomeScreen() {
   }, [getClientAvailableBalance]);
 
   useEffect(() => {
-    loadUsersViewRef.current = loadUsersView;
-  }, [loadUsersView]);
+    if (!isAdminOrManager) {
+      return;
+    }
+
+    loadUsersView();
+  }, [isAdminOrManager, loadUsersView]);
 
   useEffect(() => {
     loadPaymentsViewRef.current = loadPaymentsView;
@@ -912,7 +911,6 @@ export default function HomeScreen() {
       }
 
       if (isAdminOrManager) {
-        loadUsersViewRef.current?.();
         loadPaymentsViewRef.current?.();
       }
 
@@ -952,7 +950,7 @@ export default function HomeScreen() {
 
       if (isAdminOrManager) {
         await Promise.all([
-          loadUsersViewRef.current?.(),
+          loadUsersView(),
           loadPaymentsViewRef.current?.(),
         ]);
       }
@@ -977,23 +975,14 @@ export default function HomeScreen() {
     isAdminOrManager,
     isClient,
     isProvider,
+    loadUsersView,
     loadProviderEstablishmentsView,
     user?.id_usuario,
   ]);
 
-  const filteredUsers = useMemo(() => {
-    if (selectedRoleFilter === 0) {
-      return usersView;
-    }
-
-    return usersView.filter(
-      (record) => Number(record.id_perfil) === Number(selectedRoleFilter),
-    );
-  }, [selectedRoleFilter, usersView]);
-
-  const visibleUsers = useMemo(
-    () => filteredUsers.slice(0, visibleUsersCount),
-    [filteredUsers, visibleUsersCount],
+  const usersTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(Number(usersTotal ?? 0) / usersPageSize)),
+    [usersPageSize, usersTotal],
   );
 
   const filteredPayments = useMemo(() => {
@@ -1152,10 +1141,10 @@ export default function HomeScreen() {
       return;
     }
 
-    if (targetUser?.qrCliente?.codigo_qr) {
+    if (targetUser?.hasActiveQr) {
       Alert.alert(
         "QR ya generado",
-        `Este usuario ya tiene un QR activo:\n${targetUser.qrCliente.codigo_qr}`,
+        "Este usuario ya tiene un QR activo.",
       );
       return;
     }
@@ -1986,7 +1975,10 @@ export default function HomeScreen() {
                         styles.filterChip,
                         isActive && styles.filterChipActive,
                       ]}
-                      onPress={() => setSelectedRoleFilter(filter.id)}
+                      onPress={() => {
+                        setSelectedRoleFilter(filter.id);
+                        setUsersPage(1);
+                      }}
                     >
                       <Text
                         style={[
@@ -2001,18 +1993,82 @@ export default function HomeScreen() {
                 })}
               </ScrollView>
 
+              <View style={styles.searchBlock}>
+                <Text style={styles.inputLabel}>Buscar usuarios</Text>
+                <TextInput
+                  style={styles.input}
+                  value={usersSearch}
+                  onChangeText={(value) => {
+                    setUsersSearch(value);
+                    setUsersPage(1);
+                  }}
+                  placeholder="Buscar por ID, usuario o nombre"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+              >
+                {[
+                  { id: "id_usuario", label: "ID" },
+                  { id: "usuario", label: "Usuario" },
+                  { id: "establecimiento_label", label: "Establecimiento" },
+                ].map((sortOption) => {
+                  const isActive = usersSortField === sortOption.id;
+                  return (
+                    <TouchableOpacity
+                      key={sortOption.id}
+                      style={[
+                        styles.filterChip,
+                        isActive && styles.filterChipActive,
+                      ]}
+                      onPress={() => {
+                        if (isActive) {
+                          setUsersSortOrder((current) =>
+                            current === "asc" ? "desc" : "asc",
+                          );
+                        } else {
+                          setUsersSortField(sortOption.id);
+                          setUsersSortOrder(
+                            sortOption.id === "id_usuario" ? "desc" : "asc",
+                          );
+                        }
+                        setUsersPage(1);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          isActive && styles.filterChipTextActive,
+                        ]}
+                      >
+                        {sortOption.label}
+                        {isActive
+                          ? usersSortOrder === "asc"
+                            ? " ↑"
+                            : " ↓"
+                          : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
               {loadingUsers ? (
                 <View style={styles.emptyBox}>
                   <Text style={styles.emptyBoxText}>Cargando usuarios...</Text>
                 </View>
-              ) : filteredUsers.length === 0 ? (
+              ) : usersView.length === 0 ? (
                 <View style={styles.emptyBox}>
                   <Text style={styles.emptyBoxText}>
                     No hay usuarios para este filtro.
                   </Text>
                 </View>
               ) : (
-                visibleUsers.map((record) => (
+                usersView.map((record) => (
                   <View key={String(record.id_usuario)} style={styles.userCard}>
                     <View style={styles.userCardHeader}>
                       <Text style={styles.userCardTitle}>
@@ -2044,9 +2100,6 @@ export default function HomeScreen() {
                     <Text style={styles.userCardMeta}>
                       Establecimiento: {record.establecimientoLabel}
                     </Text>
-                    <Text style={styles.userCardMeta}>
-                      Correo: {record.correo || "Sin correo"}
-                    </Text>
 
                     {isAdmin &&
                       isDepositoCreditosAllowedForPerfil(record.id_perfil) && (
@@ -2063,13 +2116,13 @@ export default function HomeScreen() {
                           <TouchableOpacity
                             style={[
                               styles.qrActionButton,
-                              record.qrCliente?.codigo_qr &&
+                              record.hasActiveQr &&
                                 styles.qrActionButtonDisabled,
                             ]}
                             onPress={() => handleGenerateUserQr(record)}
                           >
                             <Text style={styles.qrActionButtonText}>
-                              {record.qrCliente?.codigo_qr
+                              {record.hasActiveQr
                                 ? "QR generado"
                                 : "Generar QR"}
                             </Text>
@@ -2080,18 +2133,38 @@ export default function HomeScreen() {
                 ))
               )}
 
-              {filteredUsers.length > visibleUsersCount ? (
-                <TouchableOpacity
-                  style={styles.loadMoreButton}
-                  onPress={() =>
-                    setVisibleUsersCount((current) => current + 10)
-                  }
-                >
-                  <Text style={styles.loadMoreButtonText}>
-                    Ver mas usuarios
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+              <View style={styles.paginationRow}>
+                <Text style={styles.paginationText}>
+                  Pagina {usersPage} de {usersTotalPages} · Total {usersTotal}
+                </Text>
+                <View style={styles.paginationActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.loadMoreButton,
+                      usersPage <= 1 && styles.qrActionButtonDisabled,
+                    ]}
+                    disabled={usersPage <= 1}
+                    onPress={() => setUsersPage((current) => Math.max(1, current - 1))}
+                  >
+                    <Text style={styles.loadMoreButtonText}>Anterior</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.loadMoreButton,
+                      usersPage >= usersTotalPages &&
+                        styles.qrActionButtonDisabled,
+                    ]}
+                    disabled={usersPage >= usersTotalPages}
+                    onPress={() =>
+                      setUsersPage((current) =>
+                        Math.min(usersTotalPages, current + 1),
+                      )
+                    }
+                  >
+                    <Text style={styles.loadMoreButtonText}>Siguiente</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </>
         )}
@@ -2624,6 +2697,19 @@ const styles = StyleSheet.create({
     color: "#263B80",
     fontSize: 14,
     fontWeight: "700",
+  },
+  paginationRow: {
+    marginTop: 12,
+    gap: 12,
+  },
+  paginationText: {
+    fontSize: 13,
+    color: "#5f5f5f",
+    fontWeight: "600",
+  },
+  paginationActions: {
+    flexDirection: "row",
+    gap: 10,
   },
   emptyBox: {
     backgroundColor: "#fff",

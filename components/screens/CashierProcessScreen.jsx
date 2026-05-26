@@ -136,7 +136,12 @@ const mergeBenefitSummary = (...sources) => {
     ...normalizedSources.map((source) => source?.orden_hospedaje_url),
     ...normalizedSources.map((source) => source?.pdf_orden_hospedaje_url),
     ...normalizedSources.map((source) => source?.hospedaje_pdf_url),
-    ...normalizedSources.map((source) => source?.pdf_url),
+  );
+  const directFoodOrderUrl = firstDefinedValue(
+    ...normalizedSources.map((source) => source?.orden_alimentos_pdf_url),
+    ...normalizedSources.map((source) => source?.orden_alimentos_url),
+    ...normalizedSources.map((source) => source?.pdf_orden_alimentos_url),
+    ...normalizedSources.map((source) => source?.alimentos_pdf_url),
   );
 
   return {
@@ -199,6 +204,13 @@ const mergeBenefitSummary = (...sources) => {
       ...normalizedSources.map((source) => source?.pdf_path),
     ),
     orden_hospedaje_url: directOrderUrl,
+    orden_alimentos_disponible: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.orden_alimentos_disponible),
+    ),
+    orden_alimentos_pdf_url: firstDefinedValue(
+      ...normalizedSources.map((source) => source?.orden_alimentos_pdf_url),
+    ),
+    orden_alimentos_url: directFoodOrderUrl,
   };
 };
 
@@ -211,7 +223,18 @@ const resolveOrderUrl = (...sources) =>
         source?.orden_hospedaje_url,
         source?.pdf_orden_hospedaje_url,
         source?.hospedaje_pdf_url,
-        source?.pdf_url,
+      ]),
+  );
+
+const resolveFoodOrderUrl = (...sources) =>
+  firstDefinedValue(
+    ...sources
+      .filter(Boolean)
+      .flatMap((source) => [
+        source?.orden_alimentos_pdf_url,
+        source?.orden_alimentos_url,
+        source?.pdf_orden_alimentos_url,
+        source?.alimentos_pdf_url,
       ]),
   );
 
@@ -332,13 +355,18 @@ export default function CashierProcessScreen() {
       { cancelable: true },
     );
   };
-  const buildOrderPdfFileName = () => {
+  const buildOrderPdfFileName = (orderType = "hospedaje") => {
     const safeFolio = String(
       deliverySummary?.folio ?? user?.id_usuario ?? Date.now(),
     )
       .trim()
       .replace(/[^A-Za-z0-9_-]/g, "-");
-    return `orden-hospedaje-${safeFolio}.pdf`;
+    const safeOrderType =
+      String(orderType ?? "hospedaje")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "-") || "orden";
+    return `orden-${safeOrderType}-${safeFolio}.pdf`;
   };
 
   const currentPhotoUri = useMemo(() => {
@@ -1082,7 +1110,14 @@ export default function CashierProcessScreen() {
         showSuccessAlert(
           response?.respuesta ||
             "Solicitud enviada correctamente. Si TI la rechaza, podras volver a cargar documentos y reenviarla.",
-          resolveOrderUrl(response?.data, response, mergedSummary),
+          {
+            hospedaje: resolveOrderUrl(response?.data, response, mergedSummary),
+            alimentos: resolveFoodOrderUrl(
+              response?.data,
+              response,
+              mergedSummary,
+            ),
+          },
         );
       } catch (error) {
         console.error("Error sending client activation request:", error);
@@ -1182,12 +1217,20 @@ export default function CashierProcessScreen() {
           : finalResponse?.respuesta ||
               response?.respuesta ||
               "Expediente de entrega guardado correctamente.",
-        resolveOrderUrl(
-          finalResponse?.data,
-          finalResponse,
-          response?.data,
-          mergedSummary,
-        ),
+        {
+          hospedaje: resolveOrderUrl(
+            finalResponse?.data,
+            finalResponse,
+            response?.data,
+            mergedSummary,
+          ),
+          alimentos: resolveFoodOrderUrl(
+            finalResponse?.data,
+            finalResponse,
+            response?.data,
+            mergedSummary,
+          ),
+        },
       );
     } catch (error) {
       console.error("Error saving cashier expediente:", error);
@@ -1200,13 +1243,16 @@ export default function CashierProcessScreen() {
     }
   };
 
-  const openOrderResource = async (resourceUrl) => {
+  const openOrderResource = async (resourceUrl, orderType = "hospedaje") => {
     if (!resourceUrl) {
       return;
     }
 
     try {
-      const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
+      const localFileUri = await downloadOrderPdfAuthenticated(
+        resourceUrl,
+        orderType,
+      );
       const supported = await Linking.canOpenURL(localFileUri);
       if (!supported) {
         throw new Error(
@@ -1218,32 +1264,38 @@ export default function CashierProcessScreen() {
     } catch (error) {
       Alert.alert(
         "Atencion",
-        error.message || "No se pudo abrir la orden de hospedaje.",
+        error.message || `No se pudo abrir la orden de ${orderType}.`,
       );
     }
   };
 
-  const shareOrderResource = async (resourceUrl) => {
+  const shareOrderResource = async (resourceUrl, orderType = "hospedaje") => {
     if (!resourceUrl) {
       return;
     }
 
     try {
-      const localFileUri = await downloadOrderPdfAuthenticated(resourceUrl);
+      const localFileUri = await downloadOrderPdfAuthenticated(
+        resourceUrl,
+        orderType,
+      );
       await Share.share({
-        title: "Orden de hospedaje",
+        title: `Orden de ${orderType}`,
         message: localFileUri,
         url: localFileUri,
       });
     } catch (error) {
       Alert.alert(
         "Atencion",
-        error.message || "No se pudo compartir la orden de hospedaje.",
+        error.message || `No se pudo compartir la orden de ${orderType}.`,
       );
     }
   };
 
-  const downloadOrderPdfAuthenticated = async (resourceUrl) => {
+  const downloadOrderPdfAuthenticated = async (
+    resourceUrl,
+    orderType = "hospedaje",
+  ) => {
     const sessionToken = await getAccessToken();
     if (!sessionToken) {
       throw new Error(
@@ -1259,11 +1311,11 @@ export default function CashierProcessScreen() {
       );
     }
 
-    const targetDirectory = `${baseDirectory}ordenes-hospedaje`;
+    const targetDirectory = `${baseDirectory}ordenes-${String(orderType).toLowerCase()}`;
     await FileSystem.makeDirectoryAsync(targetDirectory, {
       intermediates: true,
     }).catch(() => null);
-    const fileUri = `${targetDirectory}/${buildOrderPdfFileName()}`;
+    const fileUri = `${targetDirectory}/${buildOrderPdfFileName(orderType)}`;
 
     const downloadResult = await FileSystem.downloadAsync(
       resourceUrl,
@@ -1285,7 +1337,7 @@ export default function CashierProcessScreen() {
     return downloadResult.uri;
   };
 
-  const showSuccessAlert = (message, orderUrl) => {
+  const showSuccessAlert = (message, orderUrls = {}) => {
     const buttons = [
       {
         text: "OK",
@@ -1293,19 +1345,38 @@ export default function CashierProcessScreen() {
       },
     ];
 
-    if (orderUrl) {
+    if (orderUrls?.alimentos) {
       buttons.unshift(
         {
-          text: "Compartir orden",
+          text: "Compartir alimentos",
           onPress: () => {
-            shareOrderResource(orderUrl);
+            shareOrderResource(orderUrls.alimentos, "alimentos");
             finishAndExit();
           },
         },
         {
-          text: "Abrir / descargar orden",
+          text: "Abrir alimentos",
           onPress: () => {
-            openOrderResource(orderUrl);
+            openOrderResource(orderUrls.alimentos, "alimentos");
+            finishAndExit();
+          },
+        },
+      );
+    }
+
+    if (orderUrls?.hospedaje) {
+      buttons.unshift(
+        {
+          text: "Compartir hospedaje",
+          onPress: () => {
+            shareOrderResource(orderUrls.hospedaje, "hospedaje");
+            finishAndExit();
+          },
+        },
+        {
+          text: "Abrir hospedaje",
+          onPress: () => {
+            openOrderResource(orderUrls.hospedaje, "hospedaje");
             finishAndExit();
           },
         },
@@ -1801,25 +1872,79 @@ export default function CashierProcessScreen() {
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   onPress={() =>
-                    openOrderResource(resolveOrderUrl(deliverySummary))
+                    openOrderResource(
+                      resolveOrderUrl(deliverySummary),
+                      "hospedaje",
+                    )
                   }
                 >
                   <Text style={styles.secondaryButtonText}>
-                    Abrir / descargar orden
+                    Orden hospedaje
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   onPress={() =>
-                    shareOrderResource(resolveOrderUrl(deliverySummary))
+                    shareOrderResource(
+                      resolveOrderUrl(deliverySummary),
+                      "hospedaje",
+                    )
                   }
                 >
                   <Text style={styles.secondaryButtonText}>
-                    Compartir orden
+                    Compartir hospedaje
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : null}
+          </>
+        ) : null}
+
+        {(Number(deliverySummary?.tiene_alimentos ?? 0) === 1 ||
+          deliverySummary?.tiene_alimentos === true ||
+          resolveFoodOrderUrl(deliverySummary)) ? (
+          <>
+            <Text style={styles.summarySectionTitle}>Alimentos</Text>
+
+            {resolveFoodOrderUrl(deliverySummary) ? (
+              <View style={styles.reviewActions}>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() =>
+                    openOrderResource(
+                      resolveFoodOrderUrl(deliverySummary),
+                      "alimentos",
+                    )
+                  }
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    Orden alimentos
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() =>
+                    shareOrderResource(
+                      resolveFoodOrderUrl(deliverySummary),
+                      "alimentos",
+                    )
+                  }
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    Compartir alimentos
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryMetricCard}>
+                  <Text style={styles.summaryMetricLabel}>Orden alimentos</Text>
+                  <Text style={styles.summaryMetricValue}>
+                    Disponible cuando backend publique una URL valida.
+                  </Text>
+                </View>
+              </View>
+            )}
           </>
         ) : null}
 
