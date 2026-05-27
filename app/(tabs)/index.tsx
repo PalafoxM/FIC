@@ -226,7 +226,7 @@ export default function HomeScreen() {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState(0);
   const [usersSearch, setUsersSearch] = useState("");
   const [usersPage, setUsersPage] = useState(1);
-  const [usersPageSize] = useState(10);
+  const [usersPageSize, setUsersPageSize] = useState(10);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersSortField, setUsersSortField] = useState("id_usuario");
   const [usersSortOrder, setUsersSortOrder] = useState("desc");
@@ -306,9 +306,14 @@ export default function HomeScreen() {
         where: { visible: 1 },
         offset: Math.max(usersPage - 1, 0) * usersPageSize,
         limit: usersPageSize,
+        pageSize: usersPageSize,
+        pageNumber: usersPage,
         search: usersSearch.trim(),
+        searchText: usersSearch.trim(),
         sort: usersSortField,
+        sortName: usersSortField,
         order: usersSortOrder,
+        sortOrder: usersSortOrder,
         perfil: Number(selectedRoleFilter) > 0 ? Number(selectedRoleFilter) : null,
         preview: isManagerProfile ? 1 : 0,
       });
@@ -1573,6 +1578,38 @@ export default function HomeScreen() {
                   placeholderTextColor="#999"
                 />
               </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+              >
+                {[10, 25, 50, 100].map((pageSizeOption) => {
+                  const isActive = usersPageSize === pageSizeOption;
+                  return (
+                    <TouchableOpacity
+                      key={String(pageSizeOption)}
+                      style={[
+                        styles.filterChip,
+                        isActive && styles.filterChipActive,
+                      ]}
+                      onPress={() => {
+                        setUsersPageSize(pageSizeOption);
+                        setUsersPage(1);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          isActive && styles.filterChipTextActive,
+                        ]}
+                      >
+                        {pageSizeOption} por pagina
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
 
               <ScrollView
                 horizontal
