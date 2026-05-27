@@ -1013,16 +1013,6 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push("/(tabs)/institutional-budget")}
-            >
-              <Text style={styles.cardTitle}>Ver partida</Text>
-              <Text style={styles.cardDescription}>
-                {`Consulta ${institutionalPartidaLabel} filtrada para tu perfil sin mostrar otras partidas.`}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.card}
               onPress={() => router.push("/profile")}
             >
               <Text style={styles.cardTitle}>Mi perfil</Text>

@@ -50,7 +50,7 @@ export const INSTITUTIONAL_PROFILE_ESTABLISHMENTS = {
   [ROLE_IDS.UG]: {
     id_establecimiento: 91,
     id_tipo: 7,
-    id_partida: 1,
+    id_partida: null,
     dsc_establecimiento: 'UG',
   },
 };
@@ -285,7 +285,7 @@ export const resolveInstitutionalPartida = (user) => {
     user?.tiene_hospedaje === true ||
     normalizedBenefit.includes('hospedaje');
 
-  if (numericPerfil === ROLE_IDS.SECUL || numericPerfil === ROLE_IDS.UG) {
+  if (numericPerfil === ROLE_IDS.SECUL) {
     return {
       id_partida: 1,
       clave_partida: '2210',
@@ -293,7 +293,7 @@ export const resolveInstitutionalPartida = (user) => {
     };
   }
 
-  if (numericPerfil === ROLE_IDS.FIC) {
+  if (numericPerfil === ROLE_IDS.FIC || numericPerfil === ROLE_IDS.UG) {
     if (hasFoodBenefit) {
       return {
         id_partida: user?.id_partida ?? null,

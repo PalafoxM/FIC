@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { resolveInstitutionalPartida } from '../../constants/roles';
+import AccessDenied from '../AccessDenied';
+import { isInstitutionalPortalProfile, resolveInstitutionalPartida } from '../../constants/roles';
 import { useAuth } from '../../hooks/useAuth';
 import { useApi } from '../../hooks/useApi';
 
@@ -29,6 +30,7 @@ export default function InstitutionalBudgetScreen() {
   );
   const partidaKey = String(effectivePartida?.clave_partida ?? '').trim();
   const partidaName = effectivePartida?.nombre_partida || (partidaKey ? `Partida ${partidaKey}` : 'Partida');
+  const institutionalAccessDenied = isInstitutionalPortalProfile(user?.id_perfil);
 
   const loadBudget = useCallback(async (showLoader = true) => {
     try {
@@ -85,6 +87,15 @@ export default function InstitutionalBudgetScreen() {
       }),
     [effectivePartida?.id_partida, partidaKey, partidas]
   );
+
+  if (institutionalAccessDenied) {
+    return (
+      <AccessDenied
+        title="Vista no disponible"
+        message="Los perfiles institucionales ya no tienen acceso a la vista de partidas o presupuesto desde la app."
+      />
+    );
+  }
 
   if (loading) {
     return (
