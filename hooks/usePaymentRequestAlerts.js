@@ -4,6 +4,10 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Alert, AppState, DeviceEventEmitter } from "react-native";
 import { ENV } from "../constants/env";
+import {
+  isLoggedOutPaymentNotification,
+  isQrOperationalNotification,
+} from "../utils/pushSessionPolicy";
 import { useApi } from "./useApi";
 import { useAuth } from "./useAuth";
 
@@ -50,18 +54,14 @@ const isPaymentApprovedLike = (
     .trim()
     .toLowerCase();
 
-  if (normalizedType === "PAYMENT_APPROVED") return true;
   if (
-    [
-      "PAYMENT_SUCCESS",
-      "PAYMENT_COMPLETED",
-      "NIP_PAYMENT_APPROVED",
-      "PAYMENT_CAPTURED",
-      "PAYMENT_APPLIED",
-    ].includes(normalizedType)
+    isLoggedOutPaymentNotification({
+      type: normalizedType,
+      status: normalizedStatus,
+      paymentStatus: normalizedStatus,
+    })
   )
     return true;
-  if (normalizedStatus === "APPROVED") return true;
   return (
     (title.includes("pago") ||
       title.includes("cobro") ||
@@ -409,7 +409,9 @@ export const usePaymentRequestAlerts = () => {
               DeviceEventEmitter.emit("closeClientQrModal");
               DeviceEventEmitter.emit("refreshClientBalanceNow");
               router.replace(
-                usesPaymentDecisionAlert && !isClient ? "/profile" : "/(tabs)",
+                usesPaymentDecisionAlert && !isConsumerProfile(user?.id_perfil)
+                  ? "/profile"
+                  : "/(tabs)",
               );
             };
             showPaymentApprovedAlert(notif, notifData, navigateToBalance);
@@ -419,8 +421,7 @@ export const usePaymentRequestAlerts = () => {
           // QR listo o rechazado
           if (
             usesPaymentDecisionAlert &&
-            (notifData?.type === "QR_READY" ||
-              notifData?.type === "QR_ACTIVATION_REJECTED")
+            isQrOperationalNotification(notifData)
           ) {
             await markNotificationAsShown(identity, persistedKey, true);
             showManagerNotificationAlert(notif, notifData);

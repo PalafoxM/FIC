@@ -20,6 +20,7 @@ import {
 } from "../../constants/roles";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../hooks/useAuth";
+import { isLoggedOutPaymentNotification } from "../../utils/pushSessionPolicy";
 import AccessDenied from "../AccessDenied";
 
 export default function NotificationsScreen() {
@@ -81,23 +82,13 @@ export default function NotificationsScreen() {
         .trim()
         .toLowerCase();
 
-      if (normalizedType === "PAYMENT_APPROVED") {
-        return true;
-      }
-
       if (
-        [
-          "PAYMENT_SUCCESS",
-          "PAYMENT_COMPLETED",
-          "NIP_PAYMENT_APPROVED",
-          "PAYMENT_CAPTURED",
-          "PAYMENT_APPLIED",
-        ].includes(normalizedType)
+        isLoggedOutPaymentNotification({
+          type: normalizedType,
+          status: normalizedStatus,
+          paymentStatus: normalizedStatus,
+        })
       ) {
-        return true;
-      }
-
-      if (normalizedStatus === "APPROVED") {
         return true;
       }
 

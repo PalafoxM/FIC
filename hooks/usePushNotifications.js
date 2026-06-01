@@ -29,8 +29,9 @@ const getBackendCandidateUrls = () => [
 
 const PUSH_TOKEN_KEY = 'pushToken';
 const PUSH_TOKEN_REGISTERED_KEY = 'pushTokenRegistered';
+const PUSH_TOKEN_REGISTERED_USER_ID_KEY = 'pushTokenRegisteredUserId';
 
-const registerTokenInBackend = async (pushToken) => {
+const registerTokenInBackend = async (pushToken, currentUserId = null) => {
   try {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
@@ -67,6 +68,12 @@ const registerTokenInBackend = async (pushToken) => {
         if (response.ok && !data?.error) {
           console.log('Token registrado en backend:', url);
           await AsyncStorage.setItem(PUSH_TOKEN_REGISTERED_KEY, '1');
+          if (currentUserId !== null && currentUserId !== undefined) {
+            await AsyncStorage.setItem(
+              PUSH_TOKEN_REGISTERED_USER_ID_KEY,
+              String(currentUserId),
+            );
+          }
           return true;
         }
 
@@ -99,16 +106,26 @@ export const usePushNotifications = () => {
         const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
         const authToken = await AsyncStorage.getItem('token');
         const alreadyRegistered = await AsyncStorage.getItem(PUSH_TOKEN_REGISTERED_KEY);
+        const registeredUserId = await AsyncStorage.getItem(
+          PUSH_TOKEN_REGISTERED_USER_ID_KEY,
+        );
+        const currentUserId = user?.id_usuario
+          ? String(user.id_usuario)
+          : null;
 
         if (!pushToken || !authToken) {
           return;
         }
 
-        if (alreadyRegistered === '1') {
+        if (
+          alreadyRegistered === '1' &&
+          currentUserId &&
+          registeredUserId === currentUserId
+        ) {
           return;
         }
 
-        await registerTokenInBackend(pushToken);
+        await registerTokenInBackend(pushToken, currentUserId);
       } catch (error) {
         console.error('Error reintentando registro del push token:', error);
       }
@@ -164,8 +181,9 @@ export const usePushNotifications = () => {
           await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
           if (currentStoredToken !== token) {
             await AsyncStorage.removeItem(PUSH_TOKEN_REGISTERED_KEY);
+            await AsyncStorage.removeItem(PUSH_TOKEN_REGISTERED_USER_ID_KEY);
           }
-          await registerTokenInBackend(token);
+          await registerTokenInBackend(token, user?.id_usuario ?? null);
         }
       } catch (error) {
         const normalizedMessage = String(error?.message ?? '');
