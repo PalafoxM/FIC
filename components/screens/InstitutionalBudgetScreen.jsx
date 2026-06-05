@@ -56,7 +56,7 @@ export default function InstitutionalBudgetScreen() {
       setPartidas([]);
       setSummary(null);
       setErrorMessage(
-        error?.message || `No se pudo consultar la informacion de ${partidaName}.`
+        error?.message || `No se pudo consultar la información de ${partidaName}.`
       );
     } finally {
       setLoading(false);

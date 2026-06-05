@@ -92,7 +92,7 @@ function RootLayoutContent() {
       await logout();
       Alert.alert(
         'Sesion finalizada',
-        'Tu sesion se cerro despues de 10 minutos de inactividad.',
+        'Tu sesión se cerró después de 10 minutos de inactividad.',
       );
     } catch (error) {
       console.error('Error expiring idle session:', error);
@@ -345,7 +345,7 @@ function RootLayoutContent() {
         <Stack.Screen
           name="hotel-operation"
           options={{
-            title: 'Operacion hotelera',
+            title: 'Operación hotelera',
             presentation: 'modal',
           }}
         />

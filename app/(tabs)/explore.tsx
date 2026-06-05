@@ -316,7 +316,7 @@ export default function ExploreScreen() {
       );
     } catch (error) {
       console.error('Error sending business manager request:', error);
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudo preparar la solicitud de gerente.');
+      Alert.alert('Atención', error.message || 'No se pudo preparar la solicitud de gerente.');
     } finally {
       setSavingManager(false);
     }
@@ -349,7 +349,7 @@ export default function ExploreScreen() {
               Alert.alert('Eliminado', 'El gerente de negocio fue desactivado.');
             } catch (error) {
               console.error('Error deleting business manager:', error);
-              Alert.alert('Atenci\u00f3n', error.message || 'No se pudo eliminar el gerente.');
+              Alert.alert('Atención', error.message || 'No se pudo eliminar el gerente.');
             }
           },
         },
@@ -458,7 +458,7 @@ export default function ExploreScreen() {
 
                             await Linking.openURL(item.locationUrl);
                           } catch {
-                            Alert.alert('Atenci\u00f3n', 'No se pudo abrir la ubicacion.');
+                            Alert.alert('Atención', 'No se pudo abrir la ubicación.');
                           }
                         }}
                       >

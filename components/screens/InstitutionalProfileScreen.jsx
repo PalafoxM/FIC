@@ -112,7 +112,7 @@ export default function InstitutionalProfileScreen() {
       console.error('Error loading institutional profile:', error);
       setMovements([]);
       setErrorMessage(
-        error?.message || 'No se pudo cargar la informacion de tu perfil institucional.'
+        error?.message || 'No se pudo cargar la información de tu perfil institucional.'
       );
     } finally {
       setLoading(false);
@@ -182,7 +182,7 @@ export default function InstitutionalProfileScreen() {
       <ClientQRGenerator />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Datos basicos</Text>
+        <Text style={styles.sectionTitle}>Datos básicos</Text>
 
         <View style={styles.metaCard}>
           <View style={styles.metaRow}>

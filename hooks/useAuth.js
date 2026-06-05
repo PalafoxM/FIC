@@ -5,9 +5,7 @@ import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 const AUTH_BASE_URL = API_BASE_URL;
-const PHP_BASE_URL = API_BASE_URL.endsWith('/api')
-  ? `${API_BASE_URL.slice(0, -4)}/index.php`
-  : `${API_BASE_URL}/index.php`;
+const PHP_BASE_URL = ENV.phpBaseUrl.replace(/\/+$/, '');
 const LEGACY_AUTH_BASE_URL = API_BASE_URL.endsWith('/api')
   ? `${API_BASE_URL.slice(0, -4)}/index.php/Login`
   : `${API_BASE_URL}/index.php/Login`;
@@ -335,7 +333,7 @@ export function AuthProvider({ children }) {
       const error = new Error(
         serviceUnavailable
           ? 'El servicio no esta disponible temporalmente. Intenta de nuevo en unos minutos.'
-          : `El backend devolvio una respuesta no valida en ${rawLabel}`
+          : `El backend devolvió una respuesta no válida en ${rawLabel}`
       );
       error.status = response.status;
       error.rawResponse = rawResponse;
@@ -667,7 +665,7 @@ export function AuthProvider({ children }) {
   const getTable = useCallback(async (queryConfig) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const { response, data } = await getTableResponse(queryConfig, token);
@@ -682,7 +680,7 @@ export function AuthProvider({ children }) {
   const getTablePage = useCallback(async (queryConfig) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const { response, data } = await getTableResponse(queryConfig, token);
@@ -743,7 +741,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -770,7 +768,7 @@ export function AuthProvider({ children }) {
   const getCashierDeliverySummary = useCallback(async (folio) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const normalizedFolio = String(folio ?? '').trim();
@@ -800,7 +798,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -837,7 +835,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -881,7 +879,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -913,7 +911,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -942,7 +940,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -958,7 +956,7 @@ export function AuthProvider({ children }) {
     console.log('Enviar solicitud activacion body:', data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activación.');
     }
 
     return data;
@@ -967,7 +965,7 @@ export function AuthProvider({ children }) {
   const getClientQrActivationStatus = useCallback(async (clientId = user?.id_usuario) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const normalizedClientId = Number(clientId ?? 0);
@@ -981,7 +979,7 @@ export function AuthProvider({ children }) {
     console.log('Cliente activacion respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudo consultar el estatus de activacion.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudo consultar el estatus de activación.');
     }
 
     return data?.data ?? null;
@@ -996,7 +994,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -1020,7 +1018,7 @@ export function AuthProvider({ children }) {
     console.log('Solicitar activacion respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activación.');
     }
 
     return data;
@@ -1033,7 +1031,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -1054,10 +1052,10 @@ export function AuthProvider({ children }) {
       }
 
       if (response.status === 403) {
-        throw new Error('No tienes permisos para generar las URLs firmadas de activacion.');
+        throw new Error('No tienes permisos para generar las URLs firmadas de activación.');
       }
 
-      throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas de activacion.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudieron generar las URLs firmadas de activación.');
     }
 
     return data;
@@ -1072,7 +1070,7 @@ export function AuthProvider({ children }) {
   }) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -1090,7 +1088,7 @@ export function AuthProvider({ children }) {
     console.log('Solicitar activacion QR S3 respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activacion por S3.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudo enviar la solicitud de activación por S3.');
     }
 
     return data;
@@ -1099,7 +1097,7 @@ export function AuthProvider({ children }) {
   const getTiQrActivationRequests = useCallback(async () => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     console.log('TI solicitudes activacion QR URL:', `${PHP_BASE_URL}/api/ti/solicitudes-activacion-qr`);
@@ -1108,7 +1106,7 @@ export function AuthProvider({ children }) {
     console.log('TI solicitudes activacion QR respuesta:', data?.respuesta ?? data?.message ?? data);
 
     if (!response.ok || data?.error) {
-      throw new Error(data?.respuesta || data?.message || 'No se pudieron consultar las solicitudes de activacion.');
+      throw new Error(data?.respuesta || data?.message || 'No se pudieron consultar las solicitudes de activación.');
     }
 
     return Array.isArray(data?.data) ? data.data : [];
@@ -1117,7 +1115,7 @@ export function AuthProvider({ children }) {
   const approveTiQrActivationRequest = useCallback(async (idUsuario) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -1140,7 +1138,7 @@ export function AuthProvider({ children }) {
   const rejectTiQrActivationRequest = useCallback(async (idUsuario, motivo) => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      throw new Error('No hay token de autenticacion');
+      throw new Error('No hay token de autenticación');
     }
 
     const payload = {
@@ -1222,7 +1220,7 @@ export function AuthProvider({ children }) {
 
       const shouldRetryTrimmedPassword =
         normalizedPassword !== trimmedPassword &&
-          (data?.respuesta === 'Usuario o contrasena incorrectos' || data?.error === true);
+          (data?.respuesta === 'Usuario o contraseña incorrectos' || data?.error === true);
 
       if (shouldRetryTrimmedPassword) {
         console.log('Reintentando login con password trimmed');
@@ -1230,7 +1228,7 @@ export function AuthProvider({ children }) {
       }
 
       if (!response.ok || data?.error) {
-        throw new Error(data?.respuesta || 'Error al iniciar sesion');
+        throw new Error(data?.respuesta || 'Error al iniciar sesión');
       }
 
       const userRecord = extractUserRecord(data);
@@ -1242,7 +1240,7 @@ export function AuthProvider({ children }) {
       console.log('Login token encontrado:', !!sessionToken);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolvio usuario/token');
+        throw new Error('El backend no devolvió usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -1260,7 +1258,7 @@ export function AuthProvider({ children }) {
       setUser(userData);
       return userData;
     } catch (currentError) {
-      setError(currentError.message || 'Error al iniciar sesion');
+      setError(currentError.message || 'Error al iniciar sesión');
       throw currentError;
     } finally {
       authActionRef.current = false;
@@ -1294,7 +1292,7 @@ export function AuthProvider({ children }) {
       const userData = await hydrateAuthenticatedUser(normalizedUserData, sessionToken);
 
       if (!userData || !sessionToken) {
-        throw new Error('El backend no devolvio usuario/token');
+        throw new Error('El backend no devolvió usuario/token');
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -1353,7 +1351,7 @@ export function AuthProvider({ children }) {
       setError(null);
     } catch (currentError) {
       console.error('Error logging out:', currentError);
-      setError('Error al cerrar sesion');
+      setError('Error al cerrar sesión');
     } finally {
       authActionRef.current = false;
     }

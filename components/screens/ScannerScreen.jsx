@@ -85,7 +85,7 @@ export default function ScannerScreen() {
       const clientData = parseScannedClientQr(data);
 
       if (!clientData || clientData.type !== 'client_payment') {
-        Alert.alert('Atenci\u00f3n', 'Este no es un codigo de pago valido');
+        Alert.alert('Atención', 'Este no es un código de pago válido');
         setTimeout(() => {
           setScanned(false);
           navigatingRef.current = false;
@@ -102,7 +102,7 @@ export default function ScannerScreen() {
           : true;
 
       if (!resolvedClientId && !resolvedQrCode) {
-        Alert.alert('Atenci\u00f3n', 'El codigo no contiene un identificador de cliente valido.');
+        Alert.alert('Atención', 'El código no contiene un identificador de cliente válido.');
         setTimeout(() => {
           setScanned(false);
           navigatingRef.current = false;
@@ -113,7 +113,7 @@ export default function ScannerScreen() {
       if (!qrOperativo) {
         Alert.alert(
           'Atenci\u00f3n',
-          'Este QR no esta operativo para cobro. El cliente debe completar o concluir su activacion.'
+          'Este QR no está operativo para cobro. El cliente debe completar o concluir su activación.'
         );
         setTimeout(() => {
           setScanned(false);
@@ -133,7 +133,7 @@ export default function ScannerScreen() {
         },
       });
     } catch (_error) {
-      Alert.alert('Atenci\u00f3n', 'No se pudo leer el codigo QR');
+      Alert.alert('Atención', 'No se pudo leer el código QR');
       setTimeout(() => {
         setScanned(false);
         navigatingRef.current = false;
@@ -169,7 +169,7 @@ export default function ScannerScreen() {
 
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.scanFrame}>
-          <Text style={styles.instructions}>Escanea el codigo QR del cliente</Text>
+          <Text style={styles.instructions}>Escanea el código QR del cliente</Text>
         </View>
 
         <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>

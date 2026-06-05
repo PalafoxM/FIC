@@ -2,9 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
-const PHP_BASE_URL = API_BASE_URL.endsWith('/api')
-  ? `${API_BASE_URL.slice(0, -4)}/index.php`
-  : `${API_BASE_URL}/index.php`;
+const PHP_BASE_URL = ENV.phpBaseUrl.replace(/\/+$/, '');
 
 const normalizeTransactionRecord = (payload, fallback = {}) => {
   const transaction =
@@ -102,7 +100,7 @@ const normalizeReportRecord = (payload, fallback = {}) => {
 const REPORT_CREATE_FORBIDDEN_MESSAGE = 'Tu perfil no tiene permisos para crear reportes.';
 const REPORT_STATUS_FORBIDDEN_MESSAGE = 'Solo el perfil TI puede cambiar el estatus de los reportes.';
 const REPORT_INCONSISTENT_RESPONSE_MESSAGE =
-  'Se detecto una inconsistencia al procesar el reporte. Contacta a TI para revision.';
+  'Se detectó una inconsistencia al procesar el reporte. Contacta a TI para revisión.';
 
 const isValidPositiveId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -454,7 +452,7 @@ export const useApi = () => {
       if (!contentType.includes('text/html')) {
         console.error(`${actionLabel} raw response:`, rawResponse);
       }
-      throw new Error(`${actionLabel} devolvio una respuesta no valida`);
+      throw new Error(`${actionLabel} devolvió una respuesta no válida`);
     }
 
     if (!response.ok || data?.error) {
@@ -756,7 +754,11 @@ export const useApi = () => {
       payload = {
         id_pagos: paymentId,
         id_pago: paymentId,
+        idPagos: paymentId,
+        idPago: paymentId,
+        payment_id: paymentId,
         paymentId,
+        id: paymentId,
         id_usuario: userId,
         id_establecimiento:
           reportData?.id_establecimiento !== undefined && reportData?.id_establecimiento !== null
@@ -779,6 +781,8 @@ export const useApi = () => {
         {
           ...payload,
           data: payload,
+          report: payload,
+          payload,
         },
         'Creando reporte de pago'
       );
@@ -811,13 +815,22 @@ export const useApi = () => {
         authDebug,
       });
       if (Number(error?.status ?? 0) === 403) {
-        const forbiddenError = new Error(REPORT_CREATE_FORBIDDEN_MESSAGE);
+        const backendMessage = String(
+          error?.data?.respuesta ??
+          error?.data?.message ??
+          error?.message ??
+          ''
+        ).trim();
+        const forbiddenError = new Error(
+          backendMessage || REPORT_CREATE_FORBIDDEN_MESSAGE
+        );
         forbiddenError.status = 403;
+        forbiddenError.data = error?.data;
         throw forbiddenError;
       }
       if (String(error?.message || '').includes('Creando reporte de pago devolvió una respuesta no válida')) {
         throw new Error(
-          'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/create.'
+          'El backend de reportes no respondió con JSON válido. Revisa la ruta POST /api/reportes/create.'
         );
       }
       throw error;
@@ -851,7 +864,7 @@ export const useApi = () => {
       console.error('API Error - getPaymentReports:', error);
       if (String(error?.message || '').includes('Consultando reportes devolvio una respuesta no valida')) {
         throw new Error(
-          'El backend de reportes no respondio con JSON valido. Revisa la ruta GET /api/reportes.'
+          'El backend de reportes no respondió con JSON válido. Revisa la ruta GET /api/reportes.'
         );
       }
       throw error;
@@ -886,7 +899,7 @@ export const useApi = () => {
       console.error('API Error - updatePaymentReportStatus:', error);
       if (String(error?.message || '').includes('Actualizando estatus de reporte devolvio una respuesta no valida')) {
         throw new Error(
-          'El backend de reportes no respondio con JSON valido. Revisa la ruta POST /api/reportes/update-status.'
+          'El backend de reportes no respondió con JSON válido. Revisa la ruta POST /api/reportes/update-status.'
         );
       }
       if (Number(error?.status ?? 0) === 403) {
@@ -930,7 +943,7 @@ export const useApi = () => {
       });
       if (String(error?.message || '').includes('Enviando solicitud de gerente devolvio una respuesta no valida')) {
         throw new Error(
-          'El backend de solicitudes de usuario no respondio con JSON valido. Revisa la ruta POST /api/solicitudes-usuario/create.'
+          'El backend de solicitudes de usuario no respondió con JSON válido. Revisa la ruta POST /api/solicitudes-usuario/create.'
         );
       }
       throw error;
@@ -940,7 +953,7 @@ export const useApi = () => {
   const getHotelOrderByQr = async (codigoQr) => {
     const normalizedQr = String(codigoQr ?? '').trim();
     if (!normalizedQr) {
-      throw new Error('No se recibio un codigo QR valido para consultar la orden.');
+      throw new Error('No se recibió un código QR válido para consultar la orden.');
     }
 
     const data = await getHotelResponse(
@@ -1061,7 +1074,7 @@ export const useApi = () => {
         data: [],
         unavailable: true,
         message: routeNotPublished
-          ? 'El backend aun no tiene publicada la ruta PHP para GET /api/hotel/hospedajes.'
+          ? 'El backend aún no tiene publicada la ruta PHP para GET /api/hotel/hospedajes.'
           : 'El listado hotelero todavia no esta disponible en backend.',
       };
     }

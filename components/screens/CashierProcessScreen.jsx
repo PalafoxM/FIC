@@ -59,7 +59,7 @@ const buildStepTitle = (step) => {
     case STEP_BACK:
       return "Captura reverso";
     case STEP_REVIEW:
-      return "Revision documental";
+      return "Revisión documental";
     case STEP_SIGNATURE:
       return "Firma del interesado";
     case STEP_SUMMARY:
@@ -113,7 +113,7 @@ const canRestartDocumentFlow = (status) => {
 const buildActivationRetryMessage = (status) => {
   const motivo = String(status?.motivo_rechazo ?? "").trim();
   const baseMessage =
-    "La solicitud fue rechazada. Debes volver a cargar los documentos y reenviar la solicitud para continuar con la activacion.";
+    "La solicitud fue rechazada. Debes volver a cargar los documentos y reenviar la solicitud para continuar con la activación.";
 
   return motivo ? `${baseMessage}\n\nMotivo: ${motivo}` : baseMessage;
 };
@@ -340,8 +340,8 @@ export default function CashierProcessScreen() {
 
   const confirmContinueActivation = (message) => {
     Alert.alert(
-      "Continuar activacion",
-      `${message}\n\n¿Continuar con la activacion?`,
+      "Continuar activación",
+      `${message}\n\n¿Continuar con la activación?`,
       [
         {
           text: "No",
@@ -396,7 +396,7 @@ export default function CashierProcessScreen() {
   const startDocumentCapture = async () => {
     if (!isClientActivation && !folio.trim()) {
       Alert.alert(
-        "Atencion",
+        "Atención",
         "Captura el folio del interesado para continuar.",
       );
       return;
@@ -435,7 +435,7 @@ export default function CashierProcessScreen() {
             ).toLowerCase();
             if (normalizedMessage.includes("no tienes permisos")) {
               console.warn(
-                "Cliente activacion status fallback:",
+                "Cliente activación status fallback:",
                 statusError?.message ?? statusError,
               );
             } else {
@@ -455,7 +455,7 @@ export default function CashierProcessScreen() {
 
           if (qrOperativo) {
             Alert.alert(
-              "Atencion",
+              "Atención",
               "Tu QR ya se encuentra activo y listo para operar.",
             );
             router.back();
@@ -467,7 +467,7 @@ export default function CashierProcessScreen() {
             resolveActivationStatus(activationStatus) === "pendiente"
           ) {
             Alert.alert(
-              "Atencion",
+              "Atención",
               "Tu solicitud ya está en revisión por TI. Espera su resolución para continuar.",
             );
             router.back();
@@ -476,7 +476,7 @@ export default function CashierProcessScreen() {
 
           if (activationStatus && canRestartDocumentFlow(activationStatus)) {
             Alert.alert(
-              "Atencion",
+              "Atención",
               buildActivationRetryMessage(activationStatus),
             );
           }
@@ -570,7 +570,7 @@ export default function CashierProcessScreen() {
 
           if (qrOperativo) {
             Alert.alert(
-              "Atencion",
+              "Atención",
               "Tu QR ya se encuentra activo y listo para operar.",
             );
             router.back();
@@ -658,7 +658,7 @@ export default function CashierProcessScreen() {
           });
 
           if (richSummary && canRestartDocumentFlow(richSummary)) {
-            Alert.alert("Atencion", buildActivationRetryMessage(richSummary));
+            Alert.alert("Atención", buildActivationRetryMessage(richSummary));
           }
         }
       } else {
@@ -666,13 +666,13 @@ export default function CashierProcessScreen() {
         setDeliverySummary(summary);
 
         if (summary && canRestartDocumentFlow(summary)) {
-          Alert.alert("Atencion", buildActivationRetryMessage(summary));
+          Alert.alert("Atención", buildActivationRetryMessage(summary));
         }
       }
     } catch (error) {
       console.error("Error validating cashier folio:", error);
       Alert.alert(
-        "Atencion",
+        "Atención",
         error.message || "No se pudo validar el folio del interesado.",
       );
       return;
@@ -684,8 +684,8 @@ export default function CashierProcessScreen() {
       const response = await requestPermission();
       if (!response.granted) {
         Alert.alert(
-          "Atencion",
-          "Necesitamos permiso de camara para capturar el documento oficial.",
+          "Atención",
+          "Necesitamos permiso de cámara para capturar el documento oficial.",
         );
         return;
       }
@@ -750,7 +750,7 @@ export default function CashierProcessScreen() {
       }
     } catch (error) {
       Alert.alert(
-        "Atencion",
+        "Atención",
         error.message || "No se pudo capturar la fotografia.",
       );
     } finally {
@@ -886,7 +886,7 @@ export default function CashierProcessScreen() {
           } else {
             // Error lógico: La API respondió rápido, pero la CURP no es válida
             confirmContinueActivation(
-              `CURP obtenida por OCR: ${curpObtenida}\n\nRespuesta RENAPO: ${renapoResult.respuesta || "No se encontro en la base de datos."}\n\nSi se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.`,
+              `CURP obtenida por OCR: ${curpObtenida}\n\nRespuesta RENAPO: ${renapoResult.respuesta || "No se encontró en la base de datos."}\n\nSi se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.`,
             );
           }
         } catch (renapoError) {
@@ -895,11 +895,11 @@ export default function CashierProcessScreen() {
           // 5. Manejo de Errores (Timeout o Red)
           if (renapoError.name === "AbortError") {
             confirmContinueActivation(
-              `La validacion esta tardando demasiado. Esto suele ocurrir cuando la CURP se detecto incorrectamente por OCR.\n\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
+              `La validación está tardando demasiado. Esto suele ocurrir cuando la CURP se detectó incorrectamente por OCR.\n\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
             );
           } else {
             confirmContinueActivation(
-              `No se pudo conectar con el servicio de validacion.\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
+              `No se pudo conectar con el servicio de validación.\nCURP obtenida: ${curpObtenida}\n\nPuedes repetir la foto o continuar manualmente si el documento corresponde a un menor de edad, una persona extranjera con pasaporte u otro documento oficial.`,
             );
           }
         }
@@ -913,7 +913,7 @@ export default function CashierProcessScreen() {
     } catch (error) {
       console.error("Error en flujo OCR/RENAPO:", error);
       confirmContinueActivation(
-        "Ocurrio un problema interno al procesar el documento. Puedes reintentar o continuar manualmente con la activacion.",
+        "Ocurrió un problema interno al procesar el documento. Puedes reintentar o continuar manualmente con la activación.",
       );
     } finally {
       setIsExtractingCurp(false);
@@ -923,8 +923,8 @@ export default function CashierProcessScreen() {
   const goToNextStep = () => {
     if (step === STEP_FRONT && frontPhoto?.uri) {
       Alert.alert(
-        "Continuar activacion",
-        "Intentaremos validar la CURP si el documento lo permite. Si se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.\n\n¿Continuar con la activacion?",
+        "Continuar activación",
+        "Intentaremos validar la CURP si el documento lo permite. Si se trata de un menor de edad, una persona extranjera con pasaporte u otro documento oficial, puedes continuar manualmente.\n\n¿Continuar con la activación?",
         [
           {
             text: "Validar CURP",
@@ -969,13 +969,13 @@ export default function CashierProcessScreen() {
 
   const handleSignatureEmpty = () => {
     Alert.alert(
-      "Atencion",
+      "Atención",
       "La firma está vacía. Solicita al interesado que firme antes de continuar.",
     );
   };
 
   const handleSignatureError = (error) => {
-    Alert.alert("Atencion", error?.message || "No se pudo procesar la firma.");
+    Alert.alert("Atención", error?.message || "No se pudo procesar la firma.");
   };
 
   const uploadDataUrlToSignedUrl = async (uploadConfig, dataUrl) => {
@@ -1122,7 +1122,7 @@ export default function CashierProcessScreen() {
       } catch (error) {
         console.error("Error sending client activation request:", error);
         Alert.alert(
-          "Atencion",
+          "Atención",
           error.message || "No se pudo enviar la solicitud de activación.",
         );
       } finally {
@@ -1235,7 +1235,7 @@ export default function CashierProcessScreen() {
     } catch (error) {
       console.error("Error saving cashier expediente:", error);
       Alert.alert(
-        "Atencion",
+        "Atención",
         error.message || "No se pudo guardar el expediente.",
       );
     } finally {
@@ -1263,7 +1263,7 @@ export default function CashierProcessScreen() {
       await Linking.openURL(localFileUri);
     } catch (error) {
       Alert.alert(
-        "Atencion",
+        "Atención",
         error.message || `No se pudo abrir la orden de ${orderType}.`,
       );
     }
@@ -1286,7 +1286,7 @@ export default function CashierProcessScreen() {
       });
     } catch (error) {
       Alert.alert(
-        "Atencion",
+        "Atención",
         error.message || `No se pudo compartir la orden de ${orderType}.`,
       );
     }
@@ -1408,7 +1408,7 @@ export default function CashierProcessScreen() {
           <Text style={styles.cardDescription}>
             {isClientActivation
               ? canRestartDocumentFlow(deliverySummary)
-                ? "Tu solicitud fue rechazada o regreso al inicio documental. Vuelve a cargar los documentos y reenvia la solicitud para continuar."
+                ? "Tu solicitud fue rechazada o regresó al inicio documental. Vuelve a cargar los documentos y reenvía la solicitud para continuar."
                 : "Completa tu expediente documental para que TI revise y active tu QR."
               : "El cajero solo puede iniciar el tramite si la persona ya fue dada de alta por TI, cuenta con folio y esta lista para entrega."}
           </Text>
@@ -1563,7 +1563,7 @@ export default function CashierProcessScreen() {
   const renderReviewStep = () => (
     <ScrollView contentContainerStyle={styles.reviewContent}>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Revision previa a firma</Text>
+        <Text style={styles.cardTitle}>Revisión previa a firma</Text>
         <Text style={styles.cardDescription}>
           Estas son las evidencias locales reunidas en las fases 1 y 2. El
           siguiente paso sera capturar la firma del interesado.
@@ -2064,12 +2064,12 @@ export default function CashierProcessScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>
-          {isClientActivation ? "Activacion de cliente" : "Perfil cajero"}
+          {isClientActivation ? "Activación de cliente" : "Perfil cajero"}
         </Text>
         <Text style={styles.title}>{buildStepTitle(step)}</Text>
         <Text style={styles.subtitle}>
           {isClientActivation
-            ? "Completa tu expediente documental para solicitar la activacion de tu QR."
+            ? "Completa tu expediente documental para solicitar la activación de tu QR."
             : "Completa el expediente documental para la entrega segura del QR."}
         </Text>
       </View>

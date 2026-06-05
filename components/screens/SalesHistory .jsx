@@ -32,7 +32,7 @@ const SalesHistory = () => {
       setSales(salesData);
       setVisibleCount(10);
     } catch (error) {
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudieron cargar las ventas');
+      Alert.alert('Atención', error.message || 'No se pudieron cargar las ventas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -118,7 +118,7 @@ const SalesHistory = () => {
         minute: '2-digit',
       });
     } catch {
-      return 'Fecha invalida';
+      return 'Fecha inválida';
     }
   };
 
@@ -200,7 +200,7 @@ const SalesHistory = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No hay ventas registradas</Text>
-            <Text style={styles.emptySubtext}>Las ventas que realices apareceran aqui.</Text>
+            <Text style={styles.emptySubtext}>Las ventas que realices aparecerán aquí.</Text>
           </View>
         }
       />

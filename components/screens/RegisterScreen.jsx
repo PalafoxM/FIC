@@ -30,12 +30,12 @@ export default function RegisterScreen() {
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Atenci\u00f3n', 'Las contrasenas no coinciden');
+      Alert.alert('Atención', 'Las contraseñas no coinciden');
       return;
     }
 
     if (password.length < 12) {
-      Alert.alert('Atenci\u00f3n', 'La contrasena debe tener al menos 12 caracteres');
+      Alert.alert('Atención', 'La contraseña debe tener al menos 12 caracteres');
       return;
     }
 
@@ -82,7 +82,7 @@ export default function RegisterScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Contrasena"
+          placeholder="Contraseña"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -91,7 +91,7 @@ export default function RegisterScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Confirmar contrasena"
+          placeholder="Confirmar contraseña"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry

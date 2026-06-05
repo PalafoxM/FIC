@@ -68,7 +68,7 @@ const resolveHospedajeRecordId = (record) =>
     0
   ) || null;
 
-const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Si' : 'No');
+const formatBooleanStatus = (value) => (Number(value ?? 0) === 1 || value === true ? 'Sí' : 'No');
 const formatCurrency = (value) => `$${Number(value ?? 0).toFixed(2)}`;
 
 const resolveResponsibleReceptionLabel = (record) => {
@@ -246,8 +246,8 @@ export default function HotelReceptionScreen() {
   if (!hasPermission(user?.id_perfil, 'hotelReception')) {
     return (
       <AccessDenied
-        title="Operacion restringida"
-        message="Solo recepcion puede consultar ordenes de hospedaje y registrar check in."
+        title="Operación restringida"
+        message="Solo recepción puede consultar órdenes de hospedaje y registrar check in."
       />
     );
   }
@@ -274,7 +274,7 @@ export default function HotelReceptionScreen() {
       setObservacionesCheckIn('');
       setObservacionesCheckOut('');
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo consultar la orden del huesped.');
+      Alert.alert('Atención', error.message || 'No se pudo consultar la orden del huésped.');
       resetScanner();
     } finally {
       setLoadingOrder(false);
@@ -288,7 +288,7 @@ export default function HotelReceptionScreen() {
 
     const qrCode = parseScannedGuestQr(data);
     if (!qrCode) {
-      Alert.alert('Atencion', 'No se pudo leer un codigo QR valido.');
+      Alert.alert('Atención', 'No se pudo leer un código QR válido.');
       return;
     }
 
@@ -300,12 +300,12 @@ export default function HotelReceptionScreen() {
   const preparePdfAsset = async ({ includeBase64 = false } = {}) => {
     const resourceUrl = String(orderSummary?.orden_hospedaje_pdf_url ?? '').trim();
     if (!resourceUrl) {
-      throw new Error('No hay una orden de hospedaje disponible para este huesped.');
+      throw new Error('No hay una orden de hospedaje disponible para este huésped.');
     }
 
     const sessionToken = await getAccessToken();
     if (!sessionToken) {
-      throw new Error('No hay token de autenticacion para consultar la orden de hospedaje.');
+      throw new Error('No hay token de autenticación para consultar la orden de hospedaje.');
     }
 
     const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
@@ -369,7 +369,7 @@ export default function HotelReceptionScreen() {
       setPdfViewerHtml(buildPdfViewerHtml(pdfBase64));
       setPdfViewerVisible(true);
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo abrir la orden de hospedaje.');
+      Alert.alert('Atención', error.message || 'No se pudo abrir la orden de hospedaje.');
     } finally {
       setProcessingPdf(false);
     }
@@ -385,7 +385,7 @@ export default function HotelReceptionScreen() {
         url: localUri,
       });
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo compartir la orden de hospedaje.');
+      Alert.alert('Atención', error.message || 'No se pudo compartir la orden de hospedaje.');
     } finally {
       setProcessingPdf(false);
     }
@@ -393,7 +393,7 @@ export default function HotelReceptionScreen() {
 
   const handleCheckIn = async () => {
     if (!hospedajeRecordId) {
-      Alert.alert('Atencion', 'No se encontro el identificador de hospedaje para registrar el check in.');
+      Alert.alert('Atención', 'No se encontró el identificador de hospedaje para registrar el check in.');
       return;
     }
 
@@ -410,9 +410,9 @@ export default function HotelReceptionScreen() {
         puede_check_in: false,
       }));
 
-      Alert.alert('Operacion exitosa', response?.message || 'Check in registrado correctamente.');
+      Alert.alert('Operación exitosa', response?.message || 'Check in registrado correctamente.');
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo registrar el check in.');
+      Alert.alert('Atención', error.message || 'No se pudo registrar el check in.');
     } finally {
       setSavingCheckIn(false);
     }
@@ -420,7 +420,7 @@ export default function HotelReceptionScreen() {
 
   const handleCheckOut = async () => {
     if (!hospedajeRecordId) {
-      Alert.alert('Atencion', 'No se encontro el identificador de hospedaje para registrar el check out.');
+      Alert.alert('Atención', 'No se encontró el identificador de hospedaje para registrar el check out.');
       return;
     }
 
@@ -438,9 +438,9 @@ export default function HotelReceptionScreen() {
         puede_hacer_check_out: false,
       }));
 
-      Alert.alert('Operacion exitosa', response?.message || 'Check out registrado correctamente.');
+      Alert.alert('Operación exitosa', response?.message || 'Check out registrado correctamente.');
     } catch (error) {
-      Alert.alert('Atencion', error.message || 'No se pudo registrar el check out.');
+      Alert.alert('Atención', error.message || 'No se pudo registrar el check out.');
     } finally {
       setSavingCheckOut(false);
     }
@@ -449,7 +449,7 @@ export default function HotelReceptionScreen() {
   const handleStartScan = async () => {
     const granted = await ensureCameraPermission();
     if (!granted) {
-      Alert.alert('Atencion', 'Necesitamos permiso de camara para escanear el QR del huesped.');
+      Alert.alert('Atención', 'Necesitamos permiso de cámara para escanear el QR del huésped.');
       return;
     }
 
@@ -462,9 +462,9 @@ export default function HotelReceptionScreen() {
   if (!permission?.granted && !orderSummary) {
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionTitle}>Operacion hotelera</Text>
+        <Text style={styles.permissionTitle}>Operación hotelera</Text>
         <Text style={styles.permissionText}>
-          Concede permiso de camara para leer el QR del huesped y consultar su orden de hospedaje.
+          Concede permiso de cámara para leer el QR del huésped y consultar su orden de hospedaje.
         </Text>
         <TouchableOpacity style={styles.primaryButton} onPress={handleStartScan}>
           <Text style={styles.primaryButtonText}>Conceder permiso</Text>
@@ -530,7 +530,7 @@ export default function HotelReceptionScreen() {
 
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.scanFrame}>
-              <Text style={styles.instructions}>Escanea el QR del huesped para consultar su hospedaje</Text>
+              <Text style={styles.instructions}>Escanea el QR del huésped para consultar su hospedaje</Text>
             </View>
 
             {loadingOrder ? (
@@ -551,13 +551,13 @@ export default function HotelReceptionScreen() {
           contentContainerStyle={styles.summaryContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.headerTitle}>Resumen del huesped</Text>
+          <Text style={styles.headerTitle}>Resumen del huésped</Text>
           <Text style={styles.headerSubtitle}>
             Revisa el hospedaje, distingue el total asignado del monto devengado y registra check in o check out cuando corresponda.
           </Text>
 
           <View style={styles.card}>
-            <Text style={styles.label}>Huesped</Text>
+            <Text style={styles.label}>Huésped</Text>
             <Text style={styles.value}>{orderSummary?.nombre_completo || 'Sin nombre disponible'}</Text>
 
             <Text style={styles.label}>Usuario</Text>
@@ -571,12 +571,12 @@ export default function HotelReceptionScreen() {
 
             {responsibleReceptionLabel ? (
               <>
-                <Text style={styles.label}>Recepcion responsable</Text>
+                <Text style={styles.label}>Recepción responsable</Text>
                 <Text style={styles.value}>{responsibleReceptionLabel}</Text>
               </>
             ) : null}
 
-            <Text style={styles.label}>Tipo de habitacion</Text>
+            <Text style={styles.label}>Tipo de habitación</Text>
             <Text style={styles.value}>{orderSummary?.tipo_habitacion || 'Sin tipo disponible'}</Text>
 
             <View style={styles.inlineRow}>

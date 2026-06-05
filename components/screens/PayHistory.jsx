@@ -28,13 +28,16 @@ const PayHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
+  const isCashier = Number(user?.id_perfil ?? 0) === ROLE_IDS.CASHIER;
   const canViewConsumption =
     [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0)) ||
-    isConsumerProfile(user?.id_perfil);
+    isConsumerProfile(user?.id_perfil) ||
+    isCashier;
   const canCreateReport =
     isConsumerProfile(user?.id_perfil) ||
+    isCashier ||
     Number(user?.id_perfil ?? 0) === ROLE_IDS.MANAGER;
-  const isClient = isConsumerProfile(user?.id_perfil);
+  const isClient = isConsumerProfile(user?.id_perfil) || isCashier;
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
   const reportOptions = [
@@ -53,7 +56,7 @@ const PayHistory = () => {
       setSales(salesData);
       setVisibleCount(10);
     } catch (error) {
-      Alert.alert('Atenci\u00f3n', error.message || 'No se pudieron cargar los consumos');
+      Alert.alert('Atención', error.message || 'No se pudieron cargar los consumos');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -130,7 +133,7 @@ const PayHistory = () => {
         minute: '2-digit',
       });
     } catch {
-      return 'Fecha invalida';
+      return 'Fecha inválida';
     }
   };
 
@@ -142,7 +145,7 @@ const PayHistory = () => {
         minute: '2-digit',
       });
     } catch {
-      return 'Hora invalida';
+      return 'Hora inválida';
     }
   };
 
@@ -184,7 +187,7 @@ const PayHistory = () => {
 
       Alert.alert(
         'Reporte no disponible',
-        'Este consumo pertenece a otro usuario segun la informacion local. Cierra sesion e inicia de nuevo para sincronizar tus consumos.'
+        'Este consumo pertenece a otro usuario según la información local. Cierra sesión e inicia de nuevo para sincronizar tus consumos.'
       );
       return;
     }
@@ -225,9 +228,9 @@ const PayHistory = () => {
       );
     } catch (error) {
       Alert.alert(
-        'Atenci\u00f3n',
+        'Atención',
         Number(error?.status ?? 0) === 403
-          ? 'Tu perfil no tiene permisos para crear reportes.'
+          ? error.message || 'No tienes permisos para crear reportes.'
           : error.message || 'No se pudo enviar el reporte.'
       );
     }
@@ -397,7 +400,7 @@ const PayHistory = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No hay consumos registrados</Text>
-            <Text style={styles.emptySubtext}>Tus operaciones apareceran aqui.</Text>
+            <Text style={styles.emptySubtext}>Tus operaciones aparecerán aquí.</Text>
           </View>
         }
       />

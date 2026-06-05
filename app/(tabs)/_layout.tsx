@@ -113,7 +113,7 @@ export default function TabLayout() {
           title: '',
           href: '/logout',
           tabBarShowLabel: false,
-          tabBarAccessibilityLabel: 'Cerrar sesion',
+          tabBarAccessibilityLabel: 'Cerrar sesión',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="log-out-outline" size={size} color={color} />
           ),

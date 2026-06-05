@@ -58,8 +58,8 @@ export const INSTITUTIONAL_PROFILE_ESTABLISHMENTS = {
 const ROLE_CONFIG = {
   [ROLE_IDS.ADMIN]: {
     label: 'Administrador del sistema (TI)',
-    homeTitle: 'Centro de administracion',
-    homeSubtitle: 'Acceso completo a configuracion, supervision y consulta del sistema.',
+    homeTitle: 'Centro de administración',
+    homeSubtitle: 'Acceso completo a configuración, supervisión y consulta del sistema.',
     permissions: {
       dashboard: true,
       manageUsers: true,
@@ -174,7 +174,7 @@ const ROLE_CONFIG = {
   [ROLE_IDS.MANAGER]: {
     label: 'Personal administrativo SECTURI (gestor)',
     homeTitle: 'Centro de gestion',
-    homeSubtitle: 'Consulta informacion operativa y supervisa la ejecucion administrativa.',
+    homeSubtitle: 'Consulta información operativa y supervisa la ejecución administrativa.',
     permissions: {
       dashboard: true,
       manageUsers: true,
@@ -201,14 +201,14 @@ const ROLE_CONFIG = {
       scanner: false,
       salesHistory: false,
       clientQr: false,
-      payHistory: false,
+      payHistory: true,
       cashierProcess: true,
     },
   },
   [ROLE_IDS.RECEPTION]: {
     label: 'Recepcion',
-    homeTitle: 'Operacion hotelera',
-    homeSubtitle: 'Escanea QR de huespedes, consulta ordenes de hospedaje y registra check in.',
+    homeTitle: 'Operación hotelera',
+    homeSubtitle: 'Escanea QR de huéspedes, consulta órdenes de hospedaje y registra check in.',
     permissions: {
       dashboard: false,
       manageUsers: false,
@@ -228,7 +228,7 @@ const ROLE_CONFIG = {
 const DEFAULT_ROLE = {
   label: 'Perfil sin clasificar',
   homeTitle: 'Centro de acceso',
-  homeSubtitle: 'Tu perfil aun no tiene una configuracion de permisos definida.',
+  homeSubtitle: 'Tu perfil aún no tiene una configuración de permisos definida.',
   permissions: {
     dashboard: false,
     manageUsers: false,

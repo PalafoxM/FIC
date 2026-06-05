@@ -17,7 +17,7 @@ export default function LogoutScreen() {
       isPromptOpenRef.current = true;
 
       const timeoutId = setTimeout(() => {
-        Alert.alert('Cerrar sesion', 'Estas seguro de que deseas salir?', [
+        Alert.alert('Cerrar sesión', '¿Estás seguro de que deseas salir?', [
           {
             text: 'Cancelar',
             style: 'cancel',
@@ -51,7 +51,7 @@ export default function LogoutScreen() {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#263B80" />
-      <Text style={styles.text}>Preparando cierre de sesion...</Text>
+      <Text style={styles.text}>Preparando cierre de sesión...</Text>
     </View>
   );
 }

@@ -291,8 +291,8 @@ export default function ProfileScreen() {
 
       if (!qrCode) {
         Alert.alert(
-          "Atenci\u00f3n",
-          "No tienes un codigo QR vigente para mostrar.",
+          "Atención",
+          "No tienes un código QR vigente para mostrar.",
         );
         return;
       }
@@ -320,7 +320,7 @@ export default function ProfileScreen() {
       setQrVisible(true);
     } catch (error) {
       Alert.alert(
-        "Atenci\u00f3n",
+        "Atención",
         error.message || "No se pudo obtener el código QR.",
       );
     } finally {
@@ -390,7 +390,7 @@ export default function ProfileScreen() {
   const handleCreateReport = () => {
     Alert.alert(
       "Crear reporte",
-      "Esta accion se vinculara con la vista de TI y gestor en la siguiente etapa.",
+      "Esta acción se vinculará con la vista de TI y gestor en la siguiente etapa.",
     );
   };
 
@@ -675,7 +675,7 @@ export default function ProfileScreen() {
               disabled={loadingQr}
             >
               <Text style={styles.profileActionButtonText}>
-                {loadingQr ? "Consultando QR vigente..." : "Generar codigo QR"}
+                {loadingQr ? "Consultando QR vigente..." : "Generar código QR"}
               </Text>
             </TouchableOpacity>
 
@@ -776,8 +776,8 @@ export default function ProfileScreen() {
                   </Text>
                   <Text style={styles.qrStatusText}>
                     {Number(ownQrStatus?.qr_activo ?? 0) === 1
-                      ? "Tu codigo ya puede utilizarse."
-                      : "Tu codigo existe pero aun no esta activado para operar."}
+                      ? "Tu código ya puede utilizarse."
+                      : "Tu código existe pero aún no está activado para operar."}
                   </Text>
                 </View>
 

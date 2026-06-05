@@ -42,7 +42,7 @@ const resolveActivationStatus = (status) => {
 const buildActivationRetryMessage = (status) => {
   const motivo = String(status?.motivo_rechazo ?? "").trim();
   const baseMessage =
-    "Tu solicitud fue rechazada. Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activacion.";
+    "Tu solicitud fue rechazada. Debes volver a cargar tus documentos y reenviar la solicitud para continuar con la activación.";
 
   return motivo ? `${baseMessage}\n\nMotivo: ${motivo}` : baseMessage;
 };
@@ -119,14 +119,14 @@ const ClientQRGenerator = () => {
       }
 
       if (resolvedStatus === "pendiente") {
-        return "Solicitud en revision";
+        return "Solicitud en revisión";
       }
 
       if (resolvedStatus === "rechazada") {
         return "Vuelve a cargar documentos";
       }
 
-      return "Comienza tu activacion";
+      return "Comienza tu activación";
     },
     [statusResolved],
   );
@@ -313,7 +313,7 @@ const ClientQRGenerator = () => {
       {resolveActivationStatus(qrStatus) === "pendiente" ? (
         <View style={styles.statusNote}>
           <Text style={styles.statusNoteText}>
-            Tu expediente ya fue enviado y esta en revision por TI.
+            Tu expediente ya fue enviado y está en revisión por TI.
           </Text>
         </View>
       ) : null}
@@ -331,7 +331,7 @@ const ClientQRGenerator = () => {
           <Text style={styles.rejectionTitle}>Solicitud rechazada</Text>
           <Text style={styles.rejectionText}>
             Debes volver a cargar tus documentos y reenviar la solicitud para
-            continuar con la activacion.
+            continuar con la activación.
           </Text>
         </View>
       ) : null}
@@ -360,7 +360,7 @@ const ClientQRGenerator = () => {
                   </Text>
                   <Text style={styles.userEmail}>{user?.correo}</Text>
                   <Text style={styles.infoText}>
-                    Muestra este codigo al vendedor
+                    Muestra este código al vendedor
                   </Text>
                 </View>
 
@@ -396,7 +396,7 @@ const ClientQRGenerator = () => {
                         1. Muestra este QR al vendedor
                       </Text>
                       <Text style={styles.instructionText}>
-                        2. El vendedor escaneara el codigo
+                        2. El vendedor escaneará el código
                       </Text>
                       <Text style={styles.instructionText}>
                         3. Confirma el pago en tu dispositivo
@@ -410,8 +410,8 @@ const ClientQRGenerator = () => {
                           : "Tu QR no esta operativo para pagos."}
                       </Text>
                       <Text style={styles.instructionText}>
-                        Completa tu activacion documental para solicitar
-                        revision a TI.
+                        Completa tu activación documental para solicitar
+                        revisión a TI.
                       </Text>
                     </>
                   )}

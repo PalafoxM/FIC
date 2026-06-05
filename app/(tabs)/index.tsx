@@ -39,7 +39,7 @@ const ADMIN_FILTERS = [
   { id: ROLE_IDS.CLIENT, label: "Cliente" },
   { id: ROLE_IDS.MANAGER, label: "Gestor" },
   { id: ROLE_IDS.BUSINESS_MANAGER, label: "Gerente" },
-  { id: ROLE_IDS.RECEPTION, label: "Recepcion" },
+  { id: ROLE_IDS.RECEPTION, label: "Recepción" },
   { id: ROLE_IDS.SECUL, label: "SECUL" },
   { id: ROLE_IDS.FIC, label: "FIC" },
   { id: ROLE_IDS.UG, label: "UG" },
@@ -73,7 +73,7 @@ const buildAdminOverviewCards = () => [
   {
     key: "solicitudes",
     title: "Solicitudes",
-    description: "Revisa solicitudes de activacion QR pendientes de atencion.",
+    description: "Revisa solicitudes de activación QR pendientes de atención.",
   },
   {
     key: "reportes",
@@ -93,7 +93,7 @@ const buildAdminCards = () => [
     key: "reports",
     title: "Reportes y pagos",
     description:
-      "Consulta reportes de pagos, pagos registrados y solicitudes de activacion QR.",
+      "Consulta reportes de pagos, pagos registrados y solicitudes de activación QR.",
   },
 ];
 
@@ -957,7 +957,7 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroEyebrow}>Recepcion</Text>
+          <Text style={styles.heroEyebrow}>Recepción</Text>
           <Text style={styles.heroTitle}>{roleConfig.homeTitle}</Text>
           <Text style={styles.heroDescription}>{roleConfig.homeSubtitle}</Text>
 
@@ -966,7 +966,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/hotel-operation")}
           >
             <Text style={styles.heroPrimaryActionText}>
-              Abrir operacion hotelera
+              Abrir operación hotelera
             </Text>
           </TouchableOpacity>
         </View>
@@ -1022,7 +1022,7 @@ export default function HomeScreen() {
             >
               <Text style={styles.cardTitle}>Mi perfil</Text>
               <Text style={styles.cardDescription}>
-                Revisa tu saldo disponible, QR, datos basicos y el historial de
+                Revisa tu saldo disponible, QR, datos básicos y el historial de
                 consumos propios.
               </Text>
             </TouchableOpacity>
@@ -1043,7 +1043,7 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               {user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER
-                ? "Operacion comercial"
+                ? "Operación comercial"
                 : "Acciones de proveedor"}
             </Text>
 
@@ -1312,7 +1312,7 @@ export default function HomeScreen() {
                       {reportsEndpointUnavailable ? (
                         <View style={styles.emptyBox}>
                           <Text style={styles.emptyBoxText}>
-                            El endpoint de reportes aun no esta disponible en
+                            El endpoint de reportes aún no está disponible en
                             backend.
                           </Text>
                         </View>

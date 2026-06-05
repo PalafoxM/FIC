@@ -162,7 +162,7 @@ export default function NotificationsScreen() {
           ...notification,
           parsedData: notificationData,
           resolvedStatus,
-          title: notification.title || "Operacion exitosa",
+          title: notification.title || "Operación exitosa",
           body:
             notification.body ||
             (totalAmount > 0
@@ -176,7 +176,7 @@ export default function NotificationsScreen() {
           ...notification,
           parsedData: notificationData,
           resolvedStatus,
-          title: notification.title || "Atencion",
+          title: notification.title || "Atención",
           body:
             notification.body ||
             (totalAmount > 0
