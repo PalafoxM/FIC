@@ -1,4 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  REPORTES_FEATURE_PAUSED,
+  REPORTES_FEATURE_PAUSED_MESSAGE,
+} from '../constants/featureFlags';
 import { ENV } from '../constants/env';
 
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
@@ -729,6 +733,13 @@ export const useApi = () => {
   };
 
   const createPaymentReport = async (reportData) => {
+    if (REPORTES_FEATURE_PAUSED) {
+      const pausedError = new Error(REPORTES_FEATURE_PAUSED_MESSAGE);
+      pausedError.status = 503;
+      pausedError.code = 'REPORTES_TEMPORALMENTE_INHABILITADOS';
+      throw pausedError;
+    }
+
     let payload = null;
     let authDebug = null;
     try {
@@ -838,6 +849,13 @@ export const useApi = () => {
   };
 
   const getPaymentReports = async (filters = {}) => {
+    if (REPORTES_FEATURE_PAUSED) {
+      const pausedError = new Error(REPORTES_FEATURE_PAUSED_MESSAGE);
+      pausedError.status = 503;
+      pausedError.code = 'REPORTES_TEMPORALMENTE_INHABILITADOS';
+      throw pausedError;
+    }
+
     try {
       const params = new URLSearchParams();
 
@@ -872,6 +890,13 @@ export const useApi = () => {
   };
 
   const updatePaymentReportStatus = async (idReporte, estatus) => {
+    if (REPORTES_FEATURE_PAUSED) {
+      const pausedError = new Error(REPORTES_FEATURE_PAUSED_MESSAGE);
+      pausedError.status = 503;
+      pausedError.code = 'REPORTES_TEMPORALMENTE_INHABILITADOS';
+      throw pausedError;
+    }
+
     try {
       const data = await getReportsResponse(
         '/update-status',

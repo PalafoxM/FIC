@@ -20,6 +20,7 @@ import QRCode from "react-native-qrcode-svg";
 import InstitutionalProfileScreen from "../../components/screens/InstitutionalProfileScreen";
 import PayHistory from "../../components/screens/PayHistory";
 import SalesHistory from "../../components/screens/SalesHistory ";
+import { REPORTES_FEATURE_PAUSED } from "../../constants/featureFlags";
 import {
   getRoleLabel,
   hasQrWalletProfile,
@@ -738,7 +739,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {isClient && (
+        {isClient && !REPORTES_FEATURE_PAUSED && (
           <TouchableOpacity
             style={styles.reportButton}
             onPress={handleCreateReport}

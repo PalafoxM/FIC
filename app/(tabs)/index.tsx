@@ -22,6 +22,10 @@ import {
 } from "react-native";
 import ClientQRGenerator from "../../components/ClientQRGenerator";
 import {
+  REPORTES_FEATURE_PAUSED,
+  REPORTES_FEATURE_PAUSED_MESSAGE,
+} from "../../constants/featureFlags";
+import {
   getRoleConfig,
   getRoleLabel,
   isConsumerProfile,
@@ -237,6 +241,7 @@ export default function HomeScreen() {
   const [refreshingHome, setRefreshingHome] = useState(false);
 
   const roleConfig = getRoleConfig(user?.id_perfil);
+  const reportsFeaturePaused = REPORTES_FEATURE_PAUSED;
   const isProvider =
     user?.id_perfil === ROLE_IDS.PROVIDER ||
     user?.id_perfil === ROLE_IDS.BUSINESS_MANAGER;
@@ -490,6 +495,15 @@ export default function HomeScreen() {
   }, [getTable, isAdminOrManager]);
 
   const loadReportsView = useCallback(async () => {
+    if (reportsFeaturePaused) {
+      setReportsView([]);
+      setLoadingReports(false);
+      setReportsEndpointUnavailable(false);
+      reportsEndpointUnavailableRef.current = false;
+      reportsRetryAtRef.current = 0;
+      return;
+    }
+
     if (!isAdmin) {
       return;
     }
@@ -572,7 +586,7 @@ export default function HomeScreen() {
     } finally {
       setLoadingReports(false);
     }
-  }, [getPaymentReports, getTable, isAdmin]);
+  }, [getPaymentReports, getTable, isAdmin, reportsFeaturePaused]);
 
   const loadActivationRequestsView = useCallback(async () => {
     if (!isAdmin) {
@@ -858,6 +872,11 @@ export default function HomeScreen() {
     clientBalance !== null && clientBalance !== undefined;
 
   const handleReportStatusChange = async (reportId, nextStatus) => {
+    if (reportsFeaturePaused) {
+      Alert.alert("Atención", REPORTES_FEATURE_PAUSED_MESSAGE);
+      return;
+    }
+
     try {
       await updatePaymentReportStatus(reportId, nextStatus);
       await loadReportsView();
@@ -868,7 +887,7 @@ export default function HomeScreen() {
     } catch (error) {
       Alert.alert(
         "Atenci\u00f3n",
-        Number(error?.status ?? 0) === 403
+        Number(error?.status ?? 0) === 403 || Number(error?.status ?? 0) === 503
           ? "Solo el perfil TI puede cambiar el estatus de los reportes."
           : error.message || "No se pudo actualizar el reporte.",
       );
@@ -1297,6 +1316,8 @@ export default function HomeScreen() {
               )}
             </View>
 
+            {!reportsFeaturePaused ? (
+              <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Pagos y reportes</Text>
               {buildAdminCards().map((card) => (
@@ -1741,6 +1762,8 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
+              </>
+            ) : null}
           </>
         )}
       </ScrollView>

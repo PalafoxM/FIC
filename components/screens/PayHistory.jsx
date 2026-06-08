@@ -13,6 +13,10 @@ import {
   View,
 } from 'react-native';
 import { isConsumerProfile, ROLE_IDS } from '../../constants/roles';
+import {
+  REPORTES_FEATURE_PAUSED,
+  REPORTES_FEATURE_PAUSED_MESSAGE,
+} from '../../constants/featureFlags';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../hooks/useAuth';
 import AccessDenied from '../AccessDenied';
@@ -34,9 +38,10 @@ const PayHistory = () => {
     isConsumerProfile(user?.id_perfil) ||
     isCashier;
   const canCreateReport =
-    isConsumerProfile(user?.id_perfil) ||
-    isCashier ||
-    Number(user?.id_perfil ?? 0) === ROLE_IDS.MANAGER;
+    !REPORTES_FEATURE_PAUSED &&
+    (isConsumerProfile(user?.id_perfil) ||
+      isCashier ||
+      Number(user?.id_perfil ?? 0) === ROLE_IDS.MANAGER);
   const isClient = isConsumerProfile(user?.id_perfil) || isCashier;
   const showBackButton = [ROLE_IDS.ADMIN, ROLE_IDS.MANAGER].includes(Number(user?.id_perfil ?? 0));
 
@@ -160,6 +165,11 @@ const PayHistory = () => {
   };
 
   const handleSelectReportType = async (reportType) => {
+    if (REPORTES_FEATURE_PAUSED) {
+      Alert.alert('Atención', REPORTES_FEATURE_PAUSED_MESSAGE);
+      return;
+    }
+
     if (!selectedSale) {
       return;
     }
