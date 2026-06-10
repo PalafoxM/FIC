@@ -860,7 +860,7 @@ export default function CashierProcessScreen() {
         try {
           const renapoParams = new URLSearchParams();
           renapoParams.append("curp", curpObtenida);
-
+          console.log(`${ENV.apiCurpUrl}/api-curp`);
           // 3. Petición a la API de RENAPO
           const renapoResponse = await fetch(`${ENV.apiCurpUrl}/api-curp`, {
             method: "POST",
@@ -871,8 +871,8 @@ export default function CashierProcessScreen() {
             body: renapoParams.toString(),
             signal: controller.signal,
           });
-
-          clearTimeout(timeoutId); // Limpiamos el timeout si respondió a tiempo
+          (console.log("Enviando CURP a RENAPO:", curpObtenida),
+            clearTimeout(timeoutId)); // Limpiamos el timeout si respondió a tiempo
           const renapoResult = await renapoResponse.json();
 
           // 4. Evaluar la respuesta de RENAPO
@@ -1900,9 +1900,9 @@ export default function CashierProcessScreen() {
           </>
         ) : null}
 
-        {(Number(deliverySummary?.tiene_alimentos ?? 0) === 1 ||
-          deliverySummary?.tiene_alimentos === true ||
-          resolveFoodOrderUrl(deliverySummary)) ? (
+        {Number(deliverySummary?.tiene_alimentos ?? 0) === 1 ||
+        deliverySummary?.tiene_alimentos === true ||
+        resolveFoodOrderUrl(deliverySummary) ? (
           <>
             <Text style={styles.summarySectionTitle}>Alimentos</Text>
 
