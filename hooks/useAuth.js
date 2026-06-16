@@ -6,6 +6,10 @@ import { ENV } from '../constants/env';
 const API_BASE_URL = ENV.apiBaseUrl.replace(/\/+$/, '');
 const AUTH_BASE_URL = API_BASE_URL;
 const PHP_BASE_URL = ENV.phpBaseUrl.replace(/\/+$/, '');
+const ROOT_BASE_URL = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL;
+const CLIENT_ACTIVATION_BASE_URL = ROOT_BASE_URL || PHP_BASE_URL.replace(/\/index\.php$/, '');
 const LEGACY_AUTH_BASE_URL = API_BASE_URL.endsWith('/api')
   ? `${API_BASE_URL.slice(0, -4)}/index.php/Login`
   : `${API_BASE_URL}/index.php/Login`;
@@ -454,7 +458,7 @@ export function AuthProvider({ children }) {
 
   const getClientActivationStatusResponse = useCallback(async (userId, token) =>
     await getApiJsonResponse({
-      url: `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
+      url: `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${encodeURIComponent(String(userId ?? '').trim())}`,
       method: 'GET',
       token,
       rawLabel: 'clienteActivacionQrStatus',
@@ -462,7 +466,7 @@ export function AuthProvider({ children }) {
 
   const getClientRequestActivationResponse = useCallback(async (payload, token) =>
     await getApiJsonResponse({
-      url: `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr`,
+      url: `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/solicitar-activacion-qr`,
       token,
       body: payload,
       rawLabel: 'clienteSolicitarActivacionQr',
@@ -470,7 +474,7 @@ export function AuthProvider({ children }) {
 
   const getClientPresignActivationResponse = useCallback(async (payload, token) =>
     await getApiJsonResponse({
-      url: `${PHP_BASE_URL}/api/cliente/presign-activacion-qr`,
+      url: `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/presign-activacion-qr`,
       token,
       body: payload,
       rawLabel: 'clientePresignActivacionQr',
@@ -478,7 +482,7 @@ export function AuthProvider({ children }) {
 
   const getClientRequestActivationS3Response = useCallback(async (payload, token) =>
     await getApiJsonResponse({
-      url: `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`,
+      url: `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`,
       token,
       body: payload,
       rawLabel: 'clienteSolicitarActivacionQrS3',
@@ -973,7 +977,7 @@ export function AuthProvider({ children }) {
       throw new Error('No se pudo identificar al cliente.');
     }
 
-    console.log('Cliente activacion status URL:', `${PHP_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${normalizedClientId}`);
+    console.log('Cliente activacion status URL:', `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/activacion-qr-status?id_usuario=${normalizedClientId}`);
     const { response, data } = await getClientActivationStatusResponse(normalizedClientId, token);
     console.log('Cliente activacion status:', response.status);
     console.log('Cliente activacion respuesta:', data?.respuesta ?? data?.message ?? data);
@@ -1005,7 +1009,7 @@ export function AuthProvider({ children }) {
       firma_base64: firma_base64 ?? '',
     };
 
-    console.log('Solicitar activacion QR URL:', `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr`);
+    console.log('Solicitar activacion QR URL:', `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/solicitar-activacion-qr`);
     console.log('Solicitar activacion payload:', {
       id_usuario: payload.id_usuario,
       folio: payload.folio,
@@ -1040,7 +1044,7 @@ export function AuthProvider({ children }) {
       archivos: Array.isArray(archivos) ? archivos : [],
     };
 
-    console.log('Presign activacion cliente URL:', `${PHP_BASE_URL}/api/cliente/presign-activacion-qr`);
+    console.log('Presign activacion cliente URL:', `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/presign-activacion-qr`);
     console.log('Presign activacion cliente payload:', payload);
     const { response, data, rawResponse } = await getClientPresignActivationResponse(payload, token);
     console.log('Presign activacion cliente status:', response.status);
@@ -1081,7 +1085,7 @@ export function AuthProvider({ children }) {
       firma_key: String(firma_key ?? '').trim(),
     };
 
-    console.log('Solicitar activacion QR S3 URL:', `${PHP_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`);
+    console.log('Solicitar activacion QR S3 URL:', `${CLIENT_ACTIVATION_BASE_URL}/api/cliente/solicitar-activacion-qr-s3`);
     console.log('Solicitar activacion QR S3 payload:', payload);
     const { response, data } = await getClientRequestActivationS3Response(payload, token);
     console.log('Solicitar activacion QR S3 status:', response.status);
@@ -1651,4 +1655,3 @@ export const useAuth = () => {
 
   return context;
 };
-
